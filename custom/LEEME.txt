@@ -1,0 +1,4 @@
+Coloca aqui tus torneos .json exportados del ORGANIZADOR
+y lista sus nombres en index.json, por ejemplo:
+["liga-de-amigos.json","copa-verano.json"]
+El juego los mostrara automaticamente en CAMPEONATOS > CUSTOM.

@@ -28,6 +28,13 @@
    "tag": "Emperador de la Escarcha",
    "arch": "grappler",
    "wig": "spikehalo"
+  },
+  {
+   "file": "jamie-fraser.json",
+   "name": "Jamie Fraser",
+   "tag": "Lord del Cerro Fraser",
+   "arch": "grappler",
+   "wig": "spikehalo"
   }
  ]
 }

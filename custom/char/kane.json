@@ -1,0 +1,39 @@
+{
+ "name": "KANE",
+ "tag": "El Príncipe Sin Trono",
+ "arch": "bruiser",
+ "stage": "gym",
+ "style": "lego",
+ "outfit": "camiseta",
+ "wigPreset": "stormspike",
+ "face": "normal",
+ "col": {
+  "skin": 15124904,
+  "hair": 1315866,
+  "hair2": 10471679,
+  "shirt": 2112143,
+  "pants": 16777215,
+  "foot": 1314828,
+  "accent": 5213183,
+  "glow": 11454719,
+  "hud": "#4f8bff",
+  "iris": 2767470
+ },
+ "phys": {
+  "hp": 104,
+  "speed": 4.2,
+  "dmg": 1.15,
+  "jump": 18,
+  "scale": 1.0,
+  "tall": 1.58,
+  "wide": 1.28
+ },
+ "story": [
+  "Última sangre de una dinastía que ya nadie recuerda.",
+  "Entrena el doble que cualquiera y lo niega el triple.",
+  "Odia perder más de lo que le gusta ganar.",
+  "Dice que el orgullo es una técnica. Puede que tenga razón."
+ ],
+ "quote": "«Un noble no presume. Simplemente gana.»",
+ "taunt": "«Arrodíllate ahora y te ahorras el ridículo.»"
+}

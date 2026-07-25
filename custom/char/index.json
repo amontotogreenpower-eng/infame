@@ -1,0 +1,33 @@
+{
+ "kind": "characters",
+ "items": [
+  {
+   "file": "cometa.json",
+   "name": "COMETA",
+   "tag": "El Chico del Gi Naranja",
+   "arch": "rusher",
+   "wig": "stormspike"
+  },
+  {
+   "file": "kane.json",
+   "name": "KANE",
+   "tag": "El Príncipe Sin Trono",
+   "arch": "bruiser",
+   "wig": "stormspike"
+  },
+  {
+   "file": "vastago.json",
+   "name": "VÁSTAGO",
+   "tag": "El Centinela Verde",
+   "arch": "zoner",
+   "wig": "topbun"
+  },
+  {
+   "file": "gelido.json",
+   "name": "GÉLIDO",
+   "tag": "Emperador de la Escarcha",
+   "arch": "grappler",
+   "wig": "spikehalo"
+  }
+ ]
+}

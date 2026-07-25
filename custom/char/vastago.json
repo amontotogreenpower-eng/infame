@@ -1,0 +1,40 @@
+{
+ "name": "VÁSTAGO",
+ "tag": "El Centinela Verde",
+ "arch": "zoner",
+ "stage": "bamboo",
+ "style": "lego",
+ "outfit": "kimono",
+ "wigPreset": "topbun",
+ "face": "normal",
+ "col": {
+  "skin": 5221978,
+  "hair": 2043423,
+  "hair2": 9430426,
+  "shirt": 5913487,
+  "pants": 16777215,
+  "foot": 2760984,
+  "accent": 7000186,
+  "glow": 11464880,
+  "hud": "#6ad07a",
+  "iris": 2112032
+ },
+ "phys": {
+  "hp": 122,
+  "speed": 3.6,
+  "dmg": 1.0,
+  "jump": 17,
+  "scale": 1.04,
+  "tall": 1.72,
+  "wide": 1.32,
+  "legLen": 1.06
+ },
+ "story": [
+  "No nació: brotó de una semilla que alguien plantó por error.",
+  "Medita de pie durante horas y golpea como una avalancha.",
+  "Cura sus heridas más rápido de lo que le gustaría admitir.",
+  "Protege el valle. No pregunta de quién. Solo protege."
+ ],
+ "quote": "«El bosque me devolverá. A ti, no.»",
+ "taunt": "«Respira hondo. Puede que sea la última vez.»"
+}

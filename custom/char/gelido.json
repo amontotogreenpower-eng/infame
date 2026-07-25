@@ -1,0 +1,39 @@
+{
+ "name": "GÉLIDO",
+ "tag": "Emperador de la Escarcha",
+ "arch": "grappler",
+ "stage": "lab",
+ "style": "lego",
+ "outfit": "camiseta",
+ "wigPreset": "spikehalo",
+ "face": "normal",
+ "col": {
+  "skin": 15263984,
+  "hair": 2756410,
+  "hair2": 12607743,
+  "shirt": 5909135,
+  "pants": 14211296,
+  "foot": 2763322,
+  "accent": 11559167,
+  "glow": 14199039,
+  "hud": "#b060ff",
+  "iris": 6957722
+ },
+ "phys": {
+  "hp": 100,
+  "speed": 4.6,
+  "dmg": 1.12,
+  "jump": 18,
+  "scale": 1.0,
+  "tall": 1.6,
+  "wide": 1.22
+ },
+ "story": [
+  "Gobernó mil planetas por catálogo, sin visitarlos.",
+  "Es cortés, puntual y absolutamente despiadado.",
+  "Guarda una última forma para cuando alguien lo hace enfadar.",
+  "Aún no ha conocido a nadie que valga la pena usarla. Aún."
+ ],
+ "quote": "«Encantador. Ahora conoce el frío.»",
+ "taunt": "«¿Sabes cuánto vale tu planeta? Menos que esto.»"
+}

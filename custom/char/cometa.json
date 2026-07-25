@@ -1,0 +1,41 @@
+{
+ "name": "COMETA",
+ "tag": "El Chico del Gi Naranja",
+ "arch": "rusher",
+ "stage": "arena",
+ "style": "lego",
+ "outfit": "kimono",
+ "wigPreset": "stormspike",
+ "face": "normal",
+ "col": {
+  "skin": 15250826,
+  "hair": 1315860,
+  "hair2": 16757322,
+  "shirt": 16742942,
+  "pants": 16742942,
+  "foot": 2760984,
+  "accent": 16753978,
+  "glow": 16765562,
+  "hud": "#ffa53a",
+  "iris": 3811866
+ },
+ "phys": {
+  "hp": 108,
+  "speed": 4.4,
+  "dmg": 1.05,
+  "jump": 18,
+  "scale": 1.02,
+  "tall": 1.6,
+  "wide": 1.25,
+  "armLen": 1.02,
+  "legLen": 1.02
+ },
+ "story": [
+  "Se crió en la montaña sin saber lo fuerte que era.",
+  "Come como cinco y aprende cada técnica a la primera.",
+  "No pelea por ganar: pelea por ver con quién no ha entrenado.",
+  "Hoy sonríe antes del combate. Siempre sonríe antes del combate."
+ ],
+ "quote": "«¡Ha estado genial! ¿Otra vez?»",
+ "taunt": "«¿Ese es tu golpe fuerte? ¡Enséñame más!»"
+}

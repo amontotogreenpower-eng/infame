@@ -1,0 +1,53 @@
+{
+ "kind": "moves",
+ "items": [
+  {
+   "file": "onda-de-ki.json",
+   "name": "ONDA DE KI",
+   "badge": "KI",
+   "type": "other",
+   "slotKind": "special",
+   "dmg": 16
+  },
+  {
+   "file": "puno-meteoro.json",
+   "name": "PUÑO METEORO",
+   "badge": "MT",
+   "type": "punch",
+   "slotKind": "special",
+   "dmg": 14
+  },
+  {
+   "file": "destello.json",
+   "name": "DESTELLO",
+   "badge": "DZ",
+   "type": "other",
+   "slotKind": "special",
+   "dmg": 12
+  },
+  {
+   "file": "rodilla-cometa.json",
+   "name": "RODILLA COMETA",
+   "badge": "RC",
+   "type": "kick",
+   "slotKind": "special",
+   "dmg": 13
+  },
+  {
+   "file": "palma-guardia.json",
+   "name": "PALMA GUARDIA",
+   "badge": "PG",
+   "type": "other",
+   "slotKind": "basic",
+   "dmg": 10
+  },
+  {
+   "file": "aura-revienta.json",
+   "name": "AURA REVIENTA",
+   "badge": "AR",
+   "type": "other",
+   "slotKind": "super",
+   "dmg": 22
+  }
+ ]
+}

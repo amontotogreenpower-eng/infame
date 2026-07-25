@@ -1,0 +1,56 @@
+[
+ {
+  "name": "PUÑO METEORO",
+  "type": "punch",
+  "badge": "MT",
+  "dmg": 14,
+  "r": 20,
+  "push": 8,
+  "startup": 8,
+  "active": 6,
+  "recover": 20,
+  "limb": "handF",
+  "guard": "high",
+  "hitstun": 24,
+  "knockdown": true,
+  "air": false,
+  "plant": "both",
+  "slotKind": "special",
+  "keys": [
+   {
+    "t": 0,
+    "p": {
+     "torso": 14,
+     "armUF": 180,
+     "armLF": 120
+    }
+   },
+   {
+    "t": 8,
+    "p": {
+     "py": -96,
+     "torso": -14,
+     "armUF": 40,
+     "armLF": 36,
+     "armUB": 150,
+     "armLB": 110,
+     "legUF": 150,
+     "legLF": 200
+    }
+   },
+   {
+    "t": 14,
+    "p": {
+     "py": -92,
+     "torso": -6,
+     "armUF": 70,
+     "armLF": 70
+    }
+   },
+   {
+    "t": 28,
+    "p": {}
+   }
+  ]
+ }
+]

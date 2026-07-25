@@ -1,0 +1,43 @@
+[
+ {
+  "name": "PALMA GUARDIA",
+  "type": "other",
+  "badge": "PG",
+  "dmg": 10,
+  "r": 18,
+  "push": 10,
+  "startup": 8,
+  "active": 6,
+  "recover": 16,
+  "limb": "handF",
+  "guard": "high",
+  "hitstun": 18,
+  "knockdown": false,
+  "air": false,
+  "plant": "both",
+  "slotKind": "basic",
+  "keys": [
+   {
+    "t": 0,
+    "p": {
+     "torso": -6,
+     "armUF": 168,
+     "armLF": 22
+    }
+   },
+   {
+    "t": 8,
+    "p": {
+     "torso": 10,
+     "armUF": 100,
+     "armLF": 88,
+     "head": 6
+    }
+   },
+   {
+    "t": 16,
+    "p": {}
+   }
+  ]
+ }
+]

@@ -1,0 +1,56 @@
+[
+ {
+  "name": "RODILLA COMETA",
+  "type": "kick",
+  "badge": "RC",
+  "dmg": 13,
+  "r": 20,
+  "push": 8,
+  "startup": 6,
+  "active": 8,
+  "recover": 16,
+  "limb": "footF",
+  "guard": "high",
+  "hitstun": 20,
+  "knockdown": true,
+  "air": true,
+  "plant": "none",
+  "slotKind": "special",
+  "keys": [
+   {
+    "t": 0,
+    "p": {
+     "py": -90,
+     "torso": -6,
+     "legUF": 150,
+     "legLF": 180
+    }
+   },
+   {
+    "t": 6,
+    "p": {
+     "py": -100,
+     "torso": -16,
+     "legUF": 100,
+     "legLF": 110,
+     "legUB": 190,
+     "legLB": 206,
+     "armUF": 214,
+     "armLF": 246
+    }
+   },
+   {
+    "t": 14,
+    "p": {
+     "py": -96,
+     "legUF": 130,
+     "legLF": 150
+    }
+   },
+   {
+    "t": 26,
+    "p": {}
+   }
+  ]
+ }
+]

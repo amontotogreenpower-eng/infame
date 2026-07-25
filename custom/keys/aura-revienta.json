@@ -1,0 +1,62 @@
+[
+ {
+  "name": "AURA REVIENTA",
+  "type": "other",
+  "badge": "AR",
+  "dmg": 22,
+  "r": 34,
+  "push": 16,
+  "startup": 14,
+  "active": 6,
+  "recover": 28,
+  "limb": "pel",
+  "guard": "mid",
+  "hitstun": 28,
+  "knockdown": true,
+  "air": false,
+  "plant": "both",
+  "slotKind": "super",
+  "keys": [
+   {
+    "t": 0,
+    "p": {
+     "py": -86,
+     "torso": 14,
+     "armUF": 150,
+     "armLF": 96,
+     "armUB": 170,
+     "armLB": 112
+    }
+   },
+   {
+    "t": 14,
+    "p": {
+     "py": -96,
+     "torso": 0,
+     "head": -6,
+     "armUF": 50,
+     "armLF": 30,
+     "armUB": 150,
+     "armLB": 120,
+     "legUF": 150,
+     "legLF": 206,
+     "legUB": 208,
+     "legLB": 224
+    }
+   },
+   {
+    "t": 22,
+    "p": {
+     "py": -90,
+     "torso": 8,
+     "armUF": 90,
+     "armLF": 80
+    }
+   },
+   {
+    "t": 42,
+    "p": {}
+   }
+  ]
+ }
+]

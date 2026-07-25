@@ -1,0 +1,59 @@
+[
+ {
+  "name": "ONDA DE KI",
+  "type": "other",
+  "badge": "KI",
+  "dmg": 16,
+  "r": 40,
+  "push": 12,
+  "startup": 12,
+  "active": 8,
+  "recover": 22,
+  "limb": "handF",
+  "guard": "mid",
+  "hitstun": 22,
+  "knockdown": false,
+  "air": false,
+  "plant": "both",
+  "slotKind": "special",
+  "keys": [
+   {
+    "t": 0,
+    "p": {
+     "torso": -6,
+     "armUF": 150,
+     "armLF": 96,
+     "armUB": 170,
+     "armLB": 112,
+     "py": -88
+    }
+   },
+   {
+    "t": 12,
+    "p": {
+     "torso": -10,
+     "armUF": 186,
+     "armLF": 250,
+     "armUB": 176,
+     "armLB": 150
+    }
+   },
+   {
+    "t": 20,
+    "p": {
+     "torso": 16,
+     "armUF": 88,
+     "armLF": 86,
+     "armUB": 96,
+     "armLB": 92,
+     "legUF": 158,
+     "legLF": 194
+    }
+   },
+   {
+    "t": 34,
+    "p": {}
+   }
+  ]
+ }
+]

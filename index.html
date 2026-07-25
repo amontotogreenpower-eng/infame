@@ -1143,6 +1143,8 @@ const ARCH={
   zoner:{label:'Lanzador (Marta)',special:'marta',super:'marta',ai:{aggr:.48,jumpy:.32,fire:.76}},
   rusher:{label:'Embestidor (Carlos)',special:'carlos',super:'carlos',ai:{aggr:.7,jumpy:.14,fire:.4}},
   grappler:{label:'Luchador (Panda)',special:'panda',super:'panda',ai:{aggr:.66,jumpy:.12,fire:.25}}};
+const CANCEL_W=8;   // frames extra tras los activos para cancelar
+const THROW_ESC=11;    // ventana (frames) para zafarse de un agarre
 const MOVE_SLOTS=['punch','kick','cpunch','sweep','jpunch','jkick','special','super','apunch','akick','aspec','asuper'];
 const SLOT_ES={punch:'Puñetazo',kick:'Patada',cpunch:'Puño agachado',sweep:'Barrido',
   jpunch:'Puño aéreo',jkick:'Patada aérea',special:'ESPECIAL (L)',super:'SÚPER (I)',
@@ -3846,6 +3848,7 @@ class Fighter{
     this.x=x;this.y=GROUND;this.vx=0;this.vy=0;this.facing=facing;
     this.hp=this.c.hpMax;this.meter=0;this.t=0;
     this.state='idle';this.mv=null;this.mvT=0;this.hitIds=new Set();this.flashT=0;
+    this.mvHit=false;this.mvTier=0;this.cmb=0;this.thEsc=0;
     this.stun=0;this.blocking=false;this.crouch=false;this.walkPh=0;
     this.dashT=0;this.dashDir=0;this.tapT=0;this.tapDir=0;this.cd=0;
     this.aiT=0;this.plan='none';this.planT=0;this.pose=IDLE;
@@ -3865,28 +3868,64 @@ class Fighter{
     const i={left:0,right:0,up:0,down:0,punch:0,kick:0,spec:0,sup:0,tapL:0,tapR:0};
     if(game.mode!=='fight')return i;
     const dx=o.x-this.x,ad=Math.abs(dx),toward=dx>0?'right':'left',away=dx>0?'left':'right';
-    if((o.mv&&ad<150&&Math.random()<.36*lvl)||ents.some(e=>e.owner!==this&&(e.kind==='orb'||e.kind==='paper')&&Math.abs(e.x-this.x)<160)){
-      i[away]=1;
-      if(o.mv&&o.mv.guard==='low'&&Math.random()<.6)i.down=1;
-      if(Math.random()<A.jumpy*.5&&!this.air&&ents.some(e=>e.owner!==this&&Math.abs(e.x-this.x)<130))i.up=1;
+    /* ---------- CAPA REACTIVA (mira lo que hace el rival, cada frame) ----------
+       sk = destreza segun dificultad: decide con que probabilidad "ve" cada
+       oportunidad. En nivel 1 falla mucho; en nivel alto casi no perdona. */
+    const sk=Math.min(1,.24+lvl*.26);
+    // 1) ANTIAEREO: salta hacia mi y ya no sube -> gancho ascendente
+    if(!this.air&&!this.mv&&this.cd<=0&&o.air&&ad<145&&o.vy>-3.2&&Math.random()<sk*.4){
+      i.spec=1;i.down=1;return i;
+    }
+    // 2) CASTIGO: el rival esta en recuperacion y no llega a cubrirse
+    if(!this.air&&!this.mv&&o.mv){
+      const fin=o.mv.startup+o.mv.active+o.mv.recover;
+      const enRec=o.mvT>o.mv.startup+o.mv.active, quedan=fin-o.mvT;
+      if(enRec&&quedan>7&&ad<100&&Math.random()<sk*.55){
+        if(this.meter>=100&&Math.random()<.45)i.sup=1;
+        else if(this.cd<=0&&Math.random()<.3)i.spec=1;
+        else if(Math.random()<.5)i.punch=1;else i.kick=1;
+        return i;
+      }
+      // 3) RESPETO: esta golpeando de verdad -> retroceder (el motor lo vuelve bloqueo)
+      const act=o.mvT>=o.mv.startup&&o.mvT<o.mv.startup+o.mv.active;
+      if(act&&ad<155&&Math.random()<sk*.75){
+        i[away]=1;if(o.mv.guard==='low')i.down=1;return i;
+      }
+    }
+    // 4) PROYECTILES entrantes: cubrirse o saltarlos
+    if(ents.some(e=>e.owner!==this&&(e.kind==='orb'||e.kind==='paper')&&Math.abs(e.x-this.x)<170)){
+      if(!this.air&&Math.random()<A.jumpy*.6*sk)i.up=1;else i[away]=1;
       return i;
     }
+    // 5) presion antigua atenuada (solo si no aplico nada reactivo)
+    if(o.mv&&ad<150&&Math.random()<.18*lvl){i[away]=1;return i;}
     if(this.meter>=100&&ad<170&&Math.random()<.06*lvl){i.sup=1;return i;}
+    /* ---------- CAPA DE PLAN (iniciativa propia, cada aiT frames) ---------- */
+    const alc=(this.M&&this.M.kick&&this.M.kick.r?this.M.kick.r:17)*4.4+58;  // alcance util
     if(--this.aiT<=0){
       const r=Math.random();
       if(ad>250){
         if(r<A.fire)i.spec=1;
         else if(r<A.fire+A.jumpy){this.plan='jumpin';this.planT=34;}
         else{this.plan='approach';this.planT=30;}
-      }else if(ad>120){
+      }else if(ad>alc){
+        // fuera de alcance: acercarse o esperar a que entre (disciplina de espacio)
         if(r<A.aggr){this.plan='approach';this.planT=16;}
-        else if(r<A.aggr+.18)i.kick=1;
-        else if(r<A.aggr+.28)i.spec=1;
-        else{this.plan='retreat';this.planT=16;}
+        else if(r<A.aggr+.14)i.spec=1;
+        else{this.plan='space';this.planT=20;}
+      }else if(ad>alc*.55){
+        // distancia ideal: atacar con lo que llega
+        if(r<.42)i.kick=1;
+        else if(r<.62)i.punch=1;
+        else if(r<.74&&this.cd<=0)i.spec=1;
+        else{this.plan='space';this.planT=14;}
       }else{
-        if(r<.34)i.punch=1;else if(r<.58)i.kick=1;
-        else if(r<.72){i.kick=1;i.down=1;}
-        else if(r<.82)i.spec=1;
+        // muy pegado: normales rapidos, barrido y algun agarre
+        if(r<.3)i.punch=1;
+        else if(r<.5)i.kick=1;
+        else if(r<.66){i.kick=1;i.down=1;}
+        else if(r<.76&&this.cd<=0)i.spec=1;
+        else if(r<.84&&sk>.55){i.punch=1;i.kick=1;}   // agarre
         else{this.plan='retreat';this.planT=18;}
       }
       this.aiT=Math.max(6,(22-lvl*4)+Math.random()*22);
@@ -3895,64 +3934,104 @@ class Fighter{
       this.planT--;
       if(this.plan==='approach')i[toward]=1;
       if(this.plan==='retreat')i[away]=1;
+      if(this.plan==='space'){            // mantenerse al filo del alcance
+        if(ad<alc*.75)i[away]=1;else if(ad>alc*1.15)i[toward]=1;
+      }
       if(this.plan==='jumpin'){i[toward]=1;if(!this.air)i.up=1;
         if(this.air&&ad<110&&Math.random()<.3)i.kick=1;}
     }
     return i;
   }
   pick(i){
-    if(this.mv||this.stun>0)return;const M=this.M;
-    if(i.sup&&this.meter>=100&&!this.air){this.meter=0;this.start(i.alt&&M.asuper?M.asuper:M.super);return;}
+    if(this.stun>0)return;const M=this.M;
+    // tier minimo encadenable: 0 libre; >0 solo si venimos de cancelar
+    let minT=0;
+    if(this.mv){const ct=this.cancelTier();if(ct<0)return;minT=ct;}
+    if(minT<=2&&i.sup&&this.meter>=100&&!this.air){this.meter=0;
+      this.start(i.alt&&M.asuper?M.asuper:M.super,2);
+      if(minT>0){game.freeze=Math.max(game.freeze,7);game.shake=Math.max(game.shake,.12);}
+      return;}
     // --- golpes extra (medallas 1/2/3) ---
-    if(this.ctrl&&!this.mv&&this.cd<=0&&!this.air&&this.state!=='hurt'&&this.state!=='ko'&&
+    if(minT<=1&&this.ctrl&&this.cd<=0&&!this.air&&this.state!=='hurt'&&this.state!=='ko'&&
        this.state!=='thrown'&&this.state!=='throw'){
       for(let e=0;e<3;e++){
         if(just[String(e+1)]){
           const id=game.extra[e],E=id&&MOVELIB[id];
           if(E&&E.mv){this.cd=Math.max(34,(E.mv.startup||6)+(E.mv.recover||12));
-            this.start(E.mv);return;}
+            this.start(E.mv,1);if(minT>0)game.freeze=Math.max(game.freeze,5);return;}
         }
       }
     }
-    // --- artes marciales universales ---
+    // --- artes marciales universales (solo desde neutral) ---
     const okSt=this.state!=='hurt'&&this.state!=='ko'&&this.state!=='thrown'&&this.state!=='throw';
-    if(i.spec&&this.air&&!this.mv&&okSt&&!(this.fk>0)&&!this.fkUsed){
+    if(minT===0&&i.spec&&this.air&&!this.mv&&okSt&&!(this.fk>0)&&!this.fkUsed){
       this.fk=26;this.fkUsed=true;this.fkHit=false;
       this.vx=this.facing*8.6;this.vy=Math.max(this.vy,4.5);
       noise(.12,.06,900);
     }
-    if(i.spec&&i.down&&!this.air&&!this.mv&&okSt&&!(this.uc>0)&&this.cd<=0){
+    if(minT===0&&i.spec&&i.down&&!this.air&&!this.mv&&okSt&&!(this.uc>0)&&this.cd<=0){
       this.cd=50;this.uc=30;this.ucHit=false;
       this.vy=-15.5;this.vx=this.facing*2.4;this.state='jump';
       tone(300,.14,'square',.06);tone(520,.2,'square',.05);
       return;
     }
-    if(i.spec&&this.cd<=0&&!this.air){this.cd=42;this.start(i.alt&&M.aspec?M.aspec:M.special);return;}
+    if(minT<=1&&i.spec&&this.cd<=0&&!this.air){this.cd=42;
+      this.start(i.alt&&M.aspec?M.aspec:M.special,1);
+      if(minT>0)game.freeze=Math.max(game.freeze,5);return;}
+    if(minT>0)return;   // cancelando solo salen especial/super
     if(!this.air&&!this.crouch&&((i.punch&&i.kH)||(i.kick&&i.pH))){this.tryGrab();return;}
-    if(this.air){if(i.punch)this.start(M.jpunch);else if(i.kick)this.start(M.jkick);return;}
-    if(this.crouch){if(i.punch)this.start(M.cpunch);else if(i.kick)this.start(M.sweep);return;}
+    if(this.air){if(i.punch)this.start(M.jpunch,0);else if(i.kick)this.start(M.jkick,0);return;}
+    if(this.crouch){if(i.punch)this.start(M.cpunch,0);else if(i.kick)this.start(M.sweep,0);return;}
     if(i.alt&&this.cd<=0&&(i.punch||i.kick)){
       const am=i.punch?(M.apunch||M.punch):(M.akick||M.kick);
-      this.cd=Math.max(26,(am.startup||6)+(am.recover||12));this.start(am);return;
+      this.cd=Math.max(26,(am.startup||6)+(am.recover||12));this.start(am,0);return;
     }
-    if(i.punch)this.start(M.punch);else if(i.kick)this.start(M.kick);
+    if(i.punch)this.start(M.punch,0);else if(i.kick)this.start(M.kick,0);
   }
   tryGrab(){
     const o=this.opp;
     if(Math.abs(o.x-this.x)<115&&!o.air&&o.state!=='ko'&&o.state!=='thrown'){
       this.state='throw';this.thT=0;
       o.state='thrown';o.mv=null;o.blocking=false;o.vx=0;o.vy=0;
+      o.thEsc=THROW_ESC;   // ventana para zafarse
       game.moveName='AGARRE Y LANZAMIENTO';game.moveNameT=64;game.moveOwner=this;
       sfx.swing();game.freeze=4;
     }
   }
-  start(mv){
+  start(mv,tier){
     this.mv=mv;this.mvT=0;this.hitIds=new Set();this.state='attack';
+    this.mvHit=false;this.mvTier=tier||0;
     if(mv===this.M.super)game.tilt=.06*this.facing;
     if(mv.name){game.moveName=mv.name;game.moveNameT=64;game.moveOwner=this;}else sfx.swing();
   }
+  /* Ventana de cancelación: solo si el golpe conectó (impacto o bloqueo),
+     desde los frames activos hasta poco después. Devuelve el tier mínimo
+     que se puede encadenar (normal 0 → especial 1 → súper 2). */
+  cancelTier(){
+    const m=this.mv;if(!m)return 0;
+    if(!this.mvHit||m.noCancel)return -1;
+    const ini=m.startup, fin=m.startup+m.active+CANCEL_W;
+    if(this.mvT<ini||this.mvT>fin)return -1;
+    return this.mvTier+1;
+  }
   update(){
     if(this.state==='thrown'){
+      // --- ESCAPE DE AGARRE: pulsar puno o patada a tiempo ---
+      if(this.thEsc>0){
+        this.thEsc--;
+        const g=this.opp;let zafar=false;
+        if(this.ctrl){const inp=this.read();zafar=!!(inp.punch||inp.kick);}
+        else{const sk=Math.min(1,.24+(game.aiLevel||1)*.26);zafar=Math.random()<sk*.09;}
+        if(zafar&&g&&g.state==='throw'&&g.thT<12){
+          const dir=(this.x>=g.x)?1:-1;
+          this.state='idle';this.stun=7;this.vx=dir*5.4;this.vy=-2.2;this.thEsc=0;
+          g.state='idle';g.thT=0;g.stun=7;g.vx=-dir*5.4;
+          game.moveName='\u00a1ESCAPE!';game.moveNameT=52;game.moveOwner=this;
+          game.freeze=7;game.shake=Math.max(game.shake,.08);sfx.block();
+          const c=this.rig.joint('chest');burst(c,10,0x8ef0ff,.1);
+          this.clamp();this.sync();return;
+        }
+      }
       this.rig.fist=.22;this.rig.curlHands();
       this.rig.apply(POSE.hurt,this.facing,(GROUND-this.y)*K,'none');
       if(this.blob){this.blob.position.x=(this.x-480)*K;this.blob.scale.setScalar(.7);}
@@ -3979,7 +4058,7 @@ class Fighter{
     if(this.stun>0){
       this.stun--;this.x+=this.vx;this.vx*=.85;this.vy+=GRAV;this.y+=this.vy;
       if(this.y>GROUND){this.y=GROUND;this.vy=0;}
-      if(this.stun<=0)this.state='idle';
+      if(this.stun<=0){this.state='idle';this.cmb=0;}
       this.clamp();this.sync();return;
     }
     if(!this.air&&!this.mv)this.facing=this.opp.x>=this.x?1:-1;
@@ -3993,6 +4072,7 @@ class Fighter{
       if(this.y>GROUND){this.y=GROUND;this.vy=0;}
       const tot=m.startup+m.active+m.recover;
       if(this.mvT>=tot||(m.air&&!this.air&&this.mvT>m.startup+2)){this.mv=null;this.state='idle';}
+      else if(this.mvHit&&this.cancelTier()>=0)this.pick(i);   // ventana de cancelación
       this.clamp();this.sync();return;
     }
     if(i.tapL||i.tapR){
@@ -4119,7 +4199,8 @@ class Fighter{
       this.meter=Math.min(100,this.meter+4);sfx.block();
       burst(chest,6,0x8ef0ff,.06);
     }else{
-      this.hp-=src.dmg;this.state='hurt';
+      const sc=Math.max(.34,1-this.cmb*.13);
+      this.hp-=Math.max(1,Math.round(src.dmg*sc));this.cmb++;this.state='hurt';
       this.vx=dir*src.push/this.c.weight;
       if(src.knockdown||this.air)this.vy=-7.5;
       this.stun=Math.max(this.stun,src.hitstun||14);
@@ -4871,6 +4952,7 @@ function update(){
     if(a.hitIds.has(id))continue;
     if(b.hurtSpheres().some(h=>sphHit(hs,h))){
       a.hitIds.add(id);a.meter=Math.min(100,a.meter+(a.mv.multi?2:8));
+      a.mvHit=true;
       b.hitBy({dmg:hs.dmg,guard:hs.guard,push:hs.push,hitstun:hs.hitstun,knockdown:hs.knockdown,dir:a.facing});
     }
   }
@@ -5154,11 +5236,22 @@ function drawHUD(){
     if(game.camToast>0){game.camToast--;
       const cl={lateral:'LATERAL',cenital:'CENITAL',pov:'PRIMERA PERSONA'}[game.camMode];
       txt('CÁMARA (C): '+cl+'   ·   LÍNEAS DE TUBO (V): '+(game.crtOn?'SÍ':'NO'),W/2,H-96,14,'#8ef0ff');}
-    if(game.comboN>=2&&game.comboT>0){
-      const cp=1+Math.min(.45,(55-game.comboT)*.06);
+    // aviso de escape de agarre (solo al jugador humano agarrado)
+    for(const f of [p1,p2]){
+      if(f&&f.ctrl&&f.state==='thrown'&&f.thEsc>0){
+        const pl=Math.floor(performance.now()/90)%2;
+        txt('\u00a1PU\u00d1O o PATADA para ZAFARSE!',W/2,H/2-40,20,pl?'#fff':'#ffd75a');
+        const fw=180,fr=f.thEsc/THROW_ESC;
+        hx.fillStyle='rgba(0,0,0,.55)';hx.fillRect(W/2-fw/2,H/2-24,fw,8);
+        hx.fillStyle='#8ef0ff';hx.fillRect(W/2-fw/2,H/2-24,fw*fr,8);
+      }
+    }
+    if(game.comboN>=2&&game.comboT>0){      const cp=1+Math.min(.45,(55-game.comboT)*.06);
       hx.save();hx.translate(W/2,148);hx.scale(cp,cp);
       txt(game.comboN+' GOLPES',0,2,28,'#ff9a3e');hx.restore();
-      txt('¡COMBO!',W/2,172,12,'#ffd75a');}
+      const vic=(p1&&p1.cmb>0)?p1:((p2&&p2.cmb>0)?p2:null);
+      const pct=vic?Math.round(Math.max(.34,1-vic.cmb*.13)*100):100;
+      txt('¡COMBO!  ·  daño '+pct+'%',W/2,172,12,pct<60?'#ff6a5a':'#ffd75a');}
   }
   if(game.king&&(game.mode==='fight'||game.mode==='intro'))txt('REY DE MESA · RACHA '+game.king.streak,W/2,92,13,'#ffd75a');
   if(game.king&&game.king.org&&(game.mode==='fight'||game.mode==='intro'))txt(game.king.org,W/2,74,12,'#c9bde8');

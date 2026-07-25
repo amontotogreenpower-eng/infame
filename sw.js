@@ -13,6 +13,8 @@ const CORE = [
   './icon-512.png',
   './icon-maskable-512.png',
   './src/Intro.mp4',
+  './src/luchador1.png','./src/luchador2.png','./src/luchador3.png','./src/luchador4.png',
+  './src/luchador5.png','./src/luchador6.png','./src/luchador7.png','./src/luchador8.png',
   'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'
 ];
 

@@ -4345,19 +4345,30 @@ class Fighter{
     this.rig.tick(this.t);
   }
   jointPx(n){return w2px(this.rig.joint(n));}
+  /* El rig se dibuja girado YAW hacia la camara (se ve en tres cuartos, no de
+     perfil plano). Pero el combate es 2D: si midieramos con la X del mundo, el
+     alcance quedaria en cos(YAW)=91% y los golpes iran desviados del eje.
+     Aqui deshacemos ESE giro (no el de facing) para que las cajas queden como
+     si el luchador estuviera de perfil puro: alcance completo y bien alineado. */
+  combatJoint(n){
+    const v=this.rig.joint(n), rx=this.rig.root.position.x, rz=this.rig.root.position.z;
+    const th=(this.facing===1)?YAW:-YAW;
+    const nx=(v.x-rx)*Math.cos(th)+(v.z-rz)*Math.sin(th);
+    return{x:rx+nx,y:v.y,z:rz};
+  }
   hitSphere(){
     const m=this.mv;if(!m||!m.limb)return null;
     if(this.mvT<m.startup||this.mvT>=m.startup+m.active)return null;
-    return{p:this.rig.joint(m.limb),r:m.r*K*this.d.scale/Math.cos(YAW),
+    return{p:this.combatJoint(m.limb),r:m.r*K*this.d.scale,
       dmg:Math.round(m.dmg*this.c.dmgMul),guard:m.guard,push:m.push,hitstun:m.hitstun,knockdown:m.knockdown};
   }
   hurtSpheres(){
-    const d=this.d,s=K*d.scale,R=this.rig;
-    return[{p:R.joint('headC'),r:d.headR*s*1.05},
-           {p:R.joint('chest'),r:d.torsoW*.44*s},
-           {p:R.joint('pel'),r:d.torsoW*.42*s},
-           {p:R.joint('kneF'),r:d.limbW*1.6*s},
-           {p:R.joint('kneB'),r:d.limbW*1.6*s}];
+    const d=this.d,s=K*d.scale;
+    return[{p:this.combatJoint('headC'),r:d.headR*s*1.05},
+           {p:this.combatJoint('chest'),r:d.torsoW*.44*s},
+           {p:this.combatJoint('pel'),r:d.torsoW*.42*s},
+           {p:this.combatJoint('kneF'),r:d.limbW*1.6*s},
+           {p:this.combatJoint('kneB'),r:d.limbW*1.6*s}];
   }
   hitBy(src){
     if(this.state==='ko')return;
@@ -5323,13 +5334,19 @@ function hpBar(x,y,w,h,f,flip){
   txt('SUPER',flip?x+w-mw-8:x+mw+8,my+8,9,f.meter>=100?'#fff':'#6a7a9a',flip?'right':'left',false);
 }
 let VIGN=null;
+function hudButtons(){
+  // fuera de drawHUD y sin returns delante: estos botones no pueden desaparecer
+  const oculto=(game.mode==='splash'||game.mode==='introvid'||game.mode==='browser'
+                ||game.mode==='creator'||game.mode==='organizer');
+  if(camBtnEl)camBtnEl.style.display=(!oculto&&(game.mode==='fight'||game.mode==='intro'))?'flex':'none';
+  if(pauseBtnEl)pauseBtnEl.style.display=(!oculto&&INFIGHT(game.mode)&&!game.attract)?'flex':'none';
+}
 function drawHUD(){
   hx.clearRect(0,0,W,H);
+  hudButtons();
   if(game.mode==='splash'){drawSplash();return;}
   if(game.mode==='introvid'){return;}
   if(game.mode==='browser'){return;}
-  camBtnEl.style.display=(game.mode==='fight'||game.mode==='intro')?'flex':'none';
-  pauseBtnEl.style.display=(INFIGHT(game.mode)&&!game.attract)?'flex':'none';
   extraUIUpd();
   if(game.mode==='creator'||game.mode==='organizer')return;
   if(game.mode==='intro'&&p1&&p2&&game.bt<120){
@@ -5710,7 +5727,12 @@ function loop(){
     tickStage(T0);tickShowcase(T0);tickMotes(T0);tickCam(T0);
     renderer.render(scene,cam);
     drawHUD();
-  }catch(err){console.error('loop error:',err);}
+  }catch(err){
+    console.error('loop error:',err);
+    try{hudButtons();}catch(e2){}
+    if(!window.__loopErrShown){window.__loopErrShown=true;
+      try{window.__fatal('ERROR EN EL BUCLE:\n'+(err&&err.stack?err.stack:err));}catch(e3){}}
+  }
   for(const k in just)just[k]=false;
   requestAnimationFrame(loop);
 }

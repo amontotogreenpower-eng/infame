@@ -8,14 +8,19 @@
 window.__fatal=function(m){try{
   var d=document.getElementById('errbox');
   if(!d){d=document.createElement('div');d.id='errbox';
-    d.style.cssText='position:fixed;left:8px;right:8px;top:8px;z-index:9999;background:#2a0f14;color:#ffd0c8;border:2px solid #ff5a4a;border-radius:8px;padding:10px 12px;font:12px monospace;white-space:pre-wrap;';
+    d.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;z-index:9999;background:#2a0f14;color:#ffd0c8;border:2px solid #ff5a4a;border-radius:8px;padding:10px 12px;font:12px monospace;white-space:pre-wrap;';
     if(document.body)document.body.appendChild(d);
     else document.addEventListener('DOMContentLoaded',function(){document.body.appendChild(d);});}
   d.textContent='⚠ ERROR: '+m+'\n(Copia este texto y pásamelo para arreglarlo)';
 }catch(_){}};
+/* Recursos OPCIONALES: si faltan, el juego funciona igual (retratos
+   procedurales / sin intro). No deben disparar el aviso de error. */
+window.__optRes=/(?:src\/Intro\.mp4|src\/luchador\d+[^\/]*\.png)$/i;
 window.addEventListener('error',function(e){
   if(e&&e.target&&e.target!==window&&e.target.tagName){
-    window.__fatal('No se pudo cargar el recurso: '+(e.target.src||e.target.href||e.target.tagName));return;}
+    var u=e.target.src||e.target.href||'';
+    if(window.__optRes.test(String(u)))return;      // opcional: se ignora
+    window.__fatal('No se pudo cargar el recurso: '+(u||e.target.tagName));return;}
   window.__fatal((e.message||'error')+(e.filename?'\n'+e.filename+':'+e.lineno:'')+
     (e.error&&e.error.stack?'\n'+String(e.error.stack).split('\n').slice(0,3).join('\n'):''));
 },true);
@@ -575,7 +580,12 @@ window.addEventListener('unhandledrejection',function(e){
    PUÑO CALLEJERO 3D — rig esquelético sobre Object3D
    Física en unidades "px" heredadas; render a escala K
    =========================================================== */
-const W=960,H=540,GROUND=478,GRAV=.92,K=.02,YAW=.42;
+/* YAW: giro de presentacion hacia la camara.
+   0 = luchadores exactamente de perfil, encarados, y los golpes salen rectos
+   por el eje que los une (lo que se ve = lo que golpea).
+   Subelo (p.ej. .25) si alguna vez quieres el look de tres cuartos; las cajas
+   de golpeo no cambian, porque combatJoint() deshace este giro. */
+const W=960,H=540,GROUND=478,GRAV=.92,K=.02,YAW=0;
 const glc=document.getElementById('gl'), hud=document.getElementById('hud'), hx=hud.getContext('2d');
 const D=Math.PI/180;
 const lerp=(a,b,t)=>a+(b-a)*t, ease=t=>t*t*(3-2*t), clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -5451,18 +5461,20 @@ function drawHUD(){
     for(const f of [p1,p2]){
       if(f&&f.ctrl&&f.state==='thrown'&&f.thEsc>0){
         const pl=Math.floor(performance.now()/90)%2;
-        txt('\u00a1PU\u00d1O o PATADA para ZAFARSE!',W/2,H/2-40,20,pl?'#fff':'#ffd75a');
+        txt('\u00a1PU\u00d1O o PATADA para ZAFARSE!',W/2,H-142,18,pl?'#fff':'#ffd75a');
         const fw=180,fr=f.thEsc/THROW_ESC;
-        hx.fillStyle='rgba(0,0,0,.55)';hx.fillRect(W/2-fw/2,H/2-24,fw,8);
-        hx.fillStyle='#8ef0ff';hx.fillRect(W/2-fw/2,H/2-24,fw*fr,8);
+        hx.fillStyle='rgba(0,0,0,.55)';hx.fillRect(W/2-fw/2,H-132,fw,8);
+        hx.fillStyle='#8ef0ff';hx.fillRect(W/2-fw/2,H-132,fw*fr,8);
       }
     }
-    if(game.comboN>=2&&game.comboT>0){      const cp=1+Math.min(.45,(55-game.comboT)*.06);
-      hx.save();hx.translate(W/2,148);hx.scale(cp,cp);
-      txt(game.comboN+' GOLPES',0,2,28,'#ff9a3e');hx.restore();
+    if(game.comboN>=2&&game.comboT>0){
+      // banda inferior derecha: deja libre el centro
+      const cp=1+Math.min(.45,(55-game.comboT)*.06), cxc=W-150;
+      hx.save();hx.translate(cxc,H-104);hx.scale(cp,cp);
+      txt(game.comboN+' GOLPES',0,2,24,'#ff9a3e');hx.restore();
       const vic=(p1&&p1.cmb>0)?p1:((p2&&p2.cmb>0)?p2:null);
       const pct=vic?Math.round(Math.max(.34,1-vic.cmb*.13)*100):100;
-      txt('¡COMBO!  ·  daño '+pct+'%',W/2,172,12,pct<60?'#ff6a5a':'#ffd75a');}
+      txt('¡COMBO!  ·  daño '+pct+'%',cxc,H-86,11,pct<60?'#ff6a5a':'#ffd75a');}
   }
   if(game.king&&(game.mode==='fight'||game.mode==='intro'))txt('REY DE MESA · RACHA '+game.king.streak,W/2,92,13,'#ffd75a');
   if(game.king&&game.king.org&&(game.mode==='fight'||game.mode==='intro'))txt(game.king.org,W/2,74,12,'#c9bde8');
@@ -5730,8 +5742,6 @@ function loop(){
   }catch(err){
     console.error('loop error:',err);
     try{hudButtons();}catch(e2){}
-    if(!window.__loopErrShown){window.__loopErrShown=true;
-      try{window.__fatal('ERROR EN EL BUCLE:\n'+(err&&err.stack?err.stack:err));}catch(e3){}}
   }
   for(const k in just)just[k]=false;
   requestAnimationFrame(loop);

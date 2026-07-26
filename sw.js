@@ -1,5 +1,5 @@
 /* INFAME FIGHTING — service worker (PWA offline) */
-const CACHE = 'infame-v55';
+const CACHE = 'infame-v56';
 
 /* Assets a precachear. Se usa allSettled: si alguno falta (p.ej. Intro.mp4
    todavia no subido) la instalacion NO falla. */
@@ -35,19 +35,35 @@ self.addEventListener('activate', e => {
   );
 });
 
-/* Cache-first con red de reserva; lo que llega por red se guarda para
-   la proxima vez (three.js del CDN, Intro.mp4, etc.). */
+/* ESTRATEGIA:
+   - El JUEGO (navegacion y .html): RED PRIMERO. Asi cada recarga trae la
+     version nueva; el cache solo entra si no hay conexion. Con cache-first
+     el juego se quedaba congelado en una version antigua.
+   - El RESTO (imagenes, audio, video, three.js): cache primero, que no cambian
+     y conviene que carguen al instante y funcionen offline. */
+function esJuego(req){
+  return req.mode === 'navigate' || /\.html($|\?)/i.test(req.url);
+}
 self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
+
+  if (esJuego(req)) {
+    e.respondWith(
+      fetch(req).then(res => {
+        const copy = res.clone();
+        caches.open(CACHE).then(c => c.put(req, copy)).catch(() => {});
+        return res;
+      }).catch(() => caches.match(req).then(h => h || caches.match('./index.html')))
+    );
+    return;
+  }
+
   e.respondWith(
     caches.match(req).then(hit => hit || fetch(req).then(res => {
       const copy = res.clone();
       caches.open(CACHE).then(c => c.put(req, copy)).catch(() => {});
       return res;
-    }).catch(() => {
-      // sin red y sin cache: para navegaciones, servir el juego
-      if (req.mode === 'navigate') return caches.match('./index.html');
-    }))
+    }).catch(() => undefined))
   );
 });

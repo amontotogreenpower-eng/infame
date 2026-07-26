@@ -61,7 +61,14 @@ window.addEventListener('unhandledrejection',function(e){
   #creator{position:fixed;left:0;top:0;bottom:0;width:min(460px,52vw);z-index:30;display:none;
     flex-direction:column;background:linear-gradient(180deg,rgba(8,6,18,.97),rgba(10,7,22,.93));
     color:#e8e2ff;font:12px "Courier New",monospace;padding:10px 14px;
-    box-shadow:4px 0 22px rgba(0,0,0,.6);border-right:2px solid rgba(255,215,90,.4)}
+    box-shadow:4px 0 22px rgba(0,0,0,.6);border-right:2px solid rgba(255,215,90,.4);
+    transition:transform .18s ease}
+  #creator.fold{transform:translateX(-100%)}
+  #cr-fold{position:absolute;right:-34px;top:50%;transform:translateY(-50%);
+    width:32px;height:78px;display:flex;align-items:center;justify-content:center;
+    background:rgba(10,7,22,.96);color:#ffd75a;border:2px solid rgba(255,215,90,.5);
+    border-left:none;border-radius:0 10px 10px 0;cursor:pointer;font-size:17px;
+    font-weight:bold;user-select:none;z-index:31}
   #creator.on{display:flex}
   .cr-head{display:flex;flex-wrap:wrap;align-items:center;gap:6px;
     border-bottom:2px solid rgba(255,215,90,.5);padding-bottom:6px;margin-bottom:6px}
@@ -101,6 +108,20 @@ window.addEventListener('unhandledrejection',function(e){
   .cr-swatches{display:grid;grid-template-columns:1fr 1fr;gap:4px 8px}
   .cr-swatches label{flex-direction:row;align-items:center;justify-content:space-between}
   #creator input[type=color]{width:40px;height:26px;border:none;background:none;cursor:pointer}
+  .tw-navart{display:flex;gap:6px;margin:4px 0}
+  .tw-navart button{flex:1}
+  /* --- MOVIL: objetivos tactiles mas grandes en el creador/taller --- */
+  @media (pointer:coarse),(max-width:860px){
+    #creator label{font-size:13px;gap:4px}
+    #creator input[type=text],#creator input:not([type]),#creator select,#creator textarea{
+      font-size:16px;padding:9px 8px;min-height:42px}
+    #creator input[type=range]{height:34px}
+    #creator input[type=color]{width:52px;height:38px}
+    .cr-b,#creator button:not(.cr-tab){min-height:44px;padding:10px 14px;font-size:13px}
+    .cr-tab{min-height:42px;padding:9px 12px;font-size:12px}
+    .cr-pane{gap:10px}
+    #cr-close{font-size:15px;padding:8px 10px}
+  }
   .cr-note{font-size:10px;color:#8878a8;font-style:italic}
   .cr-val{float:right;color:#ffd75a;font-weight:bold}
   #cr-power{font:bold 22px "Courier New";color:#8aff9a;text-align:center;padding:4px 0}
@@ -226,6 +247,7 @@ window.addEventListener('unhandledrejection',function(e){
   <div id="br-list"></div>
 </div>
 <div id="creator">
+  <div id="cr-fold" title="Plegar / desplegar panel">‹</div>
   <div class="cr-head"><b>CREADOR</b>
     <div class="cr-tabs">
       <button class="cr-tab on" data-pane="id">1· IDENTIDAD</button>
@@ -436,6 +458,9 @@ window.addEventListener('unhandledrejection',function(e){
         <select id="tw-list" style="flex:1"></select>
       </div>
       <label>Modelo para posar <select id="tw-model"></select></label>
+      <label>Sparring <select id="tw-spar"><option value="">Ninguno</option></select></label>
+      <label>Distancia <input type="range" id="tw-dist" min="1.2" max="4.2" step="0.05" value="2.3"></label>
+      <button id="tw-cam" class="cr-b">CÁMARA: LATERAL</button>
       <label>Qué estoy editando
         <select id="tw-what">
           <option value="move">Un golpe</option>
@@ -483,6 +508,10 @@ window.addEventListener('unhandledrejection',function(e){
       <label>Fotograma de esta clave <input type="range" id="tw-kt" min="0" max="80" step="1" value="0"></label>
       <div class="cr-note">Arrastra los puntos dorados del modelo para posar las articulaciones.</div>
       <div id="tw-warn" class="cr-note"></div>
+      <div class="tw-navart">
+        <button id="tw-artprev" class="cr-b">◀ ARTICULACIÓN</button>
+        <button id="tw-artnext" class="cr-b">ARTICULACIÓN ▶</button>
+      </div>
       <div id="tw-selbox"><div id="tw-seltit"></div><div id="tw-sel"></div></div>
       <div id="tw-joints"></div>
     </div>
@@ -653,7 +682,7 @@ addEventListener('pointerdown',()=>{if(game.mode==='splash'){audio();uiKey(' ');
 /* ===========================================================
    POSES (ángulos absolutos, grados; 0=arriba, 90=adelante, 180=abajo)
    =========================================================== */
-const IDLE={py:-92,torso:6,head:2,headY:0,rot:0,hip:0,twist:0,footAF:0,footAB:0,legAF:0,legAB:0,armAF:0,armAB:0,
+const IDLE={py:-92,torso:6,head:2,headY:0,rot:0,hip:0,twist:0,footAF:0,footAB:0,legAF:0,legAB:0,legTF:0,legTB:0,armAF:0,armAB:0,
   armUB:196,armLB:158,armUF:152,armLF:78,
   legUB:192,legLB:200,legUF:172,legLF:180};
 const PK=Object.keys(IDLE), P=o=>Object.assign({},IDLE,o);
@@ -1821,7 +1850,22 @@ if(typeof THREE==='undefined'){
   throw new Error('THREE missing');
 }
 const renderer=new THREE.WebGLRenderer({canvas:glc,antialias:true});
-renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.06;
+/* --- COLOR ---
+   outputEncoding sRGB es imprescindible: sin el, r128 saca todo apagado.
+   Sin tone mapping filmico los colores salen vivos (look arcade).
+   Si algo queda quemado, baja GFX_LUZ; si quieres mas contraste, sube GFX_EXP. */
+const GFX_LUZ=1.0, GFX_EXP=1.0;
+/* Empujon de saturacion: 1.0 = sin cambios. Subelo para mas viveza. */
+const GFX_SAT=1.14;
+function satCol(c){
+  const col=new THREE.Color(c);
+  if(GFX_SAT===1)return col;
+  const h={};col.getHSL(h);
+  col.setHSL(h.h,Math.min(1,h.s*GFX_SAT),h.l);
+  return col;
+}
+renderer.outputEncoding=THREE.sRGBEncoding;
+renderer.toneMapping=THREE.NoToneMapping;renderer.toneMappingExposure=GFX_EXP;
 if('serviceWorker'in navigator&&location.protocol.indexOf('http')===0){
   navigator.serviceWorker.register('sw.js').catch(()=>{});
 }
@@ -1829,15 +1873,15 @@ if('serviceWorker'in navigator&&location.protocol.indexOf('http')===0){
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 const scene=new THREE.Scene();
 const cam=new THREE.PerspectiveCamera(46,W/H,.1,200);
-scene.add(new THREE.HemisphereLight(0xbfd8ff,0x30203a,.62));
-const sun=new THREE.DirectionalLight(0xfff2d0,1.05);
+scene.add(new THREE.HemisphereLight(0xbfd8ff,0x30203a,.40*GFX_LUZ));
+const sun=new THREE.DirectionalLight(0xfff2d0,.80*GFX_LUZ);
 sun.position.set(-7,14,10);sun.castShadow=true;
 sun.shadow.mapSize.set(2048,2048);
 sun.shadow.bias=-0.0004;sun.shadow.normalBias=0.03;
 const sc=sun.shadow.camera;sc.left=-13;sc.right=13;sc.top=13;sc.bottom=-5;sc.near=1;sc.far=44;
 scene.add(sun);scene.add(sun.target);
-const rim=new THREE.DirectionalLight(0x88aaff,.42);rim.position.set(9,6,-9);scene.add(rim);
-const hemi=new THREE.HemisphereLight(0xcfe0ff,0x3a2f28,.22);scene.add(hemi);
+const rim=new THREE.DirectionalLight(0x88aaff,.30*GFX_LUZ);rim.position.set(9,6,-9);scene.add(rim);
+const hemi=new THREE.HemisphereLight(0xcfe0ff,0x3a2f28,.15*GFX_LUZ);scene.add(hemi);
 
 const stageEl=document.getElementById('stage');
 let PRCAP=1.75;
@@ -2116,6 +2160,11 @@ CE('tw-kdel').onclick=()=>{
   if(!twCur||twCur.keys.length<=2)return;
   twCur.keys.splice(twKi,1);twKi=Math.max(0,twKi-1);twKeysLoad();};
 CE('tw-model').onchange=()=>{twModel=CE('tw-model').value;crUpdatePreview();};
+CE('tw-spar').onchange=()=>{twSpar=CE('tw-spar').value;twSparBuild();};
+CE('tw-artprev').onclick=()=>twArtStep(-1);
+CE('tw-artnext').onclick=()=>twArtStep(1);
+CE('tw-dist').oninput=()=>{twDist=parseFloat(CE('tw-dist').value)||2.3;};
+CE('tw-cam').onclick=()=>{twCam=(twCam+1)%TW_CAMS.length;CE('tw-cam').textContent='CÁMARA: '+TW_CAMS[twCam];};
 CE('tw-what').onchange=()=>{
   const v=CE('tw-what').value;
   if(v===twWhat)return;
@@ -2177,6 +2226,8 @@ const TW_JOINTS=[
   {k:'armAB',es:'Abrir brazo trasero',min:-80,max:80},
   {k:'legAF',es:'Abrir pierna delantera',min:-70,max:80},
   {k:'legAB',es:'Abrir pierna trasera',min:-70,max:80},
+  {k:'legTF',es:'Rotar muslo delantero (rodilla fuera)',min:-90,max:90},
+  {k:'legTB',es:'Rotar muslo trasero (rodilla fuera)',min:-90,max:90},
   {k:'footAF',es:'Tobillo delantero',min:-70,max:70},
   {k:'footAB',es:'Tobillo trasero',min:-70,max:70},
   {k:'head',es:'Cabeza (arriba/abajo)',min:-50,max:50},
@@ -2203,6 +2254,7 @@ const TW_HAND=[
   {es:'Cabeza',piv:'head',off:[0,8,5],ch:'head',ch2:'headY'},
   {es:'Torso',piv:'torso',tip:'chest',ch:'torso',ch2:'twist'}];
 let TW_LIM={},twDragH=null,twSelH=null,twDragOn=false,twMarks=null;
+const twDragOff={x:0,y:0};
 const _tv=new THREE.Vector3();
 function twScreen(o,off){
   if(off){_tv.set(off[0],off[1],off[2]);o.localToWorld(_tv);}
@@ -2211,23 +2263,40 @@ function twScreen(o,off){
   const r=glc.getBoundingClientRect();
   return {x:r.left+(_tv.x*.5+.5)*r.width,y:r.top+(-_tv.y*.5+.5)*r.height};
 }
+/* Coloca al muneco EXACTAMENTE igual que el bucle de update: si no coinciden,
+   el rig oscila entre dos sitios y las marcas parpadean. */
+function twPlace(){
+  if(!crPrev)return;
+  if(crTab==='taller'){
+    crPrev.root.position.set(TWX,crPrev.root.position.y,TWZ);
+    crPrev.root.rotation.y=Math.PI+YAW;
+  }else{
+    crPrev.root.position.set(2.4,crPrev.root.position.y,2);
+    crPrev.root.rotation.y=crYaw;
+  }
+  crPrev.root.updateMatrixWorld(true);
+}
 function twApplyEdit(){
   if(!crPrev||!twCur||!twCur.keys[twKi])return;
   crPrev.apply(P(twCur.keys[twKi].p),1,0,twCur.air?'none':'both');
-  crPrev.root.position.set(2.4,crPrev.root.position.y,2);
-  crPrev.root.rotation.y=crYaw;
-  crPrev.root.updateMatrixWorld(true);
+  twPlace();
 }
 function twPick(mx,my){
   if(!crPrev||!twCur)return null;
   twApplyEdit();
-  let best=null,bd=1e9;
+  crPrev.root.updateMatrixWorld(true);
+  let best=null,bd=1e9,bsp=null;
   for(const H of TW_HAND){
     const o=crPrev[H.piv];if(!o)continue;
     const sp=twScreen(o,null),dx=sp.x-mx,dy=sp.y-my,d=dx*dx+dy*dy;
-    if(d<bd){bd=d;best=H;}
+    if(d<bd){bd=d;best=H;bsp=sp;}
   }
-  return bd<3600?best:null;
+  // en tactil el dedo es gordo y tapa el tirador: mucha mas tolerancia
+  const R=IS_TOUCH?118:60;
+  if(bd>=R*R)return null;
+  // guardamos el desfase para que el muneco no pegue un salto al agarrar
+  twDragOff.x=bsp.x-mx;twDragOff.y=bsp.y-my;
+  return best;
 }
 function twDrag(mx,my){
   const H=twDragH;
@@ -2268,6 +2337,15 @@ function twDrag(mx,my){
   twJointsLoad();
   CE('tw-warn').textContent=twKneeCheck();
 }
+function twArtStep(d){
+  if(!twCur)return;
+  const n=TW_HAND.length;
+  let i=TW_HAND.indexOf(twSelH);
+  i=(i<0)?(d>0?0:n-1):((i+d+n)%n);
+  const H=TW_HAND[i];
+  twSelH=H;twSelShow(H);
+  CE('tw-warn').textContent='Seleccionada: '+H.es;
+}
 function twSelShow(H){
   const box=CE('tw-sel'),tit=CE('tw-seltit'),wrap=CE('tw-selbox');
   if(!H){wrap.classList.remove('on');twSelRestore();return;}
@@ -2280,13 +2358,49 @@ function twSelRestore(){
   const box=CE('tw-joints');
   TW_JOINTS.forEach(j=>{const lab=TW_LABELS[j.k];if(lab)box.appendChild(lab);});
 }
+/* --- EJE DE COMBATE: linea en el suelo entre luchador y oponente ---
+   Sirve para alinear golpes: marca la direccion al rival, la distancia en
+   pasos de 0.5 y la posicion de ambos. */
+let twAxis=null;
+function twAxisUpd(){
+  const on=(game.mode==='creator'&&crTab==='taller'&&!!crPrev);
+  if(!twAxis){
+    if(!on)return;
+    twAxis=new THREE.Group();
+    const XF=TWX, ZF=TWZ;                     // posicion de combate del luchador
+    const ejeM=new THREE.MeshBasicMaterial({color:0x8ef0ff,transparent:true,opacity:.8});
+    const ticM=new THREE.MeshBasicMaterial({color:0xffd75a,transparent:true,opacity:.75});
+    const oppM=new THREE.MeshBasicMaterial({color:0xff8c6a,transparent:true,opacity:.85});
+    const L=6.4, line=new THREE.Mesh(new THREE.BoxGeometry(L,.014,.055),ejeM);
+    line.position.set(XF-L/2+.8,.055,ZF);twAxis.add(line);
+    for(let k=1;k<=10;k++){
+      const gr=(k%2===0), t=new THREE.Mesh(new THREE.BoxGeometry(.05,.014,gr?.5:.26),ticM);
+      t.position.set(XF-k*.5,.055,ZF);twAxis.add(t);
+    }
+    const me=new THREE.Mesh(new THREE.RingGeometry(.3,.38,26),ejeM);
+    me.rotation.x=-Math.PI/2;me.position.set(XF,.06,ZF);twAxis.add(me);
+    const you=new THREE.Mesh(new THREE.RingGeometry(.3,.38,26),oppM);
+    you.rotation.x=-Math.PI/2;you.position.set(XF-2.15,.06,ZF);twAxis.add(you);
+    twAxis.you=you;
+    const fl=new THREE.Mesh(new THREE.ConeGeometry(.17,.42,4),oppM);
+    fl.rotation.set(0,Math.PI/4,Math.PI/2);
+    fl.position.set(XF-3.1,.1,ZF);twAxis.add(fl);
+    twAxis.children.forEach(m=>{m.renderOrder=998;});
+    scene.add(twAxis);
+  }
+  twAxis.visible=on;
+  if(on&&twAxis.you){                        // el circulo del rival sigue la distancia elegida
+    twAxis.you.visible=!!twSparRig;
+    twAxis.you.position.x=TWX-twDist;
+  }
+}
 function twMarksUpd(){
   const on=(game.mode==='creator'&&crTab==='taller'&&!!twCur&&!!crPrev&&twPlay<0);
   if(!twMarks){
     if(!on)return;
     twMarks=new THREE.Group();
     TW_HAND.forEach(()=>{
-      const m=new THREE.Mesh(new THREE.SphereGeometry(.075,10,8),
+      const m=new THREE.Mesh(new THREE.SphereGeometry(IS_TOUCH?.13:.075,12,10),
         new THREE.MeshBasicMaterial({color:0xffd75a,depthTest:false,transparent:true,opacity:.92}));
       m.renderOrder=999;twMarks.add(m);
     });
@@ -2412,6 +2526,36 @@ function twModelsUI(){
   });
   sel.value=(twModel&&CHARS[twModel])?twModel:'';
   if(sel.value!==twModel){twModel=sel.value;}
+  const sp=CE('tw-spar');
+  if(sp){
+    sp.innerHTML='';
+    const n=document.createElement('option');n.value='';n.textContent='Ninguno';sp.appendChild(n);
+    ROSTER.forEach(id=>{const C=CHARS[id];if(!C)return;
+      const o=document.createElement('option');o.value=id;o.textContent=C.name;sp.appendChild(o);});
+    sp.value=(twSpar&&CHARS[twSpar])?twSpar:'';
+    if(sp.value!==twSpar)twSpar=sp.value;
+  }
+}
+/* --- muneco de sparring: rig pasivo enfrente para ver el alcance --- */
+let twSpar='',twSparRig=null,twDist=2.3,twCam=0;
+const TW_CAMS=['LATERAL','GENERAL','CENITAL','3/4'];
+/* Posiciones de combate en el taller: ambos mirandose de frente sobre el eje X.
+   El luchador ocupa +X mirando a -X; el sparring enfrente a la distancia elegida. */
+const TWX=1.15, TWZ=2;
+function twSparBuild(){
+  if(twSparRig){scene.remove(twSparRig.root);twSparRig.dispose();twSparRig=null;}
+  if(!twSpar||!CHARS[twSpar])return;
+  twSparRig=new Rig(CHARS[twSpar]);scene.add(twSparRig.root);
+  twSparRig.root.scale.setScalar(1.05);
+}
+function twSparTick(t){
+  if(!twSparRig)return;
+  const b=Math.sin(t*.0022)*1.2;
+  twSparRig.apply(P({py:-92+b,torso:6,armUF:150,armLF:96,armUB:170,armLB:112}),1,0,'both');
+  // enfrente del luchador y mirandolo (como en combate)
+  twSparRig.root.position.set(TWX-twDist,0,TWZ);
+  twSparRig.root.rotation.y=-YAW;             // mira a +X, hacia el luchador
+  twSparRig.tick(t);
 }
 function twOpen(){
   twBuildJoints();twModelsUI();
@@ -2471,8 +2615,9 @@ function openCreator(startPane,tallerOnly,returnMode){
   game.mode='creator';crPanel.classList.add('on');crPanel._idx=null;
   crPanel._returnMode=returnMode||'config';
   crPanel.classList.toggle('taller-only',!!tallerOnly);
+  crPanel.classList.remove('fold');CE('cr-fold').textContent='\u2039';
   const hb=crPanel.querySelector('.cr-head b');if(hb)hb.textContent=tallerOnly?'EDITOR DE GOLPES':'CREADOR';
-  setStage(CE('cr-stage').value||'gym');showcaseOn(false);
+  setStage(tallerOnly?'neutro':(CE('cr-stage').value||'gym'));showcaseOn(false);
   crTab=pane;
   document.querySelectorAll('.cr-tab').forEach(t=>t.classList.toggle('on',t.dataset.pane===pane));
   document.querySelectorAll('.cr-pane').forEach(p=>p.classList.toggle('on',p.dataset.pane===pane));
@@ -2492,6 +2637,8 @@ function openCreator(startPane,tallerOnly,returnMode){
 function closeCreator(){
   crPanel.classList.remove('on');crPanel.classList.remove('taller-only');
   twSlow=false;twPlay=-1;
+  if(twSparRig){scene.remove(twSparRig.root);twSparRig.dispose();twSparRig=null;}
+  if(twAxis)twAxis.visible=false;
   const hb=crPanel.querySelector('.cr-head b');if(hb)hb.textContent='CREADOR';
   if(crPrev){scene.remove(crPrev.root);crPrev.dispose();crPrev=null;crPrevKey='';crDirty=false;}
   rebuildShowcase();
@@ -2586,7 +2733,7 @@ function crPointerDown(e){
 function crPointerMove(e){
   const x=e.touches?e.touches[0].clientX:e.clientX;
   const y=e.touches?e.touches[0].clientY:e.clientY;
-  if(twDragOn){e.preventDefault&&e.preventDefault();twDrag(x,y);return;}
+  if(twDragOn){e.preventDefault&&e.preventDefault();twDrag(x+twDragOff.x,y+twDragOff.y);return;}
   if(crDrag){e.preventDefault&&e.preventDefault();crYaw=crDragY+(x-crDragX)*0.012;return;}
   if(camDrag){e.preventDefault&&e.preventDefault();
     game.camYaw=clamp(camDragY0+(x-camDragX)*0.005,-.85,.85);}
@@ -2602,6 +2749,10 @@ document.querySelectorAll('.cr-tab').forEach(tb=>tb.onclick=()=>{
   document.querySelectorAll('.cr-tab').forEach(t=>t.classList.toggle('on',t===tb));
   document.querySelectorAll('.cr-pane').forEach(pn=>pn.classList.toggle('on',pn.dataset.pane===p));
 });
+CE('cr-fold').onclick=()=>{
+  const f=crPanel.classList.toggle('fold');
+  CE('cr-fold').textContent=f?'\u203a':'\u2039';
+};
 CE('cr-close').onclick=closeCreator;
 CE('br-close').onclick=closeBrowser;
 CE('cr-ptfile').onchange=e=>{const f=e.target.files[0];if(f)ptLoadFile(f,ptTarget);e.target.value='';};
@@ -3190,7 +3341,13 @@ class Rig{
       const u=this.bone(hold,d.uarm*s,w*.62,mU,.9);
       const l=this.bone(u.end,d.farm*s,w*.55,mL,.92);
       const h=new THREE.Group();l.end.add(h);
-      h.add(this.ball(d.limbW*.72,hand));
+      const hw=d.limbW*.72;
+      // muneca + palma aplanada (mas ancha que gruesa) + nudillos
+      const wr=this.cyl(hw*.52,hw*.34,hand);wr.position.y=-hw*.1*this.s;h.add(wr);
+      const palm=this.box(hw*.86,hw*1.05,hw*1.5,hand);
+      palm.position.y=-hw*.62*this.s;h.add(palm);
+      const kn=this.box(hw*.8,hw*.34,hw*1.52,hand);
+      kn.position.y=-hw*1.2*this.s;h.add(kn);
       return{u:u.g,l:l.g,hand:h,hold};
     };
     const aF=mkArm(zA,arm,arm), aB=mkArm(-zA,armB,armB);
@@ -3198,23 +3355,30 @@ class Rig{
     this.armUB=aB.u;this.armLB=aB.l;this.handB=aB.hand;this.holdAB=aB.hold;
     // dedos: 4 falanges dobles + pulgar por mano
     this.fingers=[];this.fist=.22;
-    const fm=this.mkMat(C.mats.hand),hr=d.limbW*.72,fw=d.limbW*.2,fl=d.limbW*.52;
+    const fm=this.mkMat(C.mats.hand),hr=d.limbW*.72,fw=d.limbW*.19,fl=d.limbW*.5;
+    // indice, corazon, anular, menique: largos y alturas de nudillo distintos
+    const FLEN=[.94,1.06,.98,.8], FOFF=[.02,0,.01,.05];
     for(const hnd of[this.handF,this.handB]){
       for(let fi=0;fi<4;fi++){
+        const L=fl*FLEN[fi];
         const b=new THREE.Group();
-        b.position.set(.1*hr*this.s,-hr*.72*this.s,(fi-1.5)*fw*2.4*this.s);
+        b.position.set(.04*hr*this.s,(-hr*1.34-FOFF[fi]*hr)*this.s,(fi-1.5)*fw*2.25*this.s);
+        b.rotation.x=(fi-1.5)*.055;            // ligero abanico
         hnd.add(b);
-        const s1=this.box(fw*1.25,fl,fw*1.6,fm);s1.position.y=-fl*.5*this.s;b.add(s1);
-        const m2=new THREE.Group();m2.position.y=-fl*this.s;b.add(m2);
-        const s2=this.box(fw*1.1,fl*.85,fw*1.45,fm);s2.position.y=-fl*.4*this.s;m2.add(s2);
+        const s1=this.box(fw*1.2,L,fw*1.5,fm);s1.position.y=-L*.5*this.s;b.add(s1);
+        const m2=new THREE.Group();m2.position.y=-L*this.s;b.add(m2);
+        const s2=this.box(fw*1.04,L*.82,fw*1.34,fm);s2.position.y=-L*.41*this.s;m2.add(s2);
+        const tip=this.ball(fw*.62,fm);tip.position.y=-L*.82*this.s;m2.add(tip);
         this.fingers.push({b,m2,th:false});
       }
+      // pulgar: sale del lateral de la palma y mira hacia dentro
       const tb=new THREE.Group();
-      tb.position.set(hr*.68*this.s,-hr*.28*this.s,0);
-      tb.rotation.x=.5;hnd.add(tb);
-      const t1=this.box(fw*1.3,fl*.85,fw*1.6,fm);t1.position.y=-fl*.4*this.s;tb.add(t1);
-      const tm=new THREE.Group();tm.position.y=-fl*.8*this.s;tb.add(tm);
-      const t2=this.box(fw*1.15,fl*.7,fw*1.45,fm);t2.position.y=-fl*.32*this.s;tm.add(t2);
+      tb.position.set(hr*.3*this.s,-hr*.72*this.s,hr*.62*this.s);
+      tb.rotation.set(.62,0,-.5);hnd.add(tb);
+      const t1=this.box(fw*1.3,fl*.8,fw*1.5,fm);t1.position.y=-fl*.4*this.s;tb.add(t1);
+      const tm=new THREE.Group();tm.position.y=-fl*.78*this.s;tb.add(tm);
+      const t2=this.box(fw*1.12,fl*.66,fw*1.32,fm);t2.position.y=-fl*.3*this.s;tm.add(t2);
+      const ttip=this.ball(fw*.6,fm);ttip.position.y=-fl*.6*this.s;tm.add(ttip);
       this.fingers.push({b:tb,m2:tm,th:true});
     }
     // piernas
@@ -3240,7 +3404,7 @@ class Rig{
     this._v=new THREE.Vector3();
   }
   dark(c){const col=new THREE.Color(c);col.multiplyScalar(.72);return col.getHex();}
-  mkMat(c){const m=new THREE.MeshToonMaterial({color:c});this.M.push(m);return m;}
+  mkMat(c){const m=new THREE.MeshToonMaterial({color:satCol(c)});this.M.push(m);return m;}
   glowMat(c){const m=new THREE.MeshBasicMaterial({color:c});this.M.push(m);return m;}
   bone(parent,len,rad,mat,taper){
     taper=taper===undefined?1:taper;
@@ -3478,8 +3642,8 @@ class Rig{
     this.footF.rotation.z=(p.legLF-90+(p.footAF||0))*D;
     this.footB.rotation.z=(p.legLB-90+(p.footAB||0))*D;
     // apertura lateral (valor positivo = se abre hacia fuera en ambos lados)
-    if(this.holdLF)this.holdLF.rotation.x=-(p.legAF||0)*D;
-    if(this.holdLB)this.holdLB.rotation.x=(p.legAB||0)*D;
+    if(this.holdLF){this.holdLF.rotation.x=-(p.legAF||0)*D;this.holdLF.rotation.y=(p.legTF||0)*D;}
+    if(this.holdLB){this.holdLB.rotation.x=(p.legAB||0)*D;this.holdLB.rotation.y=(p.legTB||0)*D;}
     if(this.holdAF)this.holdAF.rotation.x=-(p.armAF||0)*D;
     if(this.holdAB)this.holdAB.rotation.x=(p.armAB||0)*D;
     // plantado de pies
@@ -3574,7 +3738,7 @@ function tickMotes(t){
     m.position.set(u.x+Math.sin(t*.01+u.p)*u.r,u.y+Math.sin(t*.014+u.p*2)*.5,u.z+Math.cos(t*.009+u.p)*u.r);
     m.rotation.y=t*.02+u.p;});
 }
-function mat(c,f){return new THREE.MeshToonMaterial({color:c,fog:f!==false});}
+function mat(c,f){return new THREE.MeshToonMaterial({color:satCol(c),fog:f!==false});}
 function ground(color,size){
   const m=mat(color);m.polygonOffset=true;m.polygonOffsetFactor=1;m.polygonOffsetUnits=1;
   const g=new THREE.Mesh(new THREE.PlaneGeometry(size||60,40),m);
@@ -3794,6 +3958,17 @@ function buildStages(){
   const coil=new THREE.Mesh(new THREE.CylinderGeometry(.35,.6,4.5,10),mat(0x8a94a0));coil.position.set(15,2.25,-8);coil.castShadow=true;G.add(coil);
   const orb2=new THREE.Mesh(new THREE.SphereGeometry(.7,12,10),new THREE.MeshBasicMaterial({color:0xb18aff}));orb2.position.set(15,4.9,-8);G.add(orb2);G.pots.push(orb2);
   G.fog=new THREE.Fog(0x1a231d,16,46);G.sky=0x1a231d;G.rimc=0x9effc0;stages.lab=G;}
+  // --- DOJO NEUTRO: sin atrezo, para ver bien los golpes en el editor ---
+  {const G=new THREE.Group();
+   const piso=new THREE.Mesh(new THREE.PlaneGeometry(46,30),mat(0x50505e));
+   piso.rotation.x=-Math.PI/2;piso.position.y=.012;piso.receiveShadow=true;G.add(piso);
+   const gm=new THREE.MeshBasicMaterial({color:0x70708a});
+   for(let i=-8;i<=8;i++){
+     const a=new THREE.Mesh(new THREE.BoxGeometry(.04,.012,26),gm);a.position.set(i*2.4,.03,0);G.add(a);
+     const b=new THREE.Mesh(new THREE.BoxGeometry(40,.012,.04),gm);b.position.set(0,.03,i*2.0);G.add(b);}
+   const cx=new THREE.Mesh(new THREE.RingGeometry(1.0,1.12,36),new THREE.MeshBasicMaterial({color:0x9a9ab4,side:THREE.DoubleSide}));
+   cx.rotation.x=-Math.PI/2;cx.position.y=.045;G.add(cx);
+   G.fog=new THREE.Fog(0x3c3c48,28,68);G.sky=0x3c3c48;G.rimc=0xffffff;stages.neutro=G;}
   for(const k in stages){stages[k].visible=false;scene.add(stages[k]);}
 }
 function setStage(k){
@@ -4885,12 +5060,14 @@ function update(){
       }
       if(!pose)pose=P({py:-92+Math.sin(bt)*1.1,torso:6+Math.sin(bt)*.8,
         armLF:78+Math.sin(bt)*2,armLB:158+Math.sin(bt+.6)*2,head:2+Math.sin(bt*.7)*1.2});
-      twMarksUpd();
       crPrev.apply(pose,1,0,plantM);
-      crPrev.root.position.set(2.4,crPrev.root.position.y,2);
-      if(crAuto)crYaw=Math.sin(performance.now()*.0005)*.5;
-      crPrev.root.rotation.y=crYaw;
-    }return;}
+      if(crTab!=='taller'&&crAuto)crYaw=Math.sin(performance.now()*.0005)*.5;
+      twPlace();   // misma colocacion que en la edicion: evita el parpadeo
+      // las marcas se calculan DESPUES de posar y colocar, con la matriz al dia
+      twMarksUpd();twAxisUpd();
+    }
+    twSparTick(performance.now());
+    return;}
   if(game.mode==='title'){game.idleT++;if(game.idleT>1150)startAttract();}
   if(game.mode==='title'||game.mode==='select'){if(game.selAnim>0)game.selAnim--;showcaseOn(true);return;}
   if(game.mode==='bracket'){showcaseOn(false);return;}
@@ -4986,6 +5163,22 @@ function tickCam(t){
     sun.target.position.set(0,1,0);return;
   }
   if(game.mode==='creator'){
+    if(crTab==='taller'){
+      // centro de la accion entre luchador y sparring
+      const cxA=TWX-twDist/2, cz=TWZ, or=crYaw;   // crYaw orbita la camara aqui
+      if(twCam===2){                               // CENITAL
+        cam.position.set(cxA+Math.sin(or)*.6,9.2,cz+2.2+Math.cos(or)*.6);
+        cam.lookAt(cxA,0.2,cz);
+      }else{
+        const cfg=twCam===0?{r:6.6,h:2.3,ly:1.5}   // LATERAL (perfil, como en combate)
+                 :twCam===1?{r:10.5,h:4.2,ly:1.2}  // GENERAL (plano abierto)
+                 :{r:7.4,h:3.4,ly:1.5};            // 3/4
+        const ang=(twCam===3?.9:0)+or;             // el 3/4 arranca girado
+        cam.position.set(cxA+Math.sin(ang)*cfg.r,cfg.h,cz+Math.cos(ang)*cfg.r);
+        cam.lookAt(cxA,cfg.ly,cz);
+      }
+      sun.target.position.set(cxA,1,cz);return;
+    }
     cam.position.set(.42,2.5,7.8);cam.lookAt(.42,1.6,2);sun.target.position.set(2.4,1,2);return;
   }
   if(game.mode==='champion'){
@@ -5066,7 +5259,8 @@ function tickCam(t){
 /* ===========================================================
    HUD 2D
    =========================================================== */
-const STAGE_NAMES={bamboo:'BOSQUE DE BAMBÚ · Valle de la Montaña Nublada',
+const STAGE_NAMES={neutro:'DOJO NEUTRO · Sala de entrenamiento',
+  bamboo:'BOSQUE DE BAMBÚ · Valle de la Montaña Nublada',
   ufo:'CRÁTER DE ARANDIA · Zona de aterrizaje forzoso',
   court:'SALA TERCERA · Juzgado de lo Contencioso',
   arena:'ESTADIO PANTERA · Noche de la gran final',
@@ -5216,7 +5410,7 @@ function drawHUD(){
   if(game.tour)txt(game.tour.stage==='finalFight'?'FINAL':'SEMIFINAL',W/2,78,13,'#ffd75a');
   if(game.moveNameT>0&&game.moveOwner){
     hx.globalAlpha=Math.min(1,game.moveNameT/20);
-    txt(game.moveName,game.moveOwner===p1?250:710,150,20,game.moveOwner.hud);
+    txt(game.moveName,game.moveOwner===p1?250:710,H-70,20,game.moveOwner.hud);
     hx.globalAlpha=1;
   }
   if(game.mode==='fight'){

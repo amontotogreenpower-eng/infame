@@ -15,7 +15,7 @@ window.__fatal=function(m){try{
 }catch(_){}};
 /* Recursos OPCIONALES: si faltan, el juego funciona igual (retratos
    procedurales / sin intro). No deben disparar el aviso de error. */
-window.__optRes=/(?:src\/Intro\.mp4|src\/luchador\d+[^\/]*\.png)$/i;
+window.__optRes=/(?:src\/Intro\.mp4|src\/luchador\d+[^\/]*\.png|src\/start\.mp3|src\/round\d\.mp3)$/i;
 window.addEventListener('error',function(e){
   if(e&&e.target&&e.target!==window&&e.target.tagName){
     var u=e.target.src||e.target.href||'';
@@ -643,7 +643,30 @@ function playMusic(st){
     if(st==='arena'&&i%16===8)noise(.7,.035,420);
     i++;},stepMs);
 }
-function stopMusic(){if(music.int){clearInterval(music.int);music.int=null;}music.cur=null;}
+function stopSynth(){if(music.int){clearInterval(music.int);music.int=null;}music.cur=null;}
+/* ---------- musica desde archivo (src/*.mp3) con respaldo al sintetizador ----------
+   Si el mp3 no esta o no se puede reproducir, suena la musica interna de siempre. */
+const bgm=new Audio();bgm.loop=true;bgm.volume=.5;
+const bgmDead={};                 // urls que ya sabemos que no existen
+let bgmUrl='';
+function stopMusic(){stopSynth();try{bgm.pause();}catch(e){}bgmUrl='';}
+function playTrack(url,fallback){
+  if(!url||bgmDead[url]){stopFile();fallback&&fallback();return;}
+  if(bgmUrl===url&&!bgm.paused)return;          // ya esta sonando
+  stopSynth();bgmUrl=url;
+  bgm.onerror=()=>{bgmDead[url]=true;bgmUrl='';fallback&&fallback();};
+  bgm.src=url;
+  const pr=bgm.play();
+  // un play() rechazado suele ser politica de autoplay, no un archivo ausente:
+  // usamos el respaldo pero sin descartar el archivo para siempre.
+  if(pr&&pr.catch)pr.catch(()=>{bgmUrl='';fallback&&fallback();});
+}
+function stopFile(){try{bgm.pause();}catch(e){}bgmUrl='';}
+function playMenuMusic(){playTrack('src/start.mp3',null);}
+function playRoundMusic(){
+  const n=Math.min(3,Math.max(1,game.round||1));
+  playTrack('src/round'+n+'.mp3',()=>playMusic(game.stage));
+}
 
 /* ---------- entrada ---------- */
 const keys={},just={};
@@ -4682,10 +4705,11 @@ function startMatch(c1,c2,twoP,stage,lvl){
   p1=new Fighter(c1,W*.3,1,CTRL1);
   p2=new Fighter(c2,W*.7,-1,twoP?CTRL2:null,c1===c2);
   p1.opp=p2;p2.opp=p1;p1.wins=0;p2.wins=0;
-  game.aiLevel=lvl||1;game.stage=stage||CHARS[c2].stage;playMusic(game.stage);
+  game.aiLevel=lvl||1;game.stage=stage||CHARS[c2].stage;
   setStage(game.stage);showcaseOn(false);
   if(confetti)confetti.visible=false;
-  game.round=1;newRound();
+  game.round=1;playRoundMusic();   // la ronda debe valer 1 ANTES de elegir pista
+  newRound();
 }
 function newRound(){
   p1.reset(W*.3,1);p2.reset(W*.7,-1);
@@ -5101,10 +5125,10 @@ function update(){
   if(game.mode==='title'){game.idleT++;if(game.idleT>1150)startAttract();}
   if(game.mode==='title'||game.mode==='select'){if(game.selAnim>0)game.selAnim--;showcaseOn(true);return;}
   if(game.mode==='bracket'){showcaseOn(false);return;}
-  if(game.mode==='champmenu'||game.mode==='config'||game.mode==='workshop'||game.mode==='controls'){showcaseOn(true);stopMusic();return;}
+  if(game.mode==='champmenu'||game.mode==='config'||game.mode==='workshop'||game.mode==='controls'){showcaseOn(true);playMenuMusic();return;}
   if(game.mode==='organizer'||game.mode==='orgnews'||game.mode==='customlist'){showcaseOn(false);stopMusic();return;}
   if(game.mode==='champion'){tickConfetti();return;}
-  if(game.mode==='title'||game.mode==='select'||game.mode==='bracket'||game.mode==='champion')stopMusic();
+  if(game.mode==='title'||game.mode==='select'||game.mode==='bracket'||game.mode==='champion')playMenuMusic();
   if(game.mode==='pause')return;
   if(game.freeze>0){game.freeze--;return;}
   if(game.attract){
@@ -5126,7 +5150,7 @@ function update(){
         if(game.winner.ctrl&&!game.spectate)game.stats.wins++;
         if(game.winner.ctrl&&game.winner.meter>=100){game.mode='fatalwait';game.bt=0;}
         else{game.mode='matchend';game.bt=0;}}
-      else{game.round++;newRound();}
+      else{game.round++;newRound();playRoundMusic();}
     }
     return;
   }

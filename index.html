@@ -4374,11 +4374,20 @@ class Fighter{
   }
   hurtSpheres(){
     const d=this.d,s=K*d.scale;
+    const kF=this.combatJoint('kneF'), kB=this.combatJoint('kneB');
+    const fF=this.combatJoint('footF'), fB=this.combatJoint('footB');
+    /* Punto medio de la espinilla: entre rodilla y pie no habia nada, asi que
+       barridos y patadas bajas pasaban por debajo de todas las cajas. */
+    const shin=(k,f)=>({x:(k.x+f.x)/2,y:(k.y+f.y)/2,z:k.z});
     return[{p:this.combatJoint('headC'),r:d.headR*s*1.05},
            {p:this.combatJoint('chest'),r:d.torsoW*.44*s},
            {p:this.combatJoint('pel'),r:d.torsoW*.42*s},
-           {p:this.combatJoint('kneF'),r:d.limbW*1.6*s},
-           {p:this.combatJoint('kneB'),r:d.limbW*1.6*s}];
+           {p:kF,r:d.limbW*1.6*s},
+           {p:kB,r:d.limbW*1.6*s},
+           {p:shin(kF,fF),r:d.limbW*1.45*s},
+           {p:shin(kB,fB),r:d.limbW*1.45*s},
+           {p:fF,r:d.limbW*1.5*s},
+           {p:fB,r:d.limbW*1.5*s}];
   }
   hitBy(src){
     if(this.state==='ko')return;

@@ -4059,6 +4059,7 @@ class Fighter{
     this.mvHit=false;this.mvTier=0;this.cmb=0;this.thEsc=0;
     this.stun=0;this.blocking=false;this.crouch=false;this.walkPh=0;
     this.dashT=0;this.dashDir=0;this.tapT=0;this.tapDir=0;this.cd=0;
+    this.guardWalk=false;
     this.aiT=0;this.plan='none';this.planT=0;this.pose=IDLE;
     this.sync();
   }
@@ -4140,7 +4141,9 @@ class Fighter{
     }
     if(this.planT>0){
       this.planT--;
-      if(this.plan==='approach')i[toward]=1;
+      if(this.plan==='approach'){i[toward]=1;
+        // si el rival esta cerca o atacando, acercarse en guardia (ALT)
+        if(ad<190&&(o.mv||Math.random()<sk*.45))i.alt=1;}
       if(this.plan==='retreat')i[away]=1;
       if(this.plan==='space'){            // mantenerse al filo del alcance
         if(ad<alc*.75)i[away]=1;else if(ad>alc*1.15)i[toward]=1;
@@ -4294,13 +4297,18 @@ class Fighter{
       this.state='dash';this.clamp();this.pick(i);this.sync();return;
     }
     this.crouch=!!i.down&&!this.air;this.blocking=false;
+    /* --- AVANCE PROTEGIDO ---
+       ALT + izquierda/derecha = caminar en guardia: pasos cortos, punos en la
+       cara, rodillas flexionadas y menos dano al recibir.
+       El doble toque sigue siendo dash, con ALT y sin ALT. */
+    this.guardWalk=!!i.alt&&(!!i.left||!!i.right)&&!this.air&&!this.crouch&&!this.mv;
     let mvx=0;
     if(!this.crouch){if(i.left)mvx-=1;if(i.right)mvx+=1;}
     const threat=(this.opp.mv&&Math.abs(this.opp.x-this.x)<170)||ents.some(e=>e.owner!==this&&Math.abs(e.x-this.x)<130);
     const back=-this.facing;
     if(!this.air&&threat&&(mvx===back||(i.down&&(i.left||i.right)&&(i.right?1:-1)===back))){this.blocking=true;mvx=0;}
-    this.x+=mvx*this.c.speed;
-    if(mvx!==0&&!this.air)this.walkPh+=.22*(mvx===this.facing?1:-.85);
+    this.x+=mvx*this.c.speed*(this.guardWalk?.30:1);
+    if(mvx!==0&&!this.air)this.walkPh+=(this.guardWalk?.10:.22)*(mvx===this.facing?1:-.85);
     if(i.up&&!this.air){this.vy=this.c.jump;sfx.jump();if(mvx!==0)this.vx=mvx*3.6;}
     this.x+=this.vx;if(!this.air)this.vx*=.7;
     this.vy+=GRAV;this.y+=this.vy;
@@ -4308,9 +4316,14 @@ class Fighter{
     if(this.air)this.state='airborne';
     else if(this.blocking)this.state=this.crouch?'blockLow':'block';
     else if(this.crouch)this.state='crouch';
-    else if(mvx!==0)this.state='walk';
+    else if(mvx!==0)this.state=this.guardWalk?'gwalk':'walk';
+    else if(this.guardWalk)this.state='gstand';
     else this.state='idle';
     if(!this.blocking)this.pick(i);
+    if(this.guardWalk&&this.t%9===0){          // senal visual de que la guardia esta activa
+      const c=this.rig.joint('chest');
+      burst({x:c.x,y:c.y+.12,z:c.z},1,0x8ef0ff,.016,false);
+    }
     this.clamp();this.sync();
   }
   clamp(){this.x=clamp(this.x,36,W-36);}
@@ -4326,10 +4339,25 @@ class Fighter{
     if(this.state==='blockLow')return POSE.blockLow;
     if(this.state==='crouch')return POSE.crouch;
     if(this.air)return this.vy<0?POSE.jump:POSE.fall;
+    if(this.state==='gwalk'||this.state==='gstand'){
+      // guardia alta: punos junto al menton, rodillas flexionadas, paso corto
+      const gw=this.state==='gwalk';
+      const s=gw?Math.sin(this.walkPh):0, c=gw?Math.cos(this.walkPh):0, ab=Math.abs(s);
+      const swF=Math.max(0,-c), swB=Math.max(0,c);   // fase de vuelo de cada pierna
+      return P({py:-80+ab*2,torso:4,head:-6,
+        armUF:166-s*4,armLF:30-s*5,armUB:186+s*4,armLB:40+s*5,
+        legUF:158+s*13,legLF:196+s*13+swF*16,footAF:-swF*9,
+        legUB:166-s*13,legLB:200-s*13+swB*16,footAB:-swB*9});
+    }
     if(this.state==='walk'){
-      const s=Math.sin(this.walkPh),ab=Math.abs(s);
+      const s=Math.sin(this.walkPh),c=Math.cos(this.walkPh),ab=Math.abs(s);
+      /* La rodilla se flexiona en la FASE DE VUELO (cuando la pierna avanza),
+         no cuando esta atras: asi el pie despega y no se arrastra.
+         rodilla = legL - legU ; el maximo cae al pasar el pie bajo el cuerpo. */
+      const swF=Math.max(0,-c), swB=Math.max(0,c);
       return P({py:-92+ab*3,torso:8,head:2,armUF:152-s*10,armLF:78-s*12,armUB:196+s*12,armLB:158+s*10,
-        legUF:180+s*22,legLF:180+s*22+Math.max(0,s)*26,legUB:180-s*22,legLB:180-s*22+Math.max(0,-s)*26});
+        legUF:180+s*22,legLF:180+s*22+8+swF*30,footAF:-swF*14,
+        legUB:180-s*22,legLB:180-s*22+8+swB*30,footAB:-swB*14});
     }
     const b=Math.sin(this.t*.06);
     return P({py:-92+b*1.6,torso:6+b*1.2,head:2-b,armLF:78+b*4,armLB:158-b*3,armUF:152+b*2});
@@ -4427,7 +4455,7 @@ class Fighter{
       this.meter=Math.min(100,this.meter+4);sfx.block();
       burst(chest,6,0x8ef0ff,.06);
     }else{
-      const sc=Math.max(.34,1-this.cmb*.13);
+      const sc=Math.max(.34,1-this.cmb*.13)*(this.guardWalk?.55:1);
       this.hp-=Math.max(1,Math.round(src.dmg*sc));this.cmb++;this.state='hurt';
       this.vx=dir*src.push/this.c.weight;
       if(src.knockdown||this.air)this.vy=-7.5;
@@ -5516,7 +5544,7 @@ function drawHUD(){
   if(game.banner)txt(game.banner,W/2,H/2-30,48,'#ffd75a');
   if(game.mode==='intro'&&p1&&p2){
     txt(STAGE_NAMES[game.stage]||'',W/2,H-52,13,'#cfc4ee');
-    txt('J puño · K patada · L especial · I súper · ALT+golpe = capa 2  |  L aire: PATADA VOLADORA · ↓+L: GANCHO',W/2,H-26,11,'#8878a8');
+    txt('doble toque = DASH · ALT + ←/→ = avance en guardia (menos daño) · ALT + golpe = capa 2',W/2,H-26,11,'#8878a8');
   }
   if(game.mode==='fatalwait'&&game.winner){
     const bl=Math.floor(performance.now()/230)%2;

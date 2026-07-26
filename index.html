@@ -1205,6 +1205,38 @@ const ARCH={
   zoner:{label:'Lanzador (Marta)',special:'marta',super:'marta',ai:{aggr:.48,jumpy:.32,fire:.76}},
   rusher:{label:'Embestidor (Carlos)',special:'carlos',super:'carlos',ai:{aggr:.7,jumpy:.14,fire:.4}},
   grappler:{label:'Luchador (Panda)',special:'panda',super:'panda',ai:{aggr:.66,jumpy:.12,fire:.25}}};
+/* ===========================================================
+   EJE DE COMBATE GIRATORIO
+   El juego sigue siendo 2D por dentro: cada luchador tiene una sola
+   coordenada 'x' sobre una linea. Lo nuevo es que esa linea puede GIRAR
+   en el mundo (axA) y tener un origen movil (axCx,axCz). Como ambos
+   luchadores siguen sobre la linea, toda la logica de combate (distancia,
+   alcance, orientacion, empujon) funciona sin tocar nada.
+   =========================================================== */
+const AX={A:0,cx:0,cz:0,camA:0};
+const axCos=()=>Math.cos(AX.A), axSin=()=>Math.sin(AX.A);
+/* coordenada del eje -> mundo */
+function axW(ax){return{x:AX.cx+ax*axCos(),z:AX.cz+ax*axSin()};}
+function axV(ax,y){const w=axW(ax);return new THREE.Vector3(w.x,y,w.z);}
+/* mundo -> coordenada a lo largo del eje (y su perpendicular) */
+function axProj(wx,wz){const dx=wx-AX.cx,dz=wz-AX.cz,c=axCos(),si=axSin();
+  return{a:dx*c+dz*si, p:-dx*si+dz*c};}
+function axReset(){AX.A=0;AX.cx=0;AX.cz=0;AX.camA=0;}
+/* gira el eje dth manteniendo fijo al luchador 'pivote' */
+function axSpin(dth,pivotX){
+  const pax=(pivotX-480)*K, w=axW(pax);
+  AX.A+=dth;
+  AX.cx=w.x-pax*axCos();AX.cz=w.z-pax*axSin();
+}
+const INFIGHT=m=>(m==='fight'||m==='intro'||m==='roundend');
+/* El coliseo sigue en pantalla en el desenlace (K.O., fatality, victoria). */
+const INARENA=m=>(INFIGHT(m)||m==='matchend'||m==='fatalwait'||m==='fatality');
+/* Radio del circulo de combate, en unidades de mundo. Manda sobre el limite
+   de movimiento y sobre lo que se dibuja en la arena: cambiando esto cambian
+   los dos a la vez y nunca se descuadran. */
+const ARENA_R=40;
+const ARENA_PX=ARENA_R/K;          // mismo radio en las 'x' logicas del juego
+const ARENA_LIM=ARENA_R+1.4;       // hasta donde se puede pisar (junto a la muralla)
 const CANCEL_W=8;   // frames extra tras los activos para cancelar
 const THROW_ESC=11;    // ventana (frames) para zafarse de un agarre
 const MOVE_SLOTS=['punch','kick','cpunch','sweep','jpunch','jkick','special','super','apunch','akick','aspec','asuper'];
@@ -1905,13 +1937,13 @@ if('serviceWorker'in navigator&&location.protocol.indexOf('http')===0){
 
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 const scene=new THREE.Scene();
-const cam=new THREE.PerspectiveCamera(46,W/H,.1,200);
+const cam=new THREE.PerspectiveCamera(46,W/H,.1,1400);
 scene.add(new THREE.HemisphereLight(0xbfd8ff,0x30203a,.40*GFX_LUZ));
 const sun=new THREE.DirectionalLight(0xfff2d0,.80*GFX_LUZ);
 sun.position.set(-7,14,10);sun.castShadow=true;
 sun.shadow.mapSize.set(2048,2048);
 sun.shadow.bias=-0.0004;sun.shadow.normalBias=0.03;
-const sc=sun.shadow.camera;sc.left=-13;sc.right=13;sc.top=13;sc.bottom=-5;sc.near=1;sc.far=44;
+const sc=sun.shadow.camera;sc.left=-16;sc.right=16;sc.top=16;sc.bottom=-8;sc.near=1;sc.far=54;
 scene.add(sun);scene.add(sun.target);
 const rim=new THREE.DirectionalLight(0x88aaff,.30*GFX_LUZ);rim.position.set(9,6,-9);scene.add(rim);
 const hemi=new THREE.HemisphereLight(0xcfe0ff,0x3a2f28,.15*GFX_LUZ);scene.add(hemi);
@@ -2668,6 +2700,7 @@ function openCreator(startPane,tallerOnly,returnMode){
   crRefreshSlots();crPrevKey='';crBuildPreview();
 }
 function closeCreator(){
+  tatamiOn(false);
   crPanel.classList.remove('on');crPanel.classList.remove('taller-only');
   twSlow=false;twPlay=-1;
   if(twSparRig){scene.remove(twSparRig.root);twSparRig.dispose();twSparRig=null;}
@@ -3730,7 +3763,7 @@ const w2px=v=>({x:v.x/K+480,y:GROUND-v.y/K});
 /* ===========================================================
    ESCENARIOS 3D
    =========================================================== */
-const stages={};
+const stages={};let tatami=null;
 function tileTex(){
   const c=document.createElement('canvas');c.width=c.height=128;
   const x=c.getContext('2d');
@@ -4002,9 +4035,159 @@ function buildStages(){
    const cx=new THREE.Mesh(new THREE.RingGeometry(1.0,1.12,36),new THREE.MeshBasicMaterial({color:0x9a9ab4,side:THREE.DoubleSide}));
    cx.rotation.x=-Math.PI/2;cx.position.y=.045;G.add(cx);
    G.fog=new THREE.Fog(0x3c3c48,28,68);G.sky=0x3c3c48;G.rimc=0xffffff;stages.neutro=G;}
+  /* ===== COLISEO MONUMENTAL =====
+     ESC escala toda la arquitectura. El circulo de combate (RC) sigue atado al
+     limite real de movimiento de los luchadores, asi que se marca aparte para
+     que se vea donde ocurre la pelea dentro de semejante mole. */
+  {const ESC=1;                          // arena = exactamente el circulo de combate
+   const RC=ARENA_R;                    // circulo de combate (= limite real)
+   const R=(ARENA_LIM+.6)*ESC, RM=R;    // arena y muralla coinciden con el limite
+   const G=new THREE.Group();
+   const cAren=0xc9a978,cPied=0xd8d2c0,cPied2=0xbfb8a4,cGrad=0xa89f8a;
+
+   const disc=new THREE.Mesh(new THREE.CircleGeometry(R,96),
+     new THREE.MeshBasicMaterial({color:cAren}));
+   disc.rotation.x=-Math.PI/2;disc.position.y=.02;G.add(disc);G.disc=disc;
+
+   // circulo de combate marcado en la arena
+   const borde=new THREE.Mesh(new THREE.RingGeometry(RC-.4,RC,80),
+     new THREE.MeshBasicMaterial({color:cPied,side:THREE.DoubleSide}));
+   borde.rotation.x=-Math.PI/2;borde.position.y=.05;G.add(borde);
+   const centro=new THREE.Mesh(new THREE.RingGeometry(1.5,1.62,48),
+     new THREE.MeshBasicMaterial({color:0x8a7a5a,side:THREE.DoubleSide}));
+   centro.rotation.x=-Math.PI/2;centro.position.y=.06;G.add(centro);
+   // anillos concentricos que dan escala al recinto
+   for(let k=1;k<=6&&R>RC+2;k++){      // solo si hay margen entre circulo y muralla
+     const rr=RC+ (R-RC)*k/6;
+     const an=new THREE.Mesh(new THREE.RingGeometry(rr-.5,rr,96),
+       new THREE.MeshBasicMaterial({color:0xbfa382,side:THREE.DoubleSide}));
+     an.rotation.x=-Math.PI/2;an.position.y=.035;G.add(an);}
+
+   const HM=5.5*ESC;   // muralla algo mas alta en proporcion
+   const muro=new THREE.Mesh(new THREE.CylinderGeometry(RM,RM,HM,96,1,true),
+     new THREE.MeshBasicMaterial({color:cPied,side:THREE.DoubleSide}));
+   muro.position.y=HM/2;G.add(muro);
+   for(let b=0;b<5;b++){
+     const fr=new THREE.Mesh(new THREE.TorusGeometry(RM-.03*ESC,.055*ESC,6,96),
+       new THREE.MeshBasicMaterial({color:cPied2}));
+     fr.rotation.x=Math.PI/2;fr.position.y=HM*(.16+b*.19);G.add(fr);}
+   const corn=new THREE.Mesh(new THREE.CylinderGeometry(RM+.45*ESC,RM+.25*ESC,.45*ESC,96,1,true),
+     new THREE.MeshBasicMaterial({color:cPied2}));
+   corn.position.y=HM+.2*ESC;G.add(corn);
+
+   const NT=12, altG=1.6*ESC;
+   for(let t=0;t<NT;t++){
+     const r0=RM+.6*ESC+t*1.15*ESC, alt=altG;      // graderio pegado
+     const g=new THREE.Mesh(new THREE.CylinderGeometry(r0+1.15*ESC,r0,alt,80,1,true),
+       new THREE.MeshBasicMaterial({color:t%2?cGrad:cPied2,side:THREE.DoubleSide}));
+     g.position.y=HM+.4*ESC+t*alt;G.add(g);}
+
+   /* COLUMNATA: se apoya justo donde termina la ultima grada (borde exterior
+      y altura de su cara superior), a escala 0.7 de la original. */
+   const rUlt=RM+.6*ESC+(NT-1)*1.15*ESC+1.15*ESC;   // radio exterior de la ultima grada
+   const yUlt=HM+.4*ESC+(NT-1)*altG+altG/2;         // cara superior de la ultima grada
+   const CS=0.7*ESC;                                 // escala de la columnata (-30%)
+   const hBase=.22*CS, hFuste=2.9*CS, hCap=.26*CS;
+   const NC=48;
+   for(let i=0;i<NC;i++){
+     const a=i/NC*Math.PI*2, cx=Math.cos(a)*rUlt, cz=Math.sin(a)*rUlt;
+     const base=new THREE.Mesh(new THREE.CylinderGeometry(.34*CS,.4*CS,hBase,12),
+       new THREE.MeshBasicMaterial({color:cPied2}));
+     base.position.set(cx,yUlt+hBase/2,cz);G.add(base);
+     const fuste=new THREE.Mesh(new THREE.CylinderGeometry(.26*CS,.31*CS,hFuste,14),
+       new THREE.MeshBasicMaterial({color:cPied}));
+     fuste.position.set(cx,yUlt+hBase+hFuste/2,cz);fuste.castShadow=true;G.add(fuste);
+     const cap=new THREE.Mesh(new THREE.BoxGeometry(.78*CS,hCap,.78*CS),
+       new THREE.MeshBasicMaterial({color:cPied2}));
+     cap.position.set(cx,yUlt+hBase+hFuste+hCap/2,cz);cap.rotation.y=-a;G.add(cap);}
+   const arq=new THREE.Mesh(new THREE.CylinderGeometry(rUlt+.2*CS,rUlt+.2*CS,.5*CS,80,1,true),
+     new THREE.MeshBasicMaterial({color:cPied2,side:THREE.DoubleSide}));
+   arq.position.y=yUlt+hBase+hFuste+hCap+.25*CS;G.add(arq);
+
+   /* ===== PUBLICO =====
+      Miles de espectadores con pocas draw calls (InstancedMesh). Colocacion
+      irregular (angulo, radio y huecos aleatorios) para que no se vea rejilla.
+      Una parte tiene los brazos en alto. */
+   {const FIL=NT, PORFILA=118;
+    /* Con vertexColors:true, r128 multiplica por el atributo 'color' de la
+       geometria; si no existe vale 0 y sale todo NEGRO. Se pone blanco. */
+    const blanco=g=>{const n=g.attributes.position.count, c=new Float32Array(n*3).fill(1);
+      g.setAttribute('color',new THREE.Float32BufferAttribute(c,3));return g;};
+    const cuerpoG=blanco(new THREE.CylinderGeometry(.17,.22,.62,5));
+    const cabezaG=blanco(new THREE.SphereGeometry(.14,6,5));
+    const brazoG =blanco(new THREE.CylinderGeometry(.05,.05,.42,4));
+    const mI=()=>new THREE.MeshBasicMaterial({vertexColors:true});
+
+    // primero decidimos quien hay y donde, con huecos irregulares
+    const datos=[];
+    for(let f=0;f<FIL;f++){
+      const rF=RM+.6*ESC+f*1.15*ESC+.6*ESC;
+      const yF=HM+.4*ESC+f*altG+altG/2;
+      let ang=_rnd(f*77)*6.283;
+      for(let k=0;k<PORFILA;k++){
+        // paso angular variable: a veces se juntan, a veces queda un hueco
+        const r1=_rnd(f*131+k*17), r2=_rnd(f*57+k*29);
+        ang+=(6.283/PORFILA)*(.55+r1*1.5);
+        if(ang>6.283){break;}
+        if(r2<.12)continue;                         // asiento vacio
+        datos.push({a:ang, r:rF+(r2-.5)*.55*ESC, y:yF,
+                    ph:_rnd(f*13+k*7)*6.28,
+                    h:.82+_rnd(k*5+f*3)*.42,
+                    brazos:_rnd(k*23+f*11)<.34});
+      }
+    }
+    const TOT=datos.length, NB=datos.filter(d=>d.brazos).length;
+    const cuerpos=new THREE.InstancedMesh(cuerpoG,mI(),TOT);
+    const cabezas=new THREE.InstancedMesh(cabezaG,mI(),TOT);
+    const brazos =new THREE.InstancedMesh(brazoG ,mI(),Math.max(1,NB*2));
+    [cuerpos,cabezas,brazos].forEach(m=>m.instanceMatrix.setUsage(THREE.DynamicDrawUsage));
+
+    const ROPA=[0xd94f4f,0x4f7fd9,0xd9c14f,0x4fd97f,0xe86ab0,0xf0ece0,0xe08a3a,0x8a5ad9,0x3ac0c0,0xc0d94f];
+    const PIEL=[0xf0c9a0,0xd8a877,0xa9784f,0x7a5433];
+    const col=new THREE.Color(), M=new THREE.Matrix4();
+    let bi=0;
+    for(let i=0;i<TOT;i++){
+      const d=datos[i];
+      col.setHex(ROPA[Math.floor(_rnd(i*3.7)*ROPA.length)%ROPA.length]);
+      cuerpos.setColorAt(i,col);
+      col.setHex(PIEL[Math.floor(_rnd(i*9.1)*PIEL.length)%PIEL.length]);
+      cabezas.setColorAt(i,col);
+      if(d.brazos){d.bi=bi;
+        col.setHex(PIEL[Math.floor(_rnd(i*9.1)*PIEL.length)%PIEL.length]);
+        brazos.setColorAt(bi,col);brazos.setColorAt(bi+1,col);bi+=2;}
+    }
+    [cuerpos,cabezas,brazos].forEach(m=>{if(m.instanceColor)m.instanceColor.needsUpdate=true;});
+    G.add(cuerpos);G.add(cabezas);G.add(brazos);
+    G.publico={cuerpos,cabezas,brazos,datos,M:new THREE.Matrix4(),n:TOT};}
+
+   // CUPULA DE CIELO: media esfera enorme vista por dentro, con degradado
+   const skyG=new THREE.SphereGeometry(900,40,24,0,Math.PI*2,0,Math.PI/2);
+   {const pos=skyG.attributes.position, col=[];
+    const alto=new THREE.Color(0x1e6fd0), bajo=new THREE.Color(0xbfe4ff);
+    for(let i=0;i<pos.count;i++){
+      const h=Math.min(1,Math.max(0,pos.getY(i)/900));
+      const c=bajo.clone().lerp(alto,Math.pow(h,.55));
+      col.push(c.r,c.g,c.b);}
+    skyG.setAttribute('color',new THREE.Float32BufferAttribute(col,3));}
+   const skyM=new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.BackSide,fog:false});
+   const sky=new THREE.Mesh(skyG,skyM);sky.position.y=-4;G.add(sky);
+   G.visible=false;tatami=G;scene.add(G);}
   for(const k in stages){stages[k].visible=false;scene.add(stages[k]);}
 }
+let arenaOn=false;                      // true = manda el coliseo, pase lo que pase
+function tatamiOn(v){arenaOn=!!v;if(tatami)tatami.visible=!!v;}
 function setStage(k){
+  if(arenaOn||INARENA(game.mode)){   // en combate solo se ve el coliseo
+    for(const s in stages)stages[s].visible=false;
+    scene.fog=new THREE.Fog(0x8fc4f0,260,900);
+    scene.background=new THREE.Color(0x5aa9e6);   // cielo azul abierto
+    rim.color.setHex(0xffe9c0);
+    if(typeof TILEFLOOR!=='undefined'&&TILEFLOOR)TILEFLOOR.visible=false;
+    if(typeof motes!=='undefined'&&motes)motes.visible=false;
+    if(tatami)tatami.visible=true;
+    return;
+  }
+  if(typeof motes!=='undefined'&&motes)motes.visible=true;
   for(const s in stages)stages[s].visible=(s===k);
   const G=stages[k];scene.fog=G.fog;scene.background=new THREE.Color(G.sky);
   if(G.rimc)rim.color.setHex(G.rimc);
@@ -4014,6 +4197,36 @@ function setStage(k){
   TILEFLOOR.visible=!imgFloor;
 }
 function tickStage(t){
+  /* PUBLICO: se anima por tandas (1/6 por frame) para no cargar el movil.
+     Al meter un golpe fuerte, game.shake sube y el gentio salta mas. */
+  if(tatami&&tatami.visible&&tatami.publico){
+    const P=tatami.publico, M=P.M, n=P.n;
+    const jaleo=1+Math.min(2.4,(game.shake||0)*9);
+    const paso=Math.ceil(n/6), ini=(P.i||0)%n;
+    for(let k=0;k<paso;k++){
+      const i=(ini+k)%n, d=P.datos[i];
+      const s2=Math.sin(t*.05+d.ph);
+      const salto=Math.max(0,s2)*.16*jaleo;
+      const x=Math.cos(d.a)*d.r, z=Math.sin(d.a)*d.r;
+      M.makeScale(1,d.h,1);M.setPosition(x,d.y+.31*d.h+salto,z);
+      P.cuerpos.setMatrixAt(i,M);
+      M.makeScale(1,1,1);M.setPosition(x,d.y+.62*d.h+.14+salto*1.05,z);
+      P.cabezas.setMatrixAt(i,M);
+      if(d.bi!==undefined){                     // brazos en alto, agitandose
+        const hom=d.y+.55*d.h+salto, mece=Math.sin(t*.06+d.ph)*.28;
+        for(let ld=0;ld<2;ld++){
+          const sd=ld?1:-1, ang=sd*(.42+mece*sd);
+          M.makeRotationZ(ang);
+          M.setPosition(x+Math.cos(d.a+1.57)*sd*.19,hom+.2,z+Math.sin(d.a+1.57)*sd*.19);
+          P.brazos.setMatrixAt(d.bi+ld,M);
+        }
+      }
+    }
+    P.i=(ini+paso)%n;
+    P.cuerpos.instanceMatrix.needsUpdate=true;
+    P.cabezas.instanceMatrix.needsUpdate=true;
+    P.brazos.instanceMatrix.needsUpdate=true;
+  }
   const b=stages.ufo;if(b&&b.visible&&b.ufo){b.ufo.rotation.y=t*.012;b.ufo.position.y=8.5+Math.sin(t*.02)*.5;}
   const c=stages.court;if(c&&c.visible&&c.scaleObj)c.scaleObj.rotation.z=Math.sin(t*.02)*.12;
   const a=stages.arena;if(a&&a.visible){
@@ -4296,7 +4509,14 @@ class Fighter{
       this.dashT--;this.x+=this.dashDir*8.4*(this.dashT/13+.35);
       this.state='dash';this.clamp();this.pick(i);this.sync();return;
     }
-    this.crouch=!!i.down&&!this.air;this.blocking=false;
+    /* ALT + arriba/abajo: en vez de saltar/agacharse, gira alrededor del rival.
+       Gira el EJE manteniendo fijo al oponente, asi los dos siguen encarados. */
+    this.strafe=0;
+    if(i.alt&&(i.up||i.down)&&!this.air&&!this.mv&&this.stun<=0&&this.ctrl!==undefined){
+      this.strafe=i.up?1:-1;
+      axSpin(this.strafe*.0024*this.facing,this.opp.x);   // giro lento y controlado
+    }
+    this.crouch=!!i.down&&!i.alt&&!this.air;this.blocking=false;
     /* --- AVANCE PROTEGIDO ---
        ALT + izquierda/derecha = caminar en guardia: pasos cortos, punos en la
        cara, rodillas flexionadas y menos dano al recibir.
@@ -4309,7 +4529,8 @@ class Fighter{
     if(!this.air&&threat&&(mvx===back||(i.down&&(i.left||i.right)&&(i.right?1:-1)===back))){this.blocking=true;mvx=0;}
     this.x+=mvx*this.c.speed*(this.guardWalk?.30:1);
     if(mvx!==0&&!this.air)this.walkPh+=(this.guardWalk?.10:.22)*(mvx===this.facing?1:-.85);
-    if(i.up&&!this.air){this.vy=this.c.jump;sfx.jump();if(mvx!==0)this.vx=mvx*3.6;}
+    if(this.strafe)this.strafePh=(this.strafePh||0)+.08*this.strafe;   // ciclo de paso lateral
+    if(i.up&&!i.alt&&!this.air){this.vy=this.c.jump;sfx.jump();if(mvx!==0)this.vx=mvx*3.6;}
     this.x+=this.vx;if(!this.air)this.vx*=.7;
     this.vy+=GRAV;this.y+=this.vy;
     if(this.y>GROUND){if(this.vy>7){const dp=this.rig.joint('chest');burst({x:dp.x,y:.14,z:dp.z},6,0x9a948a,.05,false);noise(.05,.035,320);}this.y=GROUND;this.vy=0;this.vx=0;this.fkUsed=false;}
@@ -4317,6 +4538,7 @@ class Fighter{
     else if(this.blocking)this.state=this.crouch?'blockLow':'block';
     else if(this.crouch)this.state='crouch';
     else if(mvx!==0)this.state=this.guardWalk?'gwalk':'walk';
+    else if(this.strafe)this.state='gstrafe';
     else if(this.guardWalk)this.state='gstand';
     else this.state='idle';
     if(!this.blocking)this.pick(i);
@@ -4326,7 +4548,19 @@ class Fighter{
     }
     this.clamp();this.sync();
   }
-  clamp(){this.x=clamp(this.x,36,W-36);}
+  clamp(){
+    /* El limite es un CIRCULO en el mundo, no un tramo del eje: como el origen
+       del eje se desplaza al girar, limitar solo 'x' dejaba huecos y permitia
+       salirse por un lado. Se resuelve donde la recta del eje corta el circulo. */
+    const R=ARENA_LIM;
+    const cx=AX.cx, cz=AX.cz, dx=axCos(), dz=axSin();
+    const b2=cx*dx+cz*dz, c2=cx*cx+cz*cz-R*R;
+    const disc=b2*b2-c2;
+    if(disc<=0){this.x=480;return;}                 // caso degenerado
+    const rt=Math.sqrt(disc), aMin=-b2-rt, aMax=-b2+rt;   // tramo valido del eje
+    const ax=clamp((this.x-480)*K,aMin,aMax);
+    this.x=480+ax/K;
+  }
   currentPose(){
     const loopTr=tr=>track(tr,T0*1.1%(tr[tr.length-1][0]+1));
     if(this.state==='ko')return (game.winner&&game.winner!==this&&(game.mode==='matchend'||game.mode==='fatalwait'))
@@ -4339,15 +4573,30 @@ class Fighter{
     if(this.state==='blockLow')return POSE.blockLow;
     if(this.state==='crouch')return POSE.crouch;
     if(this.air)return this.vy<0?POSE.jump:POSE.fall;
+    if(this.state==='gstrafe'){
+      /* PASO LATERAL (giro alrededor del rival): en artes marciales se avanza
+         de lado abriendo un pie y recogiendo el otro, SIN CRUZARLOS NUNCA.
+         legAF/legAB abren las piernas de lado; se alternan medio ciclo. */
+      const sp=Math.sin(this.strafePh), cp=Math.cos(this.strafePh);
+      const ab=Math.abs(sp);
+      const abre=Math.max(0,sp)*26, recoge=Math.max(0,-sp)*26;   // nunca a la vez
+      const liftF=Math.max(0,cp), liftB=Math.max(0,-cp);         // el pie que despega
+      return P({py:-68+ab*1.5,torso:20,head:5,
+        armUF:170,armLF:26,armUB:190,armLB:36,
+        legUF:146,legLF:200+liftF*16,footAF:-liftF*8,legAF:abre,
+        legUB:154,legLB:206+liftB*16,footAB:-liftB*8,legAB:recoge});
+    }
     if(this.state==='gwalk'||this.state==='gstand'){
       // guardia alta: punos junto al menton, rodillas flexionadas, paso corto
       const gw=this.state==='gwalk';
       const s=gw?Math.sin(this.walkPh):0, c=gw?Math.cos(this.walkPh):0, ab=Math.abs(s);
       const swF=Math.max(0,-c), swB=Math.max(0,c);   // fase de vuelo de cada pierna
-      return P({py:-80+ab*2,torso:4,head:-6,
-        armUF:166-s*4,armLF:30-s*5,armUB:186+s*4,armLB:40+s*5,
-        legUF:158+s*13,legLF:196+s*13+swF*16,footAF:-swF*9,
-        legUB:166-s*13,legLB:200-s*13+swB*16,footAB:-swB*9});
+      /* Mas agachado, torso inclinado hacia el rival y cabeza recta:
+         'head' compensa la inclinacion del torso para que la mirada quede al frente. */
+      return P({py:-68+ab*2,torso:20,head:5,
+        armUF:170-s*4,armLF:26-s*5,armUB:190+s*4,armLB:36+s*5,
+        legUF:146+s*12,legLF:200+s*12+swF*15,footAF:-swF*9,
+        legUB:154-s*12,legLB:206-s*12+swB*15,footAB:-swB*9});
     }
     if(this.state==='walk'){
       const s=Math.sin(this.walkPh),c=Math.cos(this.walkPh),ab=Math.abs(s);
@@ -4369,7 +4618,8 @@ class Fighter{
   }
   sync(){
     this.pose=this.currentPose();
-    this.rig.root.position.x=(this.x-480)*K;
+    {const w=axW((this.x-480)*K);
+     this.rig.root.position.x=w.x;this.rig.root.position.z=w.z;}
     const fTgt=(this.state==='attack'||this.state==='throw')?1:.22;
     this.rig.fist+=(fTgt-this.rig.fist)*.35;this.rig.curlHands();
     if(this.fk>0){
@@ -4398,6 +4648,7 @@ class Fighter{
         legUF:62,legLF:122,legUB:-18,legLB:58,head:-6});
     }
     this.rig.apply(this.pose,this.facing,(GROUND-this.y)*K,this.plantMode());
+    this.rig.root.rotation.y-=AX.A;    // el rig se alinea con el eje giratorio
     if(this.flashT>0){this.flashT--;
       for(const m of this.rig.M)if(m.emissive)m.emissive.setHex(this.flashT>0?0x9a9a9a:(m.userData.em||0x000000));}
     if(this.blob){this.blob.position.x=(this.x-480)*K;
@@ -4412,10 +4663,12 @@ class Fighter{
      Aqui deshacemos ESE giro (no el de facing) para que las cajas queden como
      si el luchador estuviera de perfil puro: alcance completo y bien alineado. */
   combatJoint(n){
-    const v=this.rig.joint(n), rx=this.rig.root.position.x, rz=this.rig.root.position.z;
+    const v=this.rig.joint(n);
+    const q=axProj(v.x,v.z);            // a coordenadas del eje
+    const rax=(this.x-480)*K;           // posicion del rig sobre el eje
     const th=(this.facing===1)?YAW:-YAW;
-    const nx=(v.x-rx)*Math.cos(th)+(v.z-rz)*Math.sin(th);
-    return{x:rx+nx,y:v.y,z:rz};
+    const nx=(q.a-rax)*Math.cos(th)+q.p*Math.sin(th);
+    return{x:rax+nx,y:v.y,z:0};
   }
   hitSphere(){
     const m=this.mv;if(!m||!m.limb)return null;
@@ -4582,9 +4835,9 @@ function updateEnts(){
       if(e.t>4&&!e.hits.has(1)&&tgt.hurtSpheres().some(h=>sphHit(s,h))){
         e.hits.add(1);tgt.hitBy({dmg:e.dmg,guard:e.guard,push:e.push,hitstun:e.hitstun,knockdown:true,
           dir:tgt.x>=e.x?1:-1});
-        burst(new THREE.Vector3(p.x,1.4,0),16,0x8ef0ff,.1);
+        burst(axV(p.x,1.4),16,0x8ef0ff,.1);
       }
-      e.mesh.position.set(p.x,0,0);
+      {const w=axW(p.x);e.mesh.position.set(w.x,0,w.z);}
       const k=clamp(e.t/6,0,1)*(e.t>34?clamp((44-e.t)/10,0,1):1);
       e.mesh.scale.set(k,1,k);e.mesh.rotation.y=e.t*.15;
       if(e.t>e.life)e.dead=true;
@@ -4734,12 +4987,15 @@ function startMatch(c1,c2,twoP,stage,lvl){
   p2=new Fighter(c2,W*.7,-1,twoP?CTRL2:null,c1===c2);
   p1.opp=p2;p2.opp=p1;p1.wins=0;p2.wins=0;
   game.aiLevel=lvl||1;game.stage=stage||CHARS[c2].stage;
+  tatamiOn(true);                  // antes de setStage: el coliseo manda
   setStage(game.stage);showcaseOn(false);
   if(confetti)confetti.visible=false;
+  axReset();tatamiOn(true);
   game.round=1;playRoundMusic();   // la ronda debe valer 1 ANTES de elegir pista
   newRound();
 }
 function newRound(){
+  axReset();                       // cada round vuelve al eje y posicion iniciales
   p1.reset(W*.3,1);p2.reset(W*.7,-1);
   for(const e of ents)killEnt(e);ents=[];
   game.timer=99;game.tf=0;game.newMove=null;game.newMoveFrom=null;game.mode='intro';game.bt=0;game.banner='';game.moveNameT=0;game.fatality=false;game.fat=null;
@@ -4856,7 +5112,6 @@ function extraUIUpd(){
 }
 const camBtnEl=CE('camBtn');camBtnEl.onclick=()=>{if(game.mode==='fight'||game.mode==='intro')cycleCam();};
 const pauseBtnEl=CE('pauseBtn');pauseBtnEl.onclick=()=>{if(INFIGHT(game.mode)&&!game.attract)uiKey('escape');};
-const INFIGHT=m=>(m==='fight'||m==='intro'||m==='roundend');
 function quitFight(){
   game.tour=null;game.king=null;game.orgElim=null;game.orgKing=null;
   game.kingChamp=false;game.attract=false;game.freeze=0;game.camYaw=0;
@@ -5157,6 +5412,7 @@ function update(){
   if(game.mode==='organizer'||game.mode==='orgnews'||game.mode==='customlist'){showcaseOn(false);stopMusic();return;}
   if(game.mode==='champion'){tickConfetti();return;}
   if(game.mode==='title'||game.mode==='select'||game.mode==='bracket'||game.mode==='champion')playMenuMusic();
+  if(!INARENA(game.mode)&&arenaOn){tatamiOn(false);setStage(game.stage||'arena');}
   if(game.mode==='pause')return;
   if(game.freeze>0){game.freeze--;return;}
   if(game.attract){
@@ -5296,21 +5552,26 @@ function tickCam(t){
   if(!p1||!p2)return;
   const x1=(p1.x-480)*K,x2=(p2.x-480)*K, mid=(x1+x2)/2, sep=Math.abs(x1-x2);
   const hi=Math.max((GROUND-p1.y)*K,(GROUND-p2.y)*K);
-  let tz=clamp(7.4+sep*.62,7.6,13.5);if((p1.hp>0&&p1.hp<p1.c.hpMax*.22)||(p2.hp>0&&p2.hp<p2.c.hpMax*.22))tz*=.93;const ty=2.15+hi*.22;
+  /* La camara persigue el angulo del eje con retardo: ves el giro suceder,
+     pero siempre acabas volviendo a la vista de perfil. */
+  {let d=AX.A-AX.camA;d=Math.atan2(Math.sin(d),Math.cos(d));AX.camA+=d*.07;}
+  const pa=AX.camA+Math.PI/2, pcx=Math.cos(pa), pcz=Math.sin(pa);   // lado de la camara
+  const MW=axW(mid);                                               // centro en el mundo
+  let tz=clamp(7.4+sep*.62,7.6,ARENA_R*1.15);if((p1.hp>0&&p1.hp<p1.c.hpMax*.22)||(p2.hp>0&&p2.hp<p2.c.hpMax*.22))tz*=.93;const ty=2.15+hi*.22;
   if(game.mode==='intro'){
     const e=ease(Math.min(1,game.bt/100));
     const yw=(1-e)*-1.05+Math.sin(t*.004)*.05, Rr=lerp(6.2,tz,e), yy=lerp(1.5,ty,e);
     game.camX=mid;game.camZ=tz;game.camY=ty;
     p1.rig.root.visible=true;
-    cam.position.set(mid+Math.sin(yw)*Rr,yy,Math.cos(yw)*Rr);
-    cam.lookAt(mid,1.5,0);sun.target.position.set(mid,1,0);return;
+    const ia=pa+yw;
+    cam.position.set(MW.x+Math.cos(ia)*Rr,yy,MW.z+Math.sin(ia)*Rr);
+    cam.lookAt(MW.x,1.5,MW.z);sun.target.position.set(MW.x,1,MW.z);return;
   }
   if(game.camMode==='cenital'){
     const hgt=clamp(8.5+sep*.55,9,15);
-    game.camX=lerp(game.camX,clamp(mid,-5.2,5.2),.09);
     const sh=game.shake;p1.rig.root.visible=true;
-    cam.position.set(game.camX+(Math.random()-.5)*sh*2,hgt,2.4+(Math.random()-.5)*sh);
-    cam.lookAt(game.camX,0,0);
+    cam.position.set(MW.x+(Math.random()-.5)*sh*2,hgt,MW.z+2.4+(Math.random()-.5)*sh);
+    cam.lookAt(MW.x,0,MW.z);
     game.tilt=(game.tilt||0)*.88;
     sun.target.position.set(game.camX,1,0);return;
   }
@@ -5326,16 +5587,17 @@ function tickCam(t){
   p1.rig.root.visible=true;
   if(!camDrag)game.camYaw*=.965;
   const yaw=(game.camYaw||0)+Math.sin(t*.004)*.09;
-  game.camX=lerp(game.camX,clamp(mid,-5.2,5.2),.09);
   game.camZ=lerp(game.camZ,tz,.06);
   game.camY=lerp(game.camY,ty,.07);
   const sh=game.shake;
-  const ox=game.camX+Math.sin(yaw)*game.camZ, oz=Math.cos(yaw)*game.camZ;
+  /* orbita alrededor del centro del combate, sobre el eje suavizado */
+  const la=pa+yaw;
+  const ox=MW.x+Math.cos(la)*game.camZ, oz=MW.z+Math.sin(la)*game.camZ;
   cam.position.set(ox+(Math.random()-.5)*sh*2,game.camY+(Math.random()-.5)*sh*2,oz);
-  cam.lookAt(game.camX,1.35+hi*.2,0);
+  cam.lookAt(MW.x,1.35+hi*.2,MW.z);
   game.tilt=(game.tilt||0)*.88;if(Math.abs(game.tilt)>.002)cam.rotation.z+=game.tilt;
   cam.rotation.z+=(Math.random()-.5)*sh*.35;
-  sun.target.position.set(game.camX,1,0);
+  sun.target.position.set(MW.x,1,MW.z);
 }
 
 /* ===========================================================

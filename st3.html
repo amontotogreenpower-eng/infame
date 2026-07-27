@@ -1,0 +1,1318 @@
+<html lang="es"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Street Fighter Skeleton + MediaPipe Pose</title>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+    color: #fff;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    overflow-x: hidden;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  #game-container {
+    position: relative;
+    width: 100%;
+    max-width: 1200px;
+    height: 60vh;
+    margin-top: 8px;
+    border: 3px solid #ffcc00;
+    border-radius: 12px;
+    overflow: hidden;
+    background: linear-gradient(to bottom, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    box-shadow: 0 0 40px rgba(255, 204, 0, 0.3);
+  }
+  canvas#mainCanvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  #ui-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    display: flex;
+    justify-content: space-between;
+    padding: 12px 25px;
+    pointer-events: none;
+  }
+  .health-bar-container {
+    width: 38%;
+    background: #222;
+    border: 2px solid #ffcc00;
+    border-radius: 8px;
+    overflow: hidden;
+    height: 24px;
+  }
+  .health-bar {
+    height: 100%;
+    transition: width 0.3s ease;
+    border-radius: 6px;
+  }
+  #p1-health { background: linear-gradient(90deg, #ff3333, #ff6666); }
+  #p2-health { background: linear-gradient(90deg, #3333ff, #6666ff); }
+  .fighter-name {
+    font-size: 13px;
+    font-weight: bold;
+    text-shadow: 2px 2px 4px #000;
+    margin-bottom: 3px;
+    letter-spacing: 1px;
+  }
+  .fighter-left { text-align: left; color: #ff6666; }
+  .fighter-right { text-align: right; color: #6666ff; }
+  #timer {
+    font-size: 28px;
+    font-weight: bold;
+    color: #ffcc00;
+    text-shadow: 0 0 10px #ffcc00;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    top: 8px;
+  }
+  #pose-status {
+    position: absolute;
+    bottom: 8px;
+    left: 8px;
+    background: rgba(0,0,0,0.75);
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 11px;
+    color: #00ff88;
+    border: 1px solid #00ff88;
+    max-width: 260px;
+    line-height: 1.4;
+  }
+  .pose-label { color: #ffcc00; font-weight: bold; }
+  #round-announce {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 56px;
+    font-weight: bold;
+    color: #ffcc00;
+    text-shadow: 0 0 30px #ffcc00, 4px 4px 0 #ff6600;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+    z-index: 100;
+    white-space: pre-line;
+    text-align: center;
+  }
+  #combo-display {
+    position: absolute;
+    top: 55px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 22px;
+    font-weight: bold;
+    color: #ffcc00;
+    text-shadow: 0 0 10px #ff6600;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  #bottom-panel {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    justify-content: center;
+    margin-top: 8px;
+    width: 100%;
+    max-width: 1200px;
+    padding: 0 10px;
+    flex-wrap: wrap;
+  }
+  #camera-panel {
+    width: 220px;
+    height: 165px;
+    border: 2px solid #00ff88;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #000;
+    box-shadow: 0 0 15px rgba(0,255,136,0.3);
+    position: relative;
+    flex-shrink: 0;
+  }
+  #camera-panel video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+  }
+  #camera-panel canvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    transform: scaleX(-1);
+  }
+  #camera-label {
+    position: absolute;
+    top: 3px; left: 3px;
+    background: rgba(0,0,0,0.7);
+    color: #00ff88;
+    font-size: 9px;
+    padding: 2px 5px;
+    border-radius: 3px;
+    font-weight: bold;
+  }
+  #debug-panel {
+    background: rgba(0,0,0,0.6);
+    border: 1px solid #ffcc0055;
+    border-radius: 10px;
+    padding: 10px 14px;
+    min-width: 180px;
+    flex: 1;
+    max-width: 350px;
+  }
+  #debug-panel h4 {
+    color: #ffcc00;
+    font-size: 11px;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .debug-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    padding: 2px 0;
+    border-bottom: 1px solid #333;
+  }
+  .debug-row:last-child { border-bottom: none; }
+  .debug-active { color: #00ff88; font-weight: bold; }
+  .debug-inactive { color: #666; }
+  #controls {
+    margin-top: 8px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+    padding: 0 15px;
+    align-items: center;
+  }
+  button, select {
+    padding: 9px 18px;
+    font-size: 13px;
+    font-weight: bold;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  #btn-camera {
+    background: linear-gradient(135deg, #00c853, #00e676);
+    color: #000;
+    box-shadow: 0 4px 12px rgba(0,200,83,0.4);
+  }
+  #btn-camera:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,200,83,0.6); }
+  #btn-camera:disabled {
+    background: #555;
+    color: #aaa;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+  #btn-reset {
+    background: linear-gradient(135deg, #ff5252, #ff867c);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(255,82,82,0.4);
+  }
+  #btn-reset:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(255,82,82,0.6); }
+  #btn-download {
+    background: linear-gradient(135deg, #448aff, #82b1ff);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(68,138,255,0.4);
+  }
+  #btn-download:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(68,138,255,0.6); }
+  #camera-select {
+    background: #1a1a3e;
+    color: #ffcc00;
+    border: 2px solid #ffcc00;
+    font-size: 12px;
+    padding: 9px 12px;
+    min-width: 180px;
+  }
+  #camera-select:focus { outline: none; border-color: #00ff88; }
+  #status {
+    margin-top: 6px;
+    font-size: 12px;
+    color: #aaa;
+    text-align: center;
+    max-width: 900px;
+    line-height: 1.4;
+    padding: 0 15px;
+  }
+  #camera-modal {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.85);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+  }
+  #camera-modal.active { display: flex; }
+  .modal-box {
+    background: linear-gradient(135deg, #1a1a3e, #0f0c29);
+    border: 2px solid #ffcc00;
+    border-radius: 16px;
+    padding: 25px 35px;
+    text-align: center;
+    max-width: 420px;
+    width: 90%;
+    box-shadow: 0 0 40px rgba(255,204,0,0.3);
+  }
+  .modal-box h2 {
+    color: #ffcc00;
+    margin-bottom: 18px;
+    font-size: 20px;
+  }
+  .modal-box select {
+    width: 100%;
+    margin-bottom: 12px;
+    font-size: 13px;
+  }
+  .modal-box button { margin: 4px; }
+  #modal-confirm {
+    background: linear-gradient(135deg, #00c853, #00e676);
+    color: #000;
+  }
+  #modal-cancel {
+    background: #444;
+    color: #fff;
+  }
+  .camera-preview {
+    width: 100%;
+    height: 140px;
+    background: #000;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    border: 1px solid #333;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+    font-size: 12px;
+  }
+  @media (max-width: 768px) {
+    #game-container { height: 45vh; }
+    #bottom-panel { flex-direction: column; align-items: center; }
+    #camera-panel { width: 180px; height: 135px; }
+    #debug-panel { max-width: 100%; width: 100%; }
+  }
+</style>
+<base target="_blank">
+</head>
+<body>
+
+<div id="game-container">
+  <canvas id="mainCanvas" width="704" height="550"></canvas>
+
+  <div id="ui-overlay">
+    <div style="width:38%">
+      <div class="fighter-name fighter-left">🔥 RYU (TÚ)</div>
+      <div class="health-bar-container"><div id="p1-health" class="health-bar" style="width:100%"></div></div>
+    </div>
+    <div id="timer">57</div>
+    <div style="width:38%">
+      <div class="fighter-name fighter-right">KEN (CPU) ⚡</div>
+      <div class="health-bar-container"><div id="p2-health" class="health-bar" style="width:100%"></div></div>
+    </div>
+  </div>
+
+  <div id="pose-status">
+    <span class="pose-label">POSE:</span> <span id="pose-text">Esperando cámara...</span>
+  </div>
+
+  <div id="round-announce" style="opacity: 0; transform: translate(-50%, -50%) scale(1);">ROUND 1
+FIGHT!</div>
+  <div id="combo-display"></div>
+</div>
+
+<div id="bottom-panel">
+  <div id="camera-panel">
+    <div id="camera-label">📷 CÁMARA</div>
+    <video id="input_video" playsinline=""></video>
+    <canvas id="output_canvas" width="220" height="165"></canvas>
+  </div>
+
+  <div id="debug-panel">
+    <h4>🔍 Detección de Poses</h4>
+    <div class="debug-row"><span>Puño derecho</span><span id="dbg-punch" class="debug-inactive">NO</span></div>
+    <div class="debug-row"><span>Patada izquierda</span><span id="dbg-kick" class="debug-inactive">NO</span></div>
+    <div class="debug-row"><span>Hadouken</span><span id="dbg-hadouken" class="debug-inactive">NO</span></div>
+    <div class="debug-row"><span>Bloqueo</span><span id="dbg-block" class="debug-inactive">NO</span></div>
+    <div class="debug-row"><span>Agacharse</span><span id="dbg-crouch" class="debug-inactive">NO</span></div>
+    <div class="debug-row"><span>Mover izq</span><span id="dbg-left" class="debug-inactive">NO</span></div>
+    <div class="debug-row"><span>Mover der</span><span id="dbg-right" class="debug-inactive">NO</span></div>
+  </div>
+</div>
+
+<div id="controls">
+  <button id="btn-camera">📷 Activar Cámara + MediaPipe</button>
+  <select id="camera-select">
+    <option value="">-- Selecciona cámara primero --</option>
+  </select>
+  <button id="btn-reset">🔄 Reiniciar Combate</button>
+  <button id="btn-download">⬇️ Descargar App</button>
+</div>
+<div id="status">
+  <b>Ryu te imita en tiempo real.</b> Además: Puño derecho = Golpe · Pierna izq arriba = Patada · Manos juntas = Hadouken · Brazo izq arriba = Bloqueo · Agacharse = Defensa · Inclinar = Moverse<br>
+  <span style="color:#ffcc00"><b>Teclado:</b> ←→ mover · Z golpe · X patada · C Hadouken · ↑ bloqueo · ↓ agacharse</span>
+</div>
+
+<div id="camera-modal">
+  <div class="modal-box">
+    <h2>🎥 Selecciona tu Cámara</h2>
+    <div class="camera-preview" id="camera-preview">Vista previa aparecerá aquí</div>
+    <select id="modal-camera-select">
+      <option value="">Buscando cámaras...</option>
+    </select>
+    <div>
+      <button id="modal-confirm">✅ Usar esta cámara</button>
+      <button id="modal-cancel">❌ Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==================== CONFIGURACIÓN ====================
+const canvas = document.getElementById('mainCanvas');
+const ctx = canvas.getContext('2d');
+const videoElement = document.getElementById('input_video');
+const poseCanvas = document.getElementById('output_canvas');
+const poseCtx = poseCanvas.getContext('2d');
+
+let W, H;
+function resize() {
+  const rect = canvas.parentElement.getBoundingClientRect();
+  W = canvas.width = rect.width;
+  H = canvas.height = rect.height;
+  poseCanvas.width = 220;
+  poseCanvas.height = 165;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ==================== PARTÍCULAS ====================
+class Particle {
+  constructor(x, y, color, speed, life) {
+    this.x = x; this.y = y;
+    this.vx = (Math.random() - 0.5) * speed;
+    this.vy = (Math.random() - 0.5) * speed - 2;
+    this.color = color;
+    this.life = life;
+    this.maxLife = life;
+    this.size = Math.random() * 4 + 2;
+  }
+  update() {
+    this.x += this.vx;
+    this.y += this.vy;
+    this.vy += 0.15;
+    this.life--;
+    this.size *= 0.97;
+  }
+  draw(ctx) {
+    ctx.globalAlpha = this.life / this.maxLife;
+    ctx.fillStyle = this.color;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+}
+let particles = [];
+function spawnParticles(x, y, color, count = 10) {
+  for (let i = 0; i < count; i++) {
+    particles.push(new Particle(x, y, color, 6, 30 + Math.random() * 20));
+  }
+}
+
+// ==================== ESQUELETO ====================
+class FighterSkeleton {
+  constructor(x, y, color, isPlayer = false) {
+    this.x = x;
+    this.y = y;
+    this.baseY = y;
+    this.color = color;
+    this.isPlayer = isPlayer;
+    this.facing = isPlayer ? 1 : -1;
+    this.scale = 1.2;
+
+    this.health = 100;
+    this.maxHealth = 100;
+    this.state = 'idle';
+    this.stateTimer = 0;
+    this.animFrame = 0;
+    this.combo = 0;
+    this.comboTimer = 0;
+
+    // Joints relativos al centro del torso
+    this.joints = {
+      head: {x:0, y:-90},
+      neck: {x:0, y:-70},
+      shoulderL: {x:-25, y:-65},
+      shoulderR: {x:25, y:-65},
+      elbowL: {x:-40, y:-35},
+      elbowR: {x:40, y:-35},
+      handL: {x:-50, y:-5},
+      handR: {x:50, y:-5},
+      hipL: {x:-18, y:-15},
+      hipR: {x:18, y:-15},
+      kneeL: {x:-20, y:25},
+      kneeR: {x:20, y:25},
+      footL: {x:-22, y:60},
+      footR: {x:22, y:60},
+    };
+
+    this.targets = JSON.parse(JSON.stringify(this.joints));
+    this.hitFlash = 0;
+
+    // Para mapeo de pose del usuario
+    this.poseMirror = true; // Espejar X para que sea intuitivo
+    this.poseScale = 160;   // Factor de escala de landmarks a pixels
+  }
+
+  setTarget(name, x, y) {
+    this.targets[name] = {x, y};
+  }
+
+  // Mapea landmarks de MediaPipe directamente a joints del esqueleto
+  applyPoseLandmarks(lm) {
+    if (!lm) return;
+
+    // Landmarks MediaPipe
+    const nose = lm[0];
+    const lShoulder = lm[11];
+    const rShoulder = lm[12];
+    const lElbow = lm[13];
+    const rElbow = lm[14];
+    const lWrist = lm[15];
+    const rWrist = lm[16];
+    const lHip = lm[23];
+    const rHip = lm[24];
+    const lKnee = lm[25];
+    const rKnee = lm[26];
+    const lAnkle = lm[27];
+    const rAnkle = lm[28];
+
+    // Centro de referencia: punto medio entre hombros
+    const cx = (lShoulder.x + rShoulder.x) / 2;
+    const cy = (lShoulder.y + rShoulder.y) / 2;
+
+    // Factor de escala basado en distancia hombro-cadera para normalizar
+    const shoulderDist = Math.sqrt((rShoulder.x - lShoulder.x)**2 + (rShoulder.y - lShoulder.y)**2);
+    const scaleFactor = shoulderDist > 0.05 ? (50 / shoulderDist) : 160;
+
+    // Helper para convertir landmark relativo al centro → coordenada esqueleto
+    // Invertimos X porque el video tiene mirror
+    const toJoint = (pt) => ({
+      x: (pt.x - cx) * scaleFactor * (this.poseMirror ? -1 : 1),
+      y: (pt.y - cy) * scaleFactor
+    });
+
+    // Aplicar a targets (con suavizado en update)
+    const j = toJoint;
+
+    this.setTarget('neck', 0, -70);
+    this.setTarget('head', j(nose).x, j(nose).y - 15);
+    this.setTarget('shoulderL', j(lShoulder).x, j(lShoulder).y);
+    this.setTarget('shoulderR', j(rShoulder).x, j(rShoulder).y);
+    this.setTarget('elbowL', j(lElbow).x, j(lElbow).y);
+    this.setTarget('elbowR', j(rElbow).x, j(rElbow).y);
+    this.setTarget('handL', j(lWrist).x, j(lWrist).y);
+    this.setTarget('handR', j(rWrist).x, j(rWrist).y);
+
+    // Caderas: usar punto medio caderas como referencia para piernas
+    const hipCx = (lHip.x + rHip.x) / 2;
+    const hipCy = (lHip.y + rHip.y) / 2;
+    const toLeg = (pt) => ({
+      x: (pt.x - hipCx) * scaleFactor * (this.poseMirror ? -1 : 1),
+      y: (pt.y - hipCy) * scaleFactor + 55  // offset para alinear con torso
+    });
+
+    this.setTarget('hipL', j(lHip).x, j(lHip).y + 55);
+    this.setTarget('hipR', j(rHip).x, j(rHip).y + 55);
+    this.setTarget('kneeL', toLeg(lKnee).x, toLeg(lKnee).y);
+    this.setTarget('kneeR', toLeg(rKnee).x, toLeg(rKnee).y);
+    this.setTarget('footL', toLeg(lAnkle).x, toLeg(lAnkle).y);
+    this.setTarget('footR', toLeg(rAnkle).x, toLeg(rAnkle).y);
+  }
+
+  update() {
+    this.animFrame++;
+    this.stateTimer++;
+    if (this.comboTimer > 0) this.comboTimer--;
+    if (this.comboTimer === 0) this.combo = 0;
+    if (this.hitFlash > 0) this.hitFlash--;
+
+    // Interpolación suave hacia targets
+    const lerp = this.isPlayer && cameraActive ? 0.25 : 0.15;
+    for (let k in this.joints) {
+      this.joints[k].x += (this.targets[k].x - this.joints[k].x) * lerp;
+      this.joints[k].y += (this.targets[k].y - this.joints[k].y) * lerp;
+    }
+
+    // Animaciones por estado (acciones especiales que sobreescriben la pose)
+    const t = this.animFrame * 0.08;
+    switch(this.state) {
+      case 'idle':
+        // La pose ya viene de applyPoseLandmarks o de la animación idle por defecto
+        if (!this.isPlayer || !cameraActive) {
+          this.y = this.baseY + Math.sin(t) * 3;
+          this.setTarget('head', 0, -90 + Math.sin(t)*2);
+          this.setTarget('handL', -50 + Math.sin(t)*5, -5);
+          this.setTarget('handR', 50 + Math.cos(t)*5, -5);
+          this.setTarget('elbowL', -40, -35 + Math.sin(t)*3);
+          this.setTarget('elbowR', 40, -35 + Math.cos(t)*3);
+          this.setTarget('kneeL', -20, 25 + Math.sin(t)*2);
+          this.setTarget('kneeR', 20, 25 + Math.cos(t)*2);
+        }
+        break;
+
+      case 'walk':
+        this.x += this.facing * 2.5;
+        this.setTarget('handL', -50 + Math.sin(t*2)*20, -5);
+        this.setTarget('handR', 50 - Math.sin(t*2)*20, -5);
+        this.setTarget('kneeL', -20 + Math.sin(t*2)*10, 25);
+        this.setTarget('kneeR', 20 - Math.sin(t*2)*10, 25);
+        this.setTarget('footL', -22 + Math.sin(t*2)*15, 60);
+        this.setTarget('footR', 22 - Math.sin(t*2)*15, 60);
+        if (this.stateTimer > 15) { this.state = 'idle'; this.stateTimer = 0; }
+        break;
+
+      case 'punch':
+        if (this.stateTimer < 8) {
+          this.setTarget('shoulderR', 25, -75);
+          this.setTarget('elbowR', 50, -55);
+          this.setTarget('handR', 30, -45);
+        } else if (this.stateTimer < 18) {
+          this.setTarget('shoulderR', 50, -60);
+          this.setTarget('elbowR', 90, -50);
+          this.setTarget('handR', 120, -55);
+        } else {
+          this.state = 'idle';
+          this.stateTimer = 0;
+        }
+        break;
+
+      case 'kick':
+        if (this.stateTimer < 10) {
+          this.setTarget('hipR', 25, -20);
+          this.setTarget('kneeR', 55, -10);
+          this.setTarget('footR', 80, -5);
+        } else if (this.stateTimer < 25) {
+          this.setTarget('hipR', 40, -25);
+          this.setTarget('kneeR', 85, -15);
+          this.setTarget('footR', 120, -20);
+        } else {
+          this.state = 'idle';
+          this.stateTimer = 0;
+        }
+        break;
+
+      case 'block':
+        this.setTarget('handL', -15, -60);
+        this.setTarget('elbowL', -25, -50);
+        this.setTarget('handR', 15, -60);
+        this.setTarget('elbowR', 25, -50);
+        if (this.stateTimer > 30) { this.state = 'idle'; this.stateTimer = 0; }
+        break;
+
+      case 'hit':
+        this.setTarget('head', -15, -85);
+        this.setTarget('shoulderL', -35, -60);
+        this.setTarget('shoulderR', 15, -70);
+        if (this.stateTimer > 20) { this.state = 'idle'; this.stateTimer = 0; }
+        break;
+
+      case 'crouch':
+        this.y = this.baseY + 25;
+        this.setTarget('head', 0, -65);
+        this.setTarget('neck', 0, -50);
+        this.setTarget('shoulderL', -25, -45);
+        this.setTarget('shoulderR', 25, -45);
+        this.setTarget('handL', -40, -20);
+        this.setTarget('handR', 40, -20);
+        this.setTarget('hipL', -18, 5);
+        this.setTarget('hipR', 18, 5);
+        this.setTarget('kneeL', -25, 30);
+        this.setTarget('kneeR', 25, 30);
+        this.setTarget('footL', -25, 55);
+        this.setTarget('footR', 25, 55);
+        break;
+
+      case 'hadouken':
+        if (this.stateTimer < 15) {
+          this.setTarget('handL', -60, -40);
+          this.setTarget('handR', 20, -70);
+          this.setTarget('elbowR', 5, -60);
+        } else if (this.stateTimer < 40) {
+          this.setTarget('handL', -70, -50);
+          this.setTarget('handR', 100, -65);
+          this.setTarget('elbowR', 50, -60);
+          if (this.stateTimer === 20) {
+            projectiles.push(new Projectile(this.x + this.facing*60, this.y - 50, this.facing, this.color));
+          }
+        } else {
+          this.state = 'idle';
+          this.stateTimer = 0;
+        }
+        break;
+    }
+
+    this.x = Math.max(80, Math.min(W - 80, this.x));
+  }
+
+  draw(ctx) {
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.scale(this.facing * this.scale, this.scale);
+
+    const j = this.joints;
+    const glow = this.isPlayer ? '#ff4444' : '#4444ff';
+
+    if (this.hitFlash > 0) {
+      ctx.globalAlpha = 0.6 + Math.sin(this.hitFlash * 0.5) * 0.4;
+    }
+
+    ctx.strokeStyle = glow;
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.shadowColor = glow;
+    ctx.shadowBlur = 10;
+
+    const drawBone = (a, b) => {
+      ctx.beginPath();
+      ctx.moveTo(j[a].x, j[a].y);
+      ctx.lineTo(j[b].x, j[b].y);
+      ctx.stroke();
+    };
+
+    drawBone('neck', 'hipL');
+    drawBone('neck', 'hipR');
+    drawBone('hipL', 'hipR');
+    drawBone('neck', 'shoulderL');
+    drawBone('shoulderL', 'elbowL');
+    drawBone('elbowL', 'handL');
+    drawBone('neck', 'shoulderR');
+    drawBone('shoulderR', 'elbowR');
+    drawBone('elbowR', 'handR');
+    drawBone('hipL', 'kneeL');
+    drawBone('kneeL', 'footL');
+    drawBone('hipR', 'kneeR');
+    drawBone('kneeR', 'footR');
+
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(j.head.x, j.head.y, 14, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#fff';
+    ctx.shadowBlur = 0;
+    ctx.beginPath();
+    ctx.arc(j.head.x - 5, j.head.y - 2, 3, 0, Math.PI * 2);
+    ctx.arc(j.head.x + 5, j.head.y - 2, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    const jointsList = ['neck','shoulderL','shoulderR','elbowL','elbowR','handL','handR','hipL','hipR','kneeL','kneeR','footL','footR'];
+    ctx.fillStyle = '#fff';
+    jointsList.forEach(name => {
+      ctx.beginPath();
+      ctx.arc(j[name].x, j[name].y, 3, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    if (this.state === 'hadouken' && this.stateTimer > 10 && this.stateTimer < 35) {
+      ctx.strokeStyle = '#ffcc00';
+      ctx.lineWidth = 2;
+      ctx.globalAlpha = 0.5 + Math.sin(this.animFrame * 0.3) * 0.3;
+      ctx.beginPath();
+      ctx.arc(0, -40, 50 + Math.sin(this.animFrame * 0.2) * 10, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    ctx.restore();
+  }
+
+  takeDamage(amount) {
+    this.health = Math.max(0, this.health - amount);
+    this.hitFlash = 15;
+    this.state = 'hit';
+    this.stateTimer = 0;
+    spawnParticles(this.x, this.y - 50, '#ff3333', 15);
+    return this.health <= 0;
+  }
+
+  getHitbox() {
+    return { x: this.x - 40, y: this.y - 100, w: 80, h: 160 };
+  }
+
+  getAttackHitbox() {
+    if (this.state === 'punch' && this.stateTimer >= 8 && this.stateTimer < 18) {
+      return { x: this.x + this.facing * 85, y: this.y - 55, w: 55, h: 40 };
+    }
+    if (this.state === 'kick' && this.stateTimer >= 10 && this.stateTimer < 25) {
+      return { x: this.x + this.facing * 95, y: this.y - 20, w: 65, h: 50 };
+    }
+    return null;
+  }
+}
+
+// ==================== PROYECTIL ====================
+class Projectile {
+  constructor(x, y, dir, color) {
+    this.x = x; this.y = y;
+    this.dir = dir;
+    this.color = color;
+    this.speed = 6;
+    this.radius = 15;
+    this.life = 120;
+  }
+  update() {
+    this.x += this.dir * this.speed;
+    this.life--;
+    spawnParticles(this.x, this.y, this.color, 1);
+  }
+  draw(ctx) {
+    ctx.save();
+    ctx.shadowColor = this.color;
+    ctx.shadowBlur = 20;
+    const grad = ctx.createRadialGradient(this.x, this.y, 2, this.x, this.y, this.radius);
+    grad.addColorStop(0, '#fff');
+    grad.addColorStop(0.4, this.color);
+    grad.addColorStop(1, 'transparent');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+let projectiles = [];
+
+// ==================== JUEGO ====================
+let player, cpu;
+let gameTime = 60;
+let gameActive = false;
+let round = 1;
+let cameraActive = false;
+let currentPoseLandmarks = null;
+
+function initGame() {
+  player = new FighterSkeleton(W * 0.3, H - 80, '#ff4444', true);
+  cpu = new FighterSkeleton(W * 0.7, H - 80, '#4444ff', false);
+  player.health = player.maxHealth;
+  cpu.health = cpu.maxHealth;
+  gameTime = 60;
+  gameActive = true;
+  projectiles = [];
+  particles = [];
+  updateHealthBars();
+  announce("ROUND " + round + "\nFIGHT!");
+}
+
+function updateHealthBars() {
+  document.getElementById('p1-health').style.width = (player.health / player.maxHealth * 100) + '%';
+  document.getElementById('p2-health').style.width = (cpu.health / cpu.maxHealth * 100) + '%';
+}
+
+function announce(text) {
+  const el = document.getElementById('round-announce');
+  el.textContent = text;
+  el.style.opacity = '1';
+  el.style.transform = 'translate(-50%, -50%) scale(1.2)';
+  setTimeout(() => {
+    el.style.transform = 'translate(-50%, -50%) scale(1)';
+  }, 100);
+  setTimeout(() => { el.style.opacity = '0'; }, 2000);
+}
+
+function showCombo(text) {
+  const el = document.getElementById('combo-display');
+  el.textContent = text;
+  el.style.opacity = '1';
+  setTimeout(() => { el.style.opacity = '0'; }, 1500);
+}
+
+// ==================== CÁMARA ====================
+let availableCameras = [];
+let selectedCameraId = null;
+let previewStream = null;
+
+async function enumerateCameras() {
+  try {
+    await navigator.mediaDevices.getUserMedia({ video: true });
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    availableCameras = devices.filter(d => d.kind === 'videoinput');
+
+    const modalSelect = document.getElementById('modal-camera-select');
+    const mainSelect = document.getElementById('camera-select');
+
+    modalSelect.innerHTML = '';
+    mainSelect.innerHTML = '';
+
+    if (availableCameras.length === 0) {
+      modalSelect.innerHTML = '<option value="">No se encontraron cámaras</option>';
+      mainSelect.innerHTML = '<option value="">No hay cámaras</option>';
+      return;
+    }
+
+    availableCameras.forEach((cam, idx) => {
+      const label = cam.label || `Cámara ${idx + 1}`;
+      const opt1 = document.createElement('option');
+      opt1.value = cam.deviceId;
+      opt1.textContent = label;
+      modalSelect.appendChild(opt1);
+
+      const opt2 = document.createElement('option');
+      opt2.value = cam.deviceId;
+      opt2.textContent = label;
+      mainSelect.appendChild(opt2);
+    });
+
+    if (availableCameras.length > 0) {
+      modalSelect.value = availableCameras[0].deviceId;
+      selectedCameraId = availableCameras[0].deviceId;
+      startPreview(availableCameras[0].deviceId);
+    }
+  } catch (err) {
+    document.getElementById('modal-camera-select').innerHTML = '<option value="">Permiso de cámara denegado</option>';
+    document.getElementById('camera-select').innerHTML = '<option value="">Permiso denegado</option>';
+  }
+}
+
+async function startPreview(deviceId) {
+  const previewEl = document.getElementById('camera-preview');
+  if (previewStream) {
+    previewStream.getTracks().forEach(t => t.stop());
+  }
+  try {
+    previewStream = await navigator.mediaDevices.getUserMedia({
+      video: { deviceId: { exact: deviceId }, width: 320, height: 240 }
+    });
+    previewEl.innerHTML = '';
+    const vid = document.createElement('video');
+    vid.srcObject = previewStream;
+    vid.autoplay = true;
+    vid.playsInline = true;
+    vid.style.width = '100%';
+    vid.style.height = '100%';
+    vid.style.objectFit = 'cover';
+    vid.style.transform = 'scaleX(-1)';
+    previewEl.appendChild(vid);
+  } catch (err) {
+    previewEl.textContent = 'No se pudo iniciar vista previa';
+  }
+}
+
+document.getElementById('modal-camera-select').addEventListener('change', (e) => {
+  selectedCameraId = e.target.value;
+  if (selectedCameraId) startPreview(selectedCameraId);
+});
+
+document.getElementById('modal-confirm').addEventListener('click', () => {
+  document.getElementById('camera-modal').classList.remove('active');
+  if (previewStream) {
+    previewStream.getTracks().forEach(t => t.stop());
+    previewStream = null;
+  }
+  document.getElementById('camera-select').value = selectedCameraId || '';
+  initMediaPipeWithCamera(selectedCameraId);
+});
+
+document.getElementById('modal-cancel').addEventListener('click', () => {
+  document.getElementById('camera-modal').classList.remove('active');
+  if (previewStream) {
+    previewStream.getTracks().forEach(t => t.stop());
+    previewStream = null;
+  }
+});
+
+// ==================== MEDIAPIPE ====================
+let poseDetector = null;
+let camera = null;
+
+async function initMediaPipeWithCamera(deviceId) {
+  document.getElementById('pose-text').textContent = 'Cargando MediaPipe...';
+  document.getElementById('btn-camera').disabled = true;
+
+  poseDetector = new Pose({
+    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+  });
+
+  poseDetector.setOptions({
+    modelComplexity: 1,
+    smoothLandmarks: true,
+    enableSegmentation: false,
+    minDetectionConfidence: 0.5,
+    minTrackingConfidence: 0.5
+  });
+
+  poseDetector.onResults((results) => {
+    if (results.poseLandmarks) {
+      currentPoseLandmarks = results.poseLandmarks;
+
+      // Aplicar pose al jugador en tiempo real (si no está en acción especial)
+      if (player && player.state === 'idle' && gameActive) {
+        player.applyPoseLandmarks(results.poseLandmarks);
+      }
+
+      // Procesar gestos especiales
+      processPoseGestures(results.poseLandmarks);
+    }
+
+    // Dibujar en panel de cámara
+    poseCtx.save();
+    poseCtx.clearRect(0, 0, poseCanvas.width, poseCanvas.height);
+    if (results.poseLandmarks) {
+      drawConnectors(poseCtx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#00ff88', lineWidth: 2});
+      drawLandmarks(poseCtx, results.poseLandmarks, {color: '#ffcc00', lineWidth: 1, radius: 2});
+    }
+    poseCtx.restore();
+  });
+
+  const constraints = {
+    video: deviceId ? { deviceId: { exact: deviceId }, width: 320, height: 240 } : { width: 320, height: 240 }
+  };
+
+  const stream = await navigator.mediaDevices.getUserMedia(constraints);
+  videoElement.srcObject = stream;
+  await videoElement.play();
+
+  camera = new Camera(videoElement, {
+    onFrame: async () => {
+      await poseDetector.send({image: videoElement});
+    },
+    width: 320,
+    height: 240
+  });
+
+  await camera.start();
+  cameraActive = true;
+  document.getElementById('pose-text').textContent = '¡Ryu te imita! Mueve los brazos y piernas.';
+  document.getElementById('btn-camera').textContent = '📷 Cámara Activa';
+}
+
+// ==================== GESTOS ESPECIALES ====================
+let lastPunchTime = 0, lastKickTime = 0, lastHadoukenTime = 0;
+let lastBlockTime = 0, lastCrouchTime = 0, lastMoveTime = 0;
+let punchFrames = 0, kickFrames = 0, hadoukenFrames = 0;
+let blockFrames = 0, crouchFrames = 0, leftFrames = 0, rightFrames = 0;
+const CONFIDENCE_THRESHOLD = 3;
+
+function setDebug(id, active) {
+  const el = document.getElementById(id);
+  if (active) { el.textContent = 'SÍ'; el.className = 'debug-active'; }
+  else { el.textContent = 'NO'; el.className = 'debug-inactive'; }
+}
+
+function dist(a, b) {
+  return Math.sqrt((a.x - b.x)**2 + (a.y - b.y)**2);
+}
+
+function processPoseGestures(lm) {
+  if (!lm || !gameActive || !player) return;
+  if (player.state !== 'idle') return; // No detectar gestos durante acciones
+
+  const now = Date.now();
+
+  const nose = lm[0];
+  const lShoulder = lm[11];
+  const rShoulder = lm[12];
+  const lElbow = lm[13];
+  const rElbow = lm[14];
+  const lWrist = lm[15];
+  const rWrist = lm[16];
+  const lHip = lm[23];
+  const rHip = lm[24];
+  const lKnee = lm[25];
+  const rKnee = lm[26];
+  const lAnkle = lm[27];
+  const rAnkle = lm[28];
+
+  const shoulderCenter = { x: (lShoulder.x + rShoulder.x)/2, y: (lShoulder.y + rShoulder.y)/2 };
+  const hipCenter = { x: (lHip.x + rHip.x)/2, y: (lHip.y + rHip.y)/2 };
+
+  // 1. PUÑO DERECHO
+  const rArmLength = dist(rShoulder, rWrist);
+  const rArmStraight = dist(rElbow, rWrist) > 0.12 && dist(rShoulder, rElbow) > 0.08;
+  const rArmForward = rWrist.x < rShoulder.x - 0.05;
+  const rPunchDetected = rArmLength > 0.25 && rArmStraight && rArmForward;
+  if (rPunchDetected) punchFrames++; else punchFrames = 0;
+  setDebug('dbg-punch', punchFrames >= CONFIDENCE_THRESHOLD);
+  if (punchFrames >= CONFIDENCE_THRESHOLD && now - lastPunchTime > 500) {
+    player.state = 'punch'; player.stateTimer = 0; lastPunchTime = now; punchFrames = 0;
+    document.getElementById('pose-text').textContent = 'POSE: ¡PUÑETAZO DERECHO!';
+  }
+
+  // 2. PATADA IZQUIERDA
+  const lLegUp = lAnkle.y < lKnee.y - 0.08 && lAnkle.y < hipCenter.y;
+  if (lLegUp) kickFrames++; else kickFrames = 0;
+  setDebug('dbg-kick', kickFrames >= CONFIDENCE_THRESHOLD);
+  if (kickFrames >= CONFIDENCE_THRESHOLD && now - lastKickTime > 700) {
+    player.state = 'kick'; player.stateTimer = 0; lastKickTime = now; kickFrames = 0;
+    document.getElementById('pose-text').textContent = 'POSE: ¡PATADA IZQUIERDA!';
+  }
+
+  // 3. HADOUKEN
+  const handsClose = dist(lWrist, rWrist) < 0.12;
+  const handsAtChest = lWrist.y > nose.y && lWrist.y < shoulderCenter.y + 0.15 && rWrist.y > nose.y && rWrist.y < shoulderCenter.y + 0.15;
+  const hadoukenDetected = handsClose && handsAtChest;
+  if (hadoukenDetected) hadoukenFrames++; else hadoukenFrames = 0;
+  setDebug('dbg-hadouken', hadoukenFrames >= CONFIDENCE_THRESHOLD);
+  if (hadoukenFrames >= CONFIDENCE_THRESHOLD && now - lastHadoukenTime > 2000) {
+    player.state = 'hadouken'; player.stateTimer = 0; lastHadoukenTime = now; hadoukenFrames = 0;
+    document.getElementById('pose-text').textContent = 'POSE: ¡HADOUKEN!';
+  }
+
+  // 4. BLOQUEO
+  const lArmUp = lWrist.y < lShoulder.y - 0.1 && lWrist.y < nose.y + 0.1;
+  if (lArmUp) blockFrames++; else blockFrames = 0;
+  setDebug('dbg-block', blockFrames >= CONFIDENCE_THRESHOLD);
+  if (blockFrames >= CONFIDENCE_THRESHOLD && now - lastBlockTime > 600) {
+    player.state = 'block'; player.stateTimer = 0; lastBlockTime = now; blockFrames = 0;
+    document.getElementById('pose-text').textContent = 'POSE: BLOQUEO';
+  }
+
+  // 5. AGACHARSE
+  const hipsLow = hipCenter.y > 0.55;
+  if (hipsLow) crouchFrames++; else crouchFrames = 0;
+  setDebug('dbg-crouch', crouchFrames >= CONFIDENCE_THRESHOLD);
+  if (crouchFrames >= CONFIDENCE_THRESHOLD && now - lastCrouchTime > 600) {
+    player.state = 'crouch'; player.stateTimer = 0; lastCrouchTime = now; crouchFrames = 0;
+    document.getElementById('pose-text').textContent = 'POSE: AGACHADO';
+  }
+
+  // 6. MOVIMIENTO LATERAL
+  const bodyLeanLeft = hipCenter.x < 0.38;
+  const bodyLeanRight = hipCenter.x > 0.62;
+  if (bodyLeanLeft) leftFrames++; else leftFrames = 0;
+  if (bodyLeanRight) rightFrames++; else rightFrames = 0;
+  setDebug('dbg-left', leftFrames >= CONFIDENCE_THRESHOLD);
+  setDebug('dbg-right', rightFrames >= CONFIDENCE_THRESHOLD);
+  if (leftFrames >= CONFIDENCE_THRESHOLD && now - lastMoveTime > 200) {
+    player.x -= 15; player.facing = -1; player.state = 'walk'; player.stateTimer = 0; lastMoveTime = now; leftFrames = 0;
+    document.getElementById('pose-text').textContent = 'POSE: Mover izquierda';
+  }
+  if (rightFrames >= CONFIDENCE_THRESHOLD && now - lastMoveTime > 200) {
+    player.x += 15; player.facing = 1; player.state = 'walk'; player.stateTimer = 0; lastMoveTime = now; rightFrames = 0;
+    document.getElementById('pose-text').textContent = 'POSE: Mover derecha';
+  }
+}
+
+// ==================== IA CPU ====================
+let cpuActionTimer = 0;
+function updateCPU() {
+  if (!gameActive || cpu.state !== 'idle') return;
+  cpuActionTimer++;
+  const dist = Math.abs(player.x - cpu.x);
+  if (cpuActionTimer > 40 + Math.random() * 60) {
+    cpuActionTimer = 0;
+    if (dist > 200) {
+      cpu.x += (player.x > cpu.x ? 2.5 : -2.5);
+      cpu.facing = player.x > cpu.x ? 1 : -1;
+      cpu.state = 'walk'; cpu.stateTimer = 0;
+    } else if (dist < 100) {
+      cpu.x += (player.x > cpu.x ? -2 : 2);
+      cpu.facing = player.x > cpu.x ? -1 : 1;
+      cpu.state = 'walk'; cpu.stateTimer = 0;
+    } else {
+      const r = Math.random();
+      if (r < 0.35) cpu.state = 'punch';
+      else if (r < 0.6) cpu.state = 'kick';
+      else if (r < 0.75) cpu.state = 'block';
+      else if (r < 0.9) cpu.state = 'hadouken';
+      else cpu.state = 'crouch';
+      cpu.stateTimer = 0;
+    }
+  }
+}
+
+// ==================== COLISIONES ====================
+function checkCollisions() {
+  const pHit = player.getAttackHitbox();
+  if (pHit && cpu.state !== 'block' && cpu.state !== 'crouch') {
+    const cBox = cpu.getHitbox();
+    if (pHit.x < cBox.x + cBox.w && pHit.x + pHit.w > cBox.x && pHit.y < cBox.y + cBox.h && pHit.y + pHit.h > cBox.y) {
+      const dmg = player.state === 'kick' ? 12 : 8;
+      const dead = cpu.takeDamage(dmg);
+      player.combo++; player.comboTimer = 60;
+      if (player.combo > 1) showCombo(player.combo + " COMBO!");
+      if (dead) endRound('player');
+    }
+  }
+  const cHit = cpu.getAttackHitbox();
+  if (cHit && player.state !== 'block' && player.state !== 'crouch') {
+    const pBox = player.getHitbox();
+    if (cHit.x < pBox.x + pBox.w && cHit.x + cHit.w > pBox.x && cHit.y < pBox.y + pBox.h && cHit.y + cHit.h > pBox.y) {
+      const dmg = cpu.state === 'kick' ? 10 : 7;
+      const dead = player.takeDamage(dmg);
+      if (dead) endRound('cpu');
+    }
+  }
+  for (let i = projectiles.length - 1; i >= 0; i--) {
+    const proj = projectiles[i];
+    const target = proj.dir > 0 ? cpu : player;
+    const tBox = target.getHitbox();
+    if (proj.x > tBox.x && proj.x < tBox.x + tBox.w && proj.y > tBox.y && proj.y < tBox.y + tBox.h) {
+      if (target.state !== 'block') {
+        const dead = target.takeDamage(15);
+        if (dead) endRound(proj.dir > 0 ? 'player' : 'cpu');
+      }
+      spawnParticles(proj.x, proj.y, proj.color, 20);
+      projectiles.splice(i, 1);
+      continue;
+    }
+    if (proj.x < -50 || proj.x > W + 50 || proj.life <= 0) projectiles.splice(i, 1);
+  }
+}
+
+function endRound(winner) {
+  gameActive = false;
+  if (winner === 'player') announce("¡RYU GANA!");
+  else if (winner === 'cpu') announce("¡KEN GANA!");
+  else announce("¡EMPATE!");
+  setTimeout(() => { round++; initGame(); }, 3000);
+}
+
+// ==================== FONDO ====================
+function drawBackground(ctx) {
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, '#0a0a1a');
+  grad.addColorStop(0.5, '#1a1a3e');
+  grad.addColorStop(1, '#0f2a4a');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.fillStyle = '#1a0a05';
+  ctx.fillRect(0, H - 60, W, 60);
+  ctx.fillStyle = '#2a1510';
+  ctx.fillRect(0, H - 60, W, 5);
+
+  ctx.strokeStyle = '#ffcc0022';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < W; i += 80) {
+    ctx.beginPath();
+    ctx.moveTo(i, H - 60);
+    ctx.lineTo(i - 40, H);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = '#0a0a1a';
+  ctx.fillRect(50, H - 250, 40, 190);
+  ctx.fillRect(W - 90, H - 250, 40, 190);
+  ctx.strokeStyle = '#ffcc0033';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(50, H - 250, 40, 190);
+  ctx.strokeRect(W - 90, H - 250, 40, 190);
+
+  ctx.globalAlpha = 0.3;
+  const lightGrad = ctx.createRadialGradient(W/2, H/3, 0, W/2, H/3, 300);
+  lightGrad.addColorStop(0, '#ffcc0044');
+  lightGrad.addColorStop(1, 'transparent');
+  ctx.fillStyle = lightGrad;
+  ctx.fillRect(0, 0, W, H);
+  ctx.globalAlpha = 1;
+}
+
+// ==================== LOOP ====================
+let lastTime = 0;
+function gameLoop(timestamp) {
+  const dt = timestamp - lastTime;
+  lastTime = timestamp;
+
+  ctx.clearRect(0, 0, W, H);
+  drawBackground(ctx);
+
+  if (gameActive) {
+    if (Math.floor(timestamp / 1000) > Math.floor((timestamp - dt) / 1000)) {
+      gameTime--;
+      document.getElementById('timer').textContent = gameTime;
+      if (gameTime <= 0) {
+        if (player.health > cpu.health) endRound('player');
+        else if (cpu.health > player.health) endRound('cpu');
+        else endRound('draw');
+      }
+    }
+
+    player.update();
+    updateCPU();
+    cpu.update();
+    checkCollisions();
+    updateHealthBars();
+
+    projectiles.forEach(p => p.update());
+    particles.forEach((p, i) => { p.update(); if (p.life <= 0) particles.splice(i, 1); });
+  }
+
+  projectiles.forEach(p => p.draw(ctx));
+  if (player) player.draw(ctx);
+  if (cpu) cpu.draw(ctx);
+  particles.forEach(p => p.draw(ctx));
+
+  requestAnimationFrame(gameLoop);
+}
+
+// ==================== EVENTOS ====================
+document.getElementById('btn-camera').addEventListener('click', () => {
+  if (!cameraActive) {
+    enumerateCameras().then(() => {
+      document.getElementById('camera-modal').classList.add('active');
+    });
+  }
+});
+
+document.getElementById('camera-select').addEventListener('change', (e) => {
+  selectedCameraId = e.target.value;
+});
+
+document.getElementById('btn-reset').addEventListener('click', () => {
+  round = 1;
+  initGame();
+});
+
+document.getElementById('btn-download').addEventListener('click', () => {
+  const htmlContent = document.documentElement.outerHTML;
+  const blob = new Blob([htmlContent], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'street-fighter-mediapipe.html';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+document.addEventListener('keydown', (e) => {
+  if (!gameActive || player.state !== 'idle') return;
+  switch(e.key) {
+    case 'ArrowLeft': player.x -= 20; player.facing = -1; break;
+    case 'ArrowRight': player.x += 20; player.facing = 1; break;
+    case 'z': case 'Z': player.state = 'punch'; player.stateTimer = 0; break;
+    case 'x': case 'X': player.state = 'kick'; player.stateTimer = 0; break;
+    case 'c': case 'C': player.state = 'hadouken'; player.stateTimer = 0; break;
+    case 'ArrowDown': player.state = 'crouch'; player.stateTimer = 0; break;
+    case 'ArrowUp': player.state = 'block'; player.stateTimer = 0; break;
+  }
+});
+
+// Iniciar
+initGame();
+requestAnimationFrame(gameLoop);
+
+</script>
+
+
+</body></html>

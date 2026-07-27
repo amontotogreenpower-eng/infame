@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Captura de Movimiento Web - MediaPipe</title>
+    
+    <!-- Importamos las librerías oficiales de MediaPipe desde su CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #1a1a1a;
+            color: white;
+            font-family: sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            position: relative;
+            margin-top: 20px;
+        }
+        /* Ocultamos el video original, solo mostraremos el canvas con el esqueleto dibujado */
+        .input_video {
+            display: none; 
+        }
+        .output_canvas {
+            border: 2px solid #4CAF50;
+            border-radius: 8px;
+            background-color: #000;
+            max-width: 100%;
+        }
+        #status {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>Tracker de Movimiento en Tiempo Real</h2>
+    <p id="status">Iniciando cámara y cargando modelo de IA...</p>
+
+    <div class="container">
+        <!-- Elemento de video que captura la webcam -->
+        <video class="input_video"></video>
+        <!-- Lienzo donde dibujaremos el video y el esqueleto de 33 puntos -->
+        <canvas class="output_canvas" width="1280" height="720"></canvas>
+    </div>
+
+    <script type="module">
+        // 1. Seleccionamos los elementos del DOM
+        const videoElement = document.getElementsByClassName('input_video')[0];
+        const canvasElement = document.getElementsByClassName('output_canvas')[0];
+        const canvasCtx = canvasElement.getContext('2d');
+        const statusText = document.getElementById('status');
+
+        // 2. Función que se ejecuta cada vez que MediaPipe procesa un fotograma
+        function onResults(results) {
+            statusText.innerText = "¡Trackeando! Ponte frente a la cámara.";
+
+            // Limpiamos el canvas antes de dibujar el nuevo fotograma
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+            // Dibujamos el fotograma de la webcam como fondo
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+            // Si el modelo detecta a una persona (results.poseLandmarks contiene los 33 puntos)
+            if (results.poseLandmarks) {
+                // Dibujamos las líneas que conectan los puntos (los "huesos")
+                drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS,
+                               {color: '#00FF00', lineWidth: 4});
+                
+                // Dibujamos los puntos articulares
+                drawLandmarks(canvasCtx, results.poseLandmarks,
+                              {color: '#FF0000', lineWidth: 2, radius: 4});
+                
+                /* 
+                  Aquí es donde extraerías los datos para tu Rig 3D.
+                  Por ejemplo, para ver la coordenada Y de la muñeca derecha (punto 16):
+                  console.log(results.poseLandmarks[16].y);
+                */
+            }
+            canvasCtx.restore();
+        }
+
+        // 3. Inicializamos y configuramos el modelo BlazePose
+        const pose = new Pose({locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
+        }});
+        
+        pose.setOptions({
+            modelComplexity: 1, // 0 = Rápido/Baja precisión, 1 = Balanceado, 2 = Lento/Alta precisión
+            smoothLandmarks: true, // Aplica un filtro para reducir el temblor (jittering)
+            enableSegmentation: false, // No necesitamos recortar el fondo
+            smoothSegmentation: false,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+        
+        // Conectamos el modelo con nuestra función de resultados
+        pose.onResults(onResults);
+
+        // 4. Inicializamos la webcam y la enviamos al modelo
+        const camera = new Camera(videoElement, {
+            onFrame: async () => {
+                await pose.send({image: videoElement});
+            },
+            width: 1280,
+            height: 720
+        });
+        
+        camera.start();
+    </script>
+</body>
+</html>

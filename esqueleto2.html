@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Captura y Grabación de Movimiento - MediaPipe</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+
+    <style>
+        body {
+            display: flex; flex-direction: column; align-items: center;
+            background-color: #1a1a1a; color: white; font-family: sans-serif;
+            margin: 0; padding: 20px;
+        }
+        .container { position: relative; margin-top: 20px; }
+        .input_video { display: none; }
+        .output_canvas {
+            border: 2px solid #4CAF50; border-radius: 8px;
+            background-color: #000; max-width: 100%;
+        }
+        /* Estilos para el nuevo botón de grabación */
+        #recordBtn {
+            margin-top: 15px; padding: 15px 30px;
+            font-size: 18px; font-weight: bold;
+            color: white; background-color: #4CAF50;
+            border: none; border-radius: 5px; cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        #recordBtn.recording { background-color: #f44336; /* Rojo cuando graba */ }
+        #status { color: #4CAF50; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <h2>Tracker de Movimiento (con Exportación JSON)</h2>
+    <p id="status">Iniciando cámara...</p>
+    
+    <!-- Botón de grabación -->
+    <button id="recordBtn" disabled>Esperando a la cámara...</button>
+
+    <div class="container">
+        <video class="input_video"></video>
+        <canvas class="output_canvas" width="1280" height="720"></canvas>
+    </div>
+
+    <script type="module">
+        const videoElement = document.getElementsByClassName('input_video')[0];
+        const canvasElement = document.getElementsByClassName('output_canvas')[0];
+        const canvasCtx = canvasElement.getContext('2d');
+        const statusText = document.getElementById('status');
+        const recordBtn = document.getElementById('recordBtn');
+
+        // Variables para la grabación
+        let isRecording = false;
+        let motionData = []; // Aquí guardaremos todos los fotogramas
+        let startTime = 0;
+
+        // Lógica del botón Grabar / Detener
+        recordBtn.addEventListener('click', () => {
+            if (!isRecording) {
+                // Iniciar grabación
+                isRecording = true;
+                motionData = []; // Limpiamos datos anteriores
+                startTime = performance.now(); // Guardamos el tiempo de inicio
+                recordBtn.innerText = "Parar y Descargar JSON";
+                recordBtn.classList.add('recording');
+            } else {
+                // Detener grabación
+                isRecording = false;
+                recordBtn.innerText = "Grabar Movimiento";
+                recordBtn.classList.remove('recording');
+                descargarJSON(); // Llamamos a la función de descarga
+            }
+        });
+
+        // Función para descargar los datos
+        function descargarJSON() {
+            if (motionData.length === 0) return alert("No se grabó ningún movimiento.");
+
+            // Convertimos nuestro Array a texto en formato JSON
+            const dataStr = JSON.stringify(motionData);
+            
+            // Creamos un archivo virtual (Blob) con ese texto
+            const blob = new Blob([dataStr], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            
+            // Creamos un enlace invisible, lo clicamos automáticamente y lo borramos
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = "captura_movimiento.json";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function onResults(results) {
+            statusText.innerText = "¡Cámara activa!";
+            if (recordBtn.disabled) {
+                recordBtn.disabled = false;
+                recordBtn.innerText = "Grabar Movimiento";
+            }
+
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+            if (results.poseLandmarks) {
+                drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#00FF00', lineWidth: 4});
+                drawLandmarks(canvasCtx, results.poseLandmarks, {color: '#FF0000', lineWidth: 2, radius: 4});
+
+                // SI ESTAMOS GRABANDO: Guardamos el fotograma actual
+                if (isRecording) {
+                    const currentTime = performance.now() - startTime;
+                    motionData.push({
+                        time_ms: currentTime, // Tiempo exacto del fotograma en milisegundos
+                        landmarks: results.poseLandmarks // Array con los 33 puntos (x, y, z)
+                    });
+                }
+            }
+            canvasCtx.restore();
+        }
+
+        const pose = new Pose({locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
+        }});
+        
+        pose.setOptions({
+            modelComplexity: 1, smoothLandmarks: true, enableSegmentation: false,
+            smoothSegmentation: false, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5
+        });
+        pose.onResults(onResults);
+
+        const camera = new Camera(videoElement, {
+            onFrame: async () => { await pose.send({image: videoElement}); },
+            width: 1280, height: 720
+        });
+        camera.start();
+    </script>
+</body>
+</html>

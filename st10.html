@@ -73,7 +73,7 @@
     <div id="timer">30</div>
     <div style="width:38%"><div class="fighter-name fighter-right">KEN (CPU) ⚡</div><div class="health-bar-container"><div id="p2-health" class="health-bar" style="width:100%"></div></div></div>
   </div>
-  <div id="pose-status"><span class="pose-label">POSE:</span> <span id="pose-text">POSE: AGACHADO</span></div>
+  <div id="pose-status"><span class="pose-label">POSE:</span> <span id="pose-text">Cámara desactivada. Pulsa "Activar Cámara".</span></div>
   <div id="round-announce" style="opacity: 0; transform: translate(-50%, -50%) scale(1);">ROUND 1
 FIGHT!</div>
   <div id="combo-display"></div>
@@ -91,16 +91,16 @@ FIGHT!</div>
     <div class="debug-row"><span>Patada izquierda</span><span id="dbg-kick" class="debug-inactive">NO</span></div>
     <div class="debug-row"><span>Hadouken</span><span id="dbg-hadouken" class="debug-inactive">NO</span></div>
     <div class="debug-row"><span>Bloqueo</span><span id="dbg-block" class="debug-inactive">NO</span></div>
-    <div class="debug-row"><span>Agacharse</span><span id="dbg-crouch" class="debug-active">SÍ</span></div>
+    <div class="debug-row"><span>Agacharse</span><span id="dbg-crouch" class="debug-inactive">NO</span></div>
     <div class="debug-row"><span>Mover izq</span><span id="dbg-left" class="debug-inactive">NO</span></div>
     <div class="debug-row"><span>Mover der</span><span id="dbg-right" class="debug-inactive">NO</span></div>
-    <div class="debug-row"><span>Cámara activa</span><span id="dbg-camera" class="debug-active">SÍ</span></div>
-    <div class="debug-row"><span>Landmarks</span><span id="dbg-landmarks" class="debug-active">33</span></div>
+    <div class="debug-row"><span>Cámara activa</span><span id="dbg-camera" class="debug-inactive">NO</span></div>
+    <div class="debug-row"><span>Landmarks</span><span id="dbg-landmarks" class="debug-inactive">0</span></div>
   </div>
 </div>
 
 <div id="controls">
-  <button id="btn-camera">📷 Cámara Activa</button>
+  <button id="btn-camera">📷 Activar Cámara + MediaPipe</button>
   <select id="camera-select"><option value="7d531444363521788957b547668bd987301ed3d7df54724ffd73f6599b68485d">camera 1, facing front</option><option value="a1e5e3dbd9b98f3e121b0183b4f62501c835b74bb126d46d708da30c6ae49669">camera 0, facing back</option></select>
   <button id="btn-reset">🔄 Reiniciar Combate</button>
   <button id="btn-download">⬇️ Descargar App</button>
@@ -195,6 +195,12 @@ class FighterSkeleton {
     this.combo = 0;
     this.comboTimer = 0;
     this.hitFlash = 0;
+
+    // Sistema de golpes en vivo (jugador con cámara): el hitbox se calcula
+    // cada frame desde la posición real de la mano/pie, no desde una animación fija.
+    this.attackType = null;   // 'punch' | 'kick'
+    this.attackTimer = 0;     // frames restantes con hitbox activo
+    this.attackHitbox = null;
 
     // Definición del esqueleto: cada hueso tiene parent, length, angle (absoluto)
     this.bones = {
@@ -298,8 +304,10 @@ class FighterSkeleton {
     if (this.comboTimer === 0) this.combo = 0;
     if (this.hitFlash > 0) this.hitFlash--;
 
-    // Interpolar ángulos hacia target (pose del usuario) o base (animación)
-    const usePose = this.isPlayer && cameraActive && this.state === 'idle';
+    // Interpolar ángulos hacia target (pose del usuario) o base (animación).
+    // usePose ya NO depende de 'idle': mientras haya cámara, el jugador se
+    // mimetiza siempre (de pie, andando, agachado, bloqueando...).
+    const usePose = this.isPlayer && cameraActive;
     const t = usePose ? poseLerp : 0.15;
 
     for (let k in this.bones) {
@@ -307,7 +315,10 @@ class FighterSkeleton {
       this.bones[k].angle = lerpAngle(this.bones[k].angle, target, t);
     }
 
-    // Animaciones predefinidas sobreescriben ángulos
+    // Animaciones predefinidas: solo se aplican cuando NO hay mímica en vivo
+    // (CPU, o jugador sin cámara usando el teclado). Con cámara, tu propia
+    // pose ya dibuja brazos/piernas; aquí solo queda la lógica de juego
+    // (temporizadores, desplazamiento, altura del agachado, proyectiles).
     const af = this.animFrame * 0.08;
     switch (this.state) {
       case 'idle':
@@ -317,13 +328,17 @@ class FighterSkeleton {
         break;
       case 'walk':
         this.x += this.facing * 2.5;
-        this.bones.shoulderL.angle = lerpAngle(this.bones.shoulderL.angle, -Math.PI * 0.85 + Math.sin(af * 2) * 0.3, 0.3);
-        this.bones.shoulderR.angle = lerpAngle(this.bones.shoulderR.angle, -Math.PI * 0.15 - Math.sin(af * 2) * 0.3, 0.3);
-        this.bones.hipL.angle = lerpAngle(this.bones.hipL.angle, Math.PI * 0.6 + Math.sin(af * 2) * 0.2, 0.3);
-        this.bones.hipR.angle = lerpAngle(this.bones.hipR.angle, Math.PI * 0.4 - Math.sin(af * 2) * 0.2, 0.3);
+        if (!usePose) {
+          this.bones.shoulderL.angle = lerpAngle(this.bones.shoulderL.angle, -Math.PI * 0.85 + Math.sin(af * 2) * 0.3, 0.3);
+          this.bones.shoulderR.angle = lerpAngle(this.bones.shoulderR.angle, -Math.PI * 0.15 - Math.sin(af * 2) * 0.3, 0.3);
+          this.bones.hipL.angle = lerpAngle(this.bones.hipL.angle, Math.PI * 0.6 + Math.sin(af * 2) * 0.2, 0.3);
+          this.bones.hipR.angle = lerpAngle(this.bones.hipR.angle, Math.PI * 0.4 - Math.sin(af * 2) * 0.2, 0.3);
+        }
         if (this.stateTimer > 15) { this.state = 'idle'; this.stateTimer = 0; }
         break;
       case 'punch':
+        // Solo llega aquí la CPU, o el jugador por teclado (sin cámara):
+        // con cámara el puñetazo se resuelve en vivo, ver triggerAttack().
         if (this.stateTimer < 8) {
           this.bones.shoulderR.angle = -Math.PI * 0.1;
           this.bones.upperArmR.angle = -0.3;
@@ -342,28 +357,39 @@ class FighterSkeleton {
         } else { this.state = 'idle'; this.stateTimer = 0; }
         break;
       case 'block':
-        this.bones.shoulderL.angle = -Math.PI * 0.95;
-        this.bones.upperArmL.angle = -0.2;
-        this.bones.shoulderR.angle = -Math.PI * 0.05;
-        this.bones.upperArmR.angle = 0.2;
+        if (!usePose) {
+          this.bones.shoulderL.angle = -Math.PI * 0.95;
+          this.bones.upperArmL.angle = -0.2;
+          this.bones.shoulderR.angle = -Math.PI * 0.05;
+          this.bones.upperArmR.angle = 0.2;
+        }
         if (this.stateTimer > 30) { this.state = 'idle'; this.stateTimer = 0; }
         break;
       case 'hit':
-        this.bones.root.angle = -Math.PI / 2 + 0.3;
-        this.bones.shoulderL.angle = -Math.PI * 0.9;
-        this.bones.shoulderR.angle = -Math.PI * 0.1;
+        if (!usePose) {
+          this.bones.root.angle = -Math.PI / 2 + 0.3;
+          this.bones.shoulderL.angle = -Math.PI * 0.9;
+          this.bones.shoulderR.angle = -Math.PI * 0.1;
+        }
         if (this.stateTimer > 20) { this.state = 'idle'; this.stateTimer = 0; }
         break;
       case 'crouch':
+        // La traslación hacia abajo se mantiene siempre (así los pies no
+        // "flotan" cuando las piernas se doblan); los ángulos de brazos/
+        // piernas concretos solo se fuerzan sin mímica en vivo.
         this.y = this.baseY + 30;
-        this.bones.root.angle = -Math.PI / 2 + 0.2;
         this.bones.spine.length = 40;
-        this.bones.shoulderL.angle = -Math.PI * 0.8;
-        this.bones.shoulderR.angle = -Math.PI * 0.2;
-        this.bones.hipL.angle = Math.PI * 0.55;
-        this.bones.hipR.angle = Math.PI * 0.45;
+        if (!usePose) {
+          this.bones.root.angle = -Math.PI / 2 + 0.2;
+          this.bones.shoulderL.angle = -Math.PI * 0.8;
+          this.bones.shoulderR.angle = -Math.PI * 0.2;
+          this.bones.hipL.angle = Math.PI * 0.55;
+          this.bones.hipR.angle = Math.PI * 0.45;
+        }
         break;
       case 'hadouken':
+        // Solo CPU / teclado; con cámara el hadouken se dispara al instante
+        // desde triggerHadouken() sin bloquear la pose.
         if (this.stateTimer < 15) {
           this.bones.shoulderL.angle = -Math.PI * 0.9;
           this.bones.shoulderR.angle = -Math.PI * 0.3;
@@ -385,6 +411,18 @@ class FighterSkeleton {
 
     this.x = Math.max(80, Math.min(W - 80, this.x));
     this.computeFK();
+
+    // Golpe/patada en vivo: mientras el temporizador esté activo, el hitbox
+    // se recalcula cada frame en la posición REAL de la mano o el pie
+    // (ya actualizada por computeFK con tu pose de este frame).
+    if (this.attackTimer > 0) {
+      this.attackTimer--;
+      const joint = this.attackType === 'kick' ? 'footR' : 'handR';
+      const p = this.getBoneWorldPos(joint);
+      const size = this.attackType === 'kick' ? 55 : 42;
+      this.attackHitbox = { x: p.x - size / 2, y: p.y - size / 2, w: size, h: size };
+      if (this.attackTimer === 0) this.attackHitbox = null;
+    }
   }
 
   computeFK() {
@@ -494,7 +532,45 @@ class FighterSkeleton {
     return { x: this.x - 45, y: this.y - 130, w: 90, h: 180 };
   }
 
+  // Posición en el mundo (canvas) de un hueso, aplicando la misma
+  // traslación/espejado/escala que usa draw(). Así el hitbox de un golpe
+  // coincide exactamente con dónde se ve tu mano o tu pie en pantalla.
+  getBoneWorldPos(name) {
+    const s = poseScale / 160;
+    const b = this.bones[name];
+    return {
+      x: this.x + b.x * this.facing * s,
+      y: this.y + poseHeightOffset + b.y * s
+    };
+  }
+
+  // Tipo del golpe activo, venga del sistema en vivo (cámara) o del estado
+  // clásico (CPU / teclado).
+  getAttackType() {
+    if (this.isPlayer && cameraActive) return this.attackType;
+    return this.state;
+  }
+
+  // Dispara un golpe/patada en vivo: NO cambia this.state (para no cortar la
+  // mímica), solo activa un temporizador durante el cual getAttackHitbox()
+  // sigue tu mano/pie real cada frame.
+  triggerAttack(type) {
+    this.attackType = type;
+    this.attackTimer = type === 'kick' ? 10 : 8;
+  }
+
+  // Lanza el proyectil del hadouken al instante desde tu mano real,
+  // sin animación fija que te congele la pose.
+  triggerHadouken() {
+    const p = this.getBoneWorldPos('handR');
+    projectiles.push(new Projectile(p.x + this.facing * 20, p.y, this.facing, this.color));
+  }
+
   getAttackHitbox() {
+    // Jugador con cámara: hitbox en vivo, calculado en update() a partir de
+    // la posición real de la mano/pie.
+    if (this.isPlayer && cameraActive) return this.attackHitbox;
+    // CPU, o jugador por teclado sin cámara: animación clásica con ventana fija.
     if (this.state === 'punch' && this.stateTimer >= 8 && this.stateTimer < 18) {
       return { x: this.x + this.facing * 100, y: this.y - 80, w: 60, h: 45 };
     }
@@ -702,7 +778,7 @@ async function initMediaPipeWithCamera(deviceId) {
       if (results.poseLandmarks) {
         document.getElementById('dbg-landmarks').textContent = results.poseLandmarks.length;
         document.getElementById('dbg-landmarks').className = 'debug-active';
-        if (player && player.state === 'idle' && gameActive) {
+        if (player && gameActive) {
           player.applyPoseLandmarks(results.poseLandmarks);
         }
         processPoseGestures(results.poseLandmarks);
@@ -791,7 +867,7 @@ async function initMediaPipeWithCamera(deviceId) {
 
 // ==================== GESTOS ====================
 let lastPunchTime = 0, lastKickTime = 0, lastHadoukenTime = 0, lastBlockTime = 0, lastCrouchTime = 0, lastMoveTime = 0;
-let punchFrames = 0, kickFrames = 0, hadoukenFrames = 0, blockFrames = 0, crouchFrames = 0, leftFrames = 0, rightFrames = 0;
+let punchFrames = 0, kickFrames = 0, hadoukenFrames = 0, blockFrames = 0, crouchFrames = 0, unCrouchFrames = 0, leftFrames = 0, rightFrames = 0;
 const CONFIDENCE_THRESHOLD = 3;
 
 function setDebug(id, active) {
@@ -801,12 +877,20 @@ function setDebug(id, active) {
 }
 
 function processPoseGestures(lm) {
-  if (!lm || !gameActive || !player || player.state !== 'idle') return;
+  if (!lm || !gameActive || !player) return;
+  // Único bloqueo real: aturdimiento breve tras recibir un golpe. Todo lo
+  // demás (agachado, bloqueo, golpes, movimiento) se evalúa siempre en
+  // paralelo para que la mímica nunca se "cuelgue" esperando a que
+  // termine una animación.
+  if (player.state === 'hit') return;
   const now = Date.now();
 
   // Aplicar el mismo mirror que en applyPoseLandmarks para consistencia
+  // IMPORTANTE: MediaPipe da x en rango 0..1 (0 = borde izq de la imagen), no -1..1.
+  // Restamos 0.5 ANTES de espejar para que x=0 sea el centro del encuadre; si no,
+  // los umbrales de inclinación izq/der (pensados para "0 = centro") nunca se cumplen bien.
   const mirror = isBackCamera ? 1 : -1;
-  const mx = (idx) => lm[idx].x * mirror;
+  const mx = (idx) => (lm[idx].x - 0.5) * mirror;
   const my = (idx) => lm[idx].y;
 
   const nose = { x: mx(0), y: my(0) };
@@ -826,66 +910,72 @@ function processPoseGestures(lm) {
   const shoulderCenter = { x: (lShoulder.x + rShoulder.x) / 2, y: (lShoulder.y + rShoulder.y) / 2 };
   const hipCenter = { x: (lHip.x + rHip.x) / 2, y: (lHip.y + rHip.y) / 2 };
 
-  // Puño derecho: brazo derecho extendido hacia adelante (dirección +x con mirror aplicado)
+  // ---- Agacharse: postura mantenida, entra y sale sola ----
+  const hipsLow = hipCenter.y > 0.55;
+  if (hipsLow) { crouchFrames++; unCrouchFrames = 0; } else { unCrouchFrames++; crouchFrames = 0; }
+  setDebug('dbg-crouch', player.state === 'crouch');
+  if (player.state !== 'crouch' && player.state !== 'block' && crouchFrames >= CONFIDENCE_THRESHOLD) {
+    player.state = 'crouch'; player.stateTimer = 0; crouchFrames = 0;
+    document.getElementById('pose-text').textContent = 'POSE: AGACHADO';
+  } else if (player.state === 'crouch' && unCrouchFrames >= CONFIDENCE_THRESHOLD) {
+    player.state = 'idle'; player.stateTimer = 0; unCrouchFrames = 0;
+    document.getElementById('pose-text').textContent = 'POSE: DE PIE';
+  }
+
+  // ---- Puño derecho: hitbox EN VIVO desde la posición real de tu mano ----
+  // No cambia player.state (así tu pose sigue viéndose siempre), solo
+  // dispara un temporizador de golpe que se resuelve en update().
   const rArmLength = dist(rShoulder, rWrist);
   const rArmForward = rWrist.x > rShoulder.x + 0.05 && rArmLength > 0.22;
   if (rArmForward) punchFrames++; else punchFrames = 0;
   setDebug('dbg-punch', punchFrames >= CONFIDENCE_THRESHOLD);
   if (punchFrames >= CONFIDENCE_THRESHOLD && now - lastPunchTime > 500) {
-    player.state = 'punch'; player.stateTimer = 0; lastPunchTime = now; punchFrames = 0;
+    player.triggerAttack('punch'); lastPunchTime = now; punchFrames = 0;
     document.getElementById('pose-text').textContent = 'POSE: ¡PUÑETAZO DERECHO!';
   }
 
-  // Patada izquierda: tobillo izquierdo por encima de la rodilla
+  // ---- Patada izquierda: igual, hitbox en vivo desde tu pie real ----
   const lLegUp = lAnkle.y < lKnee.y - 0.06 && lAnkle.y < hipCenter.y + 0.1;
   if (lLegUp) kickFrames++; else kickFrames = 0;
   setDebug('dbg-kick', kickFrames >= CONFIDENCE_THRESHOLD);
   if (kickFrames >= CONFIDENCE_THRESHOLD && now - lastKickTime > 700) {
-    player.state = 'kick'; player.stateTimer = 0; lastKickTime = now; kickFrames = 0;
+    player.triggerAttack('kick'); lastKickTime = now; kickFrames = 0;
     document.getElementById('pose-text').textContent = 'POSE: ¡PATADA IZQUIERDA!';
   }
 
-  // Hadouken: manos juntas a altura de pecho
+  // ---- Hadouken: dispara el proyectil al instante desde tu mano, sin animación fija ----
   const handsClose = dist(lWrist, rWrist) < 0.12;
   const handsAtChest = lWrist.y > nose.y && lWrist.y < shoulderCenter.y + 0.15 && rWrist.y > nose.y && rWrist.y < shoulderCenter.y + 0.15;
   const hadoukenDetected = handsClose && handsAtChest;
   if (hadoukenDetected) hadoukenFrames++; else hadoukenFrames = 0;
   setDebug('dbg-hadouken', hadoukenFrames >= CONFIDENCE_THRESHOLD);
   if (hadoukenFrames >= CONFIDENCE_THRESHOLD && now - lastHadoukenTime > 2000) {
-    player.state = 'hadouken'; player.stateTimer = 0; lastHadoukenTime = now; hadoukenFrames = 0;
+    player.triggerHadouken(); lastHadoukenTime = now; hadoukenFrames = 0;
     document.getElementById('pose-text').textContent = 'POSE: ¡HADOUKEN!';
   }
 
-  // Bloqueo: brazo izquierdo levantado por encima del hombro
+  // ---- Bloqueo: brazo izquierdo levantado por encima del hombro ----
   const lArmUp = lWrist.y < lShoulder.y - 0.08 && lWrist.y < nose.y + 0.15;
   if (lArmUp) blockFrames++; else blockFrames = 0;
   setDebug('dbg-block', blockFrames >= CONFIDENCE_THRESHOLD);
-  if (blockFrames >= CONFIDENCE_THRESHOLD && now - lastBlockTime > 600) {
+  if (blockFrames >= CONFIDENCE_THRESHOLD && now - lastBlockTime > 600 && player.state !== 'crouch') {
     player.state = 'block'; player.stateTimer = 0; lastBlockTime = now; blockFrames = 0;
     document.getElementById('pose-text').textContent = 'POSE: BLOQUEO';
   }
 
-  // Agacharse: caderas bajas (alto valor Y)
-  const hipsLow = hipCenter.y > 0.55;
-  if (hipsLow) crouchFrames++; else crouchFrames = 0;
-  setDebug('dbg-crouch', crouchFrames >= CONFIDENCE_THRESHOLD);
-  if (crouchFrames >= CONFIDENCE_THRESHOLD && now - lastCrouchTime > 600) {
-    player.state = 'crouch'; player.stateTimer = 0; lastCrouchTime = now; crouchFrames = 0;
-    document.getElementById('pose-text').textContent = 'POSE: AGACHADO';
-  }
-
-  // Movimiento lateral: inclinar cuerpo
-  const bodyLeanLeft = hipCenter.x < -0.15;  // con mirror, valores negativos = izquierda
+  // ---- Movimiento lateral: inclinar cuerpo (solo si no estás agachado/bloqueando) ----
+  const bodyLeanLeft = hipCenter.x < -0.15;
   const bodyLeanRight = hipCenter.x > 0.15;
   if (bodyLeanLeft) leftFrames++; else leftFrames = 0;
   if (bodyLeanRight) rightFrames++; else rightFrames = 0;
   setDebug('dbg-left', leftFrames >= CONFIDENCE_THRESHOLD);
   setDebug('dbg-right', rightFrames >= CONFIDENCE_THRESHOLD);
-  if (leftFrames >= CONFIDENCE_THRESHOLD && now - lastMoveTime > 200) {
+  const canMove = player.state === 'idle' || player.state === 'walk';
+  if (canMove && leftFrames >= CONFIDENCE_THRESHOLD && now - lastMoveTime > 200) {
     player.x -= 15; player.facing = -1; player.state = 'walk'; player.stateTimer = 0; lastMoveTime = now; leftFrames = 0;
     document.getElementById('pose-text').textContent = 'POSE: Mover izquierda';
   }
-  if (rightFrames >= CONFIDENCE_THRESHOLD && now - lastMoveTime > 200) {
+  if (canMove && rightFrames >= CONFIDENCE_THRESHOLD && now - lastMoveTime > 200) {
     player.x += 15; player.facing = 1; player.state = 'walk'; player.stateTimer = 0; lastMoveTime = now; rightFrames = 0;
     document.getElementById('pose-text').textContent = 'POSE: Mover derecha';
   }
@@ -914,7 +1004,7 @@ function checkCollisions() {
   if (pHit && cpu.state !== 'block' && cpu.state !== 'crouch') {
     const cBox = cpu.getHitbox();
     if (pHit.x < cBox.x + cBox.w && pHit.x + pHit.w > cBox.x && pHit.y < cBox.y + cBox.h && pHit.y + pHit.h > cBox.y) {
-      const dmg = player.state === 'kick' ? 12 : 8; const dead = cpu.takeDamage(dmg);
+      const dmg = player.getAttackType() === 'kick' ? 12 : 8; const dead = cpu.takeDamage(dmg);
       player.combo++; player.comboTimer = 60; if (player.combo > 1) showCombo(player.combo + " COMBO!"); if (dead) endRound('player');
     }
   }
@@ -922,7 +1012,7 @@ function checkCollisions() {
   if (cHit && player.state !== 'block' && player.state !== 'crouch') {
     const pBox = player.getHitbox();
     if (cHit.x < pBox.x + pBox.w && cHit.x + cHit.w > pBox.x && cHit.y < pBox.y + pBox.h && cHit.y + cHit.h > pBox.y) {
-      const dmg = cpu.state === 'kick' ? 10 : 7; const dead = player.takeDamage(dmg); if (dead) endRound('cpu');
+      const dmg = cpu.getAttackType() === 'kick' ? 10 : 7; const dead = player.takeDamage(dmg); if (dead) endRound('cpu');
     }
   }
   for (let i = projectiles.length - 1; i >= 0; i--) {

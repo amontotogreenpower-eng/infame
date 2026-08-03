@@ -2,20 +2,12 @@
  "kind": "moves",
  "items": [
   {
-   "file": "onda-de-ki.json",
-   "name": "ONDA DE KI",
-   "badge": "KI",
+   "file": "aura-revienta.json",
+   "name": "AURA REVIENTA",
+   "badge": "AR",
    "type": "other",
-   "slotKind": "special",
-   "dmg": 16
-  },
-  {
-   "file": "puno-meteoro.json",
-   "name": "PUÑO METEORO",
-   "badge": "MT",
-   "type": "punch",
-   "slotKind": "special",
-   "dmg": 14
+   "slotKind": "super",
+   "dmg": 22
   },
   {
    "file": "destello.json",
@@ -26,12 +18,20 @@
    "dmg": 12
   },
   {
-   "file": "rodilla-cometa.json",
-   "name": "RODILLA COMETA",
-   "badge": "RC",
+   "file": "molinete-volador.json",
+   "name": "MOLINETE VOLADOR",
+   "badge": "MV",
    "type": "kick",
+   "slotKind": "super",
+   "dmg": 26
+  },
+  {
+   "file": "onda-de-ki.json",
+   "name": "ONDA DE KI",
+   "badge": "KI",
+   "type": "other",
    "slotKind": "special",
-   "dmg": 13
+   "dmg": 16
   },
   {
    "file": "palma-guardia.json",
@@ -42,12 +42,36 @@
    "dmg": 10
   },
   {
-   "file": "aura-revienta.json",
-   "name": "AURA REVIENTA",
-   "badge": "AR",
-   "type": "other",
+   "file": "patada-relampago.json",
+   "name": "PATADA RELÁMPAGO",
+   "badge": "PR",
+   "type": "kick",
    "slotKind": "super",
-   "dmg": 22
+   "dmg": 24
+  },
+  {
+   "file": "puno-meteoro.json",
+   "name": "PUÑO METEORO",
+   "badge": "MT",
+   "type": "punch",
+   "slotKind": "special",
+   "dmg": 14
+  },
+  {
+   "file": "rodilla-cometa.json",
+   "name": "RODILLA COMETA",
+   "badge": "RC",
+   "type": "kick",
+   "slotKind": "special",
+   "dmg": 13
+  },
+  {
+   "file": "tornado-acrobatico.json",
+   "name": "TORNADO ACROBÁTICO",
+   "badge": "TA",
+   "type": "kick",
+   "slotKind": "special",
+   "dmg": 20
   }
  ]
 }

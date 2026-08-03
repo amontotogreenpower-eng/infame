@@ -1352,6 +1352,10 @@ const ARENA_LIM=ARENA_R+1.4;       // hasta donde se puede pisar (junto a la mur
    de cada lado (cara a cara); en los vertices el alcance es RING_APOTHEM/cos(22.5°). */
 const RING_APOTHEM=24;
 let COMBAT_SHAPE='circle';    // 'circle' (coliseo) u 'octagon' (ring), segun el escenario activo
+const RING_FLOOR_Y=1;         // altura de la lona del ring (coincide con lona.position.y=.5, altura 1)
+function stageFloorY(){       // cuanto hay que subir a los luchadores respecto al suelo Y=0 de siempre
+  return(arenaOn&&combatArena==='ring')?RING_FLOOR_Y:0;
+}
 const CANCEL_W=8;   // frames extra tras los activos para cancelar
 const THROW_ESC=11;    // ventana (frames) para zafarse de un agarre
 const STUN_HITS=5;     // golpes seguidos que provocan aturdimiento
@@ -5569,42 +5573,44 @@ function buildStages(){
      new THREE.MeshBasicMaterial({color:0x8ec8ff,side:THREE.DoubleSide,transparent:true,opacity:.5}));
    marca.rotation.x=-Math.PI/2;marca.rotation.y=ROT;marca.position.y=.02;G.add(marca);
 
-   // MURO EXTERIOR: 8 pantallas grandes orientadas hacia el ring, con video o
-   // imagen si el usuario las sube a src/, o un panel oscuro si no hay nada.
-   const wallH=20, wallW=2*R2*Math.tan(Math.PI/8);
-   const fallbackM=new THREE.MeshBasicMaterial({color:0x0e0e18});
-   const screens=[];
-   for(let k=0;k<8;k++){const a=k*Math.PI/4;
-     const m=fallbackM.clone();
-     const wall=new THREE.Mesh(new THREE.PlaneGeometry(wallW*.99,wallH),m);
-     wall.position.set(Math.cos(a)*R2,wallH/2,Math.sin(a)*R2);
-     wall.rotation.y=-a+Math.PI/2;wall.rotation.y+=Math.PI;   // normal hacia dentro
-     G.add(wall);screens.push(wall);}
-   G.screens=screens;
-   ringLoadWallMedia(screens);   // async, con caida elegante (ver definicion)
+   /* MURO EXTERIOR: un unico cilindro envolvente en vez de 8 pantallas
+      sueltas -> imagen continua sin costuras, y ademas mas barato (1 malla
+      en vez de 8). openEnded:true es imprescindible: un cilindro CERRADO
+      lleva tapas solidas por defecto, y una tapa arriba haria de techo
+      invisible (el mismo bug que tuvo la cornisa del coliseo tiempo atras).
+      side:BackSide porque la camara mira la cara INTERIOR del cilindro. */
+   const wallH=20;
+   const wallGeo=new THREE.CylinderGeometry(R2,R2,wallH,48,1,true);
+   const wallMat=new THREE.MeshBasicMaterial({color:0x0e0e18,side:THREE.BackSide});
+   const wallMesh=new THREE.Mesh(wallGeo,wallMat);
+   wallMesh.position.y=wallH/2;G.add(wallMesh);
+   G.screens=wallMesh;
+   ringLoadWallMedia(wallMesh);   // async, con caida elegante (ver definicion)
 
    G.visible=false;ringStage=G;scene.add(G);}
   for(const k in stages){stages[k].visible=false;scene.add(stages[k]);}
 }
-/* Textura de las pantallas del muro exterior: intenta VIDEO primero, si no
-   existe cae a IMAGEN, si tampoco existe se queda el panel oscuro por
-   defecto. Los tres casos son validos, ninguno rompe nada si falta el
-   archivo (mismo patron que Intro.mp4 o las cabezas .glb). */
-function ringLoadWallMedia(screens){
+/* Textura del muro cilindrico exterior: intenta VIDEO primero, si no existe
+   cae a IMAGEN, si tampoco existe se queda el panel oscuro por defecto. Los
+   tres casos son validos, ninguno rompe nada si falta el archivo (mismo
+   patron que Intro.mp4 o las cabezas .glb).
+   side:BackSide es obligatorio en los TRES materiales: la camara mira la
+   cara interior del cilindro, y sin esto el muro se volveria invisible en
+   cuanto cargara el video o la imagen (el material por defecto solo se ve
+   desde fuera). */
+function ringLoadWallMedia(wallMesh){
   const vid=document.createElement('video');
   vid.src='src/ring-video.mp4';vid.loop=true;vid.muted=true;vid.playsInline=true;
   vid.oncanplay=()=>{
     const tex=new THREE.VideoTexture(vid);tex.colorSpace=THREE.SRGBColorSpace||undefined;
-    const m=new THREE.MeshBasicMaterial({map:tex});
-    screens.forEach(s=>s.material=m);
+    wallMesh.material=new THREE.MeshBasicMaterial({map:tex,side:THREE.BackSide});
     vid.play().catch(()=>{});
   };
   vid.onerror=()=>{
     const img=new Image();
     img.onload=()=>{
       const tex=new THREE.Texture(img);tex.needsUpdate=true;
-      const m=new THREE.MeshBasicMaterial({map:tex});
-      screens.forEach(s=>s.material=m);
+      wallMesh.material=new THREE.MeshBasicMaterial({map:tex,side:THREE.BackSide});
     };
     img.onerror=()=>{};              // sin video ni imagen: se queda el panel oscuro
     img.src='src/ring-image.jpg';
@@ -5911,8 +5917,8 @@ class Fighter{
         }
       }
       this.rig.fist=.22;this.rig.curlHands();
-      this.rig.apply(POSE.hurt,this.facing,(GROUND-this.y)*K,'none');
-      if(this.blob){this.blob.position.x=(this.x-480)*K;this.blob.scale.setScalar(.7);}
+      this.rig.apply(POSE.hurt,this.facing,(GROUND-this.y)*K+stageFloorY(),'none');
+      if(this.blob){this.blob.position.x=(this.x-480)*K;this.blob.position.y=.025+stageFloorY();this.blob.scale.setScalar(.7);}
       return;
     }
     if(this.state==='throw'){
@@ -5925,8 +5931,8 @@ class Fighter{
       }
       if(this.thT>=26)this.state='idle';
       this.rig.fist+=(1-this.rig.fist)*.4;this.rig.curlHands();
-      this.rig.apply(this.thT<12?POSE.charge:POSE.release,this.facing,0,'both');
-      if(this.blob)this.blob.position.x=(this.x-480)*K;
+      this.rig.apply(this.thT<12?POSE.charge:POSE.release,this.facing,stageFloorY(),'both');
+      if(this.blob){this.blob.position.x=(this.x-480)*K;this.blob.position.y=.025+stageFloorY();}
       return;
     }
     this.t++;if(this.cd>0)this.cd--;if(this.tapT>0)this.tapT--;
@@ -6155,11 +6161,11 @@ class Fighter{
       if(this.uc>0)this.pose=P({py:-86,torso:-16,armUF:150,armLF:175,armUB:-42,armLB:55,
         legUF:62,legLF:122,legUB:-18,legLB:58,head:-6});
     }
-    this.rig.apply(this.pose,this.facing,(GROUND-this.y)*K,this.plantMode());
+    this.rig.apply(this.pose,this.facing,(GROUND-this.y)*K+stageFloorY(),this.plantMode());
     this.rig.root.rotation.y-=AX.A;    // el rig se alinea con el eje giratorio
     if(this.flashT>0){this.flashT--;
       for(const m of this.rig.M)if(m.emissive)m.emissive.setHex(this.flashT>0?0x9a9a9a:(m.userData.em||0x000000));}
-    if(this.blob){this.blob.position.x=(this.x-480)*K;
+    if(this.blob){this.blob.position.x=(this.x-480)*K;this.blob.position.y=.025+stageFloorY();
       const hg=(GROUND-this.y)*K,sc=Math.max(.35,1-hg*.22);
       this.blob.scale.setScalar(sc);this.blob.material.opacity=.26*sc;}
     this.rig.tick(this.t);
@@ -6563,7 +6569,7 @@ function tickFatality(){
   const F=game.fat,W2=game.winner,L=game.fatLoser;
   F.t++;
   const wp=F.t<22?POSE.charge:(F.t<48?POSE.release:POSE.idle);
-  W2.rig.apply(wp,W2.facing,0,'both');
+  W2.rig.apply(wp,W2.facing,stageFloorY(),'both');
   if(F.t===22){
     F.launched=true;sfx.heavy();sfx.super();game.shake=10;game.hudFlash=6;
     const c=L.rig.joint('chest');burst(c,26,W2.c.pal.accent,.09);burst(c,10,W2.c.pal.glow,.05,false);
@@ -6586,8 +6592,8 @@ function tickFatality(){
   }
   F.x=Math.max(60,Math.min(900,F.x));
   L.x=F.x;L.y=Math.max(0,Math.min(GROUND,F.y));
-  if(!F.rest)L.rig.apply(Object.assign({},POSE.ball,{rot:F.rot}),L.facing,(GROUND-F.y)*K,'none');
-  else L.rig.apply(POSE.fall,L.facing,0,'both');
+  if(!F.rest)L.rig.apply(Object.assign({},POSE.ball,{rot:F.rot}),L.facing,(GROUND-F.y)*K+stageFloorY(),'none');
+  else L.rig.apply(POSE.fall,L.facing,stageFloorY(),'both');
   tickSparks();
   if(F.t>215){L.state='ko';L.y=GROUND;game.mode='matchend';game.bt=0;}
 }

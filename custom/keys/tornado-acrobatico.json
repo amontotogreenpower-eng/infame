@@ -1,0 +1,209 @@
+[
+ {
+  "name": "TORNADO ACROBÁTICO",
+  "type": "kick",
+  "badge": "TA",
+  "dmg": 20,
+  "r": 26,
+  "push": 15,
+  "startup": 20,
+  "active": 10,
+  "recover": 26,
+  "limb": "footF",
+  "guard": "high",
+  "hitstun": 28,
+  "knockdown": true,
+  "air": true,
+  "plant": "none",
+  "slotKind": "special",
+  "keys": [
+   {
+    "t": 0,
+    "p": {
+     "py": -82,
+     "torso": 16,
+     "twist": -28,
+     "hip": -12,
+     "armUF": 174,
+     "armLF": 126,
+     "armUB": 150,
+     "armLB": 118,
+     "legUF": 178,
+     "legLF": 182,
+     "footAF": -10
+    }
+   },
+   {
+    "t": 8,
+    "p": {
+     "py": -86,
+     "torso": 20,
+     "twist": -36,
+     "hip": -16,
+     "armUF": 196,
+     "armLF": 150,
+     "armUB": 120,
+     "armLB": 90,
+     "legUF": 184,
+     "legLF": 186
+    }
+   },
+   {
+    "t": 12,
+    "p": {
+     "py": -118,
+     "torso": -4,
+     "twist": 10,
+     "rot": 55,
+     "hip": 10,
+     "armUF": 70,
+     "armLF": 56,
+     "armUB": 250,
+     "armLB": 130,
+     "legUF": 120,
+     "legLF": 150,
+     "legUB": 150,
+     "legLB": 168
+    }
+   },
+   {
+    "t": 16,
+    "p": {
+     "py": -138,
+     "torso": -6,
+     "rot": 150,
+     "armUF": 58,
+     "armLF": 34,
+     "armUB": 70,
+     "armLB": 36,
+     "legUF": 112,
+     "legLF": 122,
+     "legUB": 120,
+     "legLB": 132,
+     "legAF": 16,
+     "legAB": 14
+    }
+   },
+   {
+    "t": 20,
+    "p": {
+     "py": -146,
+     "torso": -8,
+     "rot": 250,
+     "headY": 20,
+     "armUF": 48,
+     "armLF": 24,
+     "armUB": 60,
+     "armLB": 28,
+     "legUF": 104,
+     "legLF": 150,
+     "legUB": 124,
+     "legLB": 150,
+     "legAF": 30
+    }
+   },
+   {
+    "t": 24,
+    "p": {
+     "py": -140,
+     "torso": -12,
+     "rot": 315,
+     "hip": 26,
+     "headY": 26,
+     "head": -6,
+     "legUF": 92,
+     "legLF": 194,
+     "legAF": 48,
+     "legUB": 150,
+     "legLB": 186,
+     "armUF": 36,
+     "armLF": 18,
+     "armUB": 96,
+     "armLB": 52
+    }
+   },
+   {
+    "t": 28,
+    "p": {
+     "py": -130,
+     "torso": -6,
+     "rot": 350,
+     "legUF": 110,
+     "legLF": 198,
+     "legAF": 30,
+     "legUB": 150,
+     "legLB": 184,
+     "armUF": 80,
+     "armLF": 66,
+     "armUB": 150,
+     "armLB": 120
+    }
+   },
+   {
+    "t": 33,
+    "p": {
+     "py": -108,
+     "torso": 8,
+     "rot": 360,
+     "legUF": 150,
+     "legLF": 186,
+     "legAF": 8,
+     "armUF": 120,
+     "armLF": 88,
+     "armUB": 170,
+     "armLB": 140
+    }
+   },
+   {
+    "t": 40,
+    "p": {
+     "py": -76,
+     "torso": 20,
+     "hip": 0,
+     "rot": 360,
+     "legUF": 150,
+     "legLF": 150,
+     "legUB": 158,
+     "legLB": 158,
+     "footAF": -14,
+     "armUF": 150,
+     "armLF": 92,
+     "armUB": 182,
+     "armLB": 150
+    }
+   },
+   {
+    "t": 48,
+    "p": {
+     "py": -90,
+     "torso": 8,
+     "rot": 360,
+     "legUF": 172,
+     "legLF": 180,
+     "legUB": 192,
+     "legLB": 200,
+     "armUF": 152,
+     "armLF": 78,
+     "armUB": 196,
+     "armLB": 158
+    }
+   },
+   {
+    "t": 56,
+    "p": {
+     "py": -92,
+     "torso": 6,
+     "rot": 360,
+     "legUF": 172,
+     "legLF": 180,
+     "legUB": 192,
+     "legLB": 200,
+     "armUF": 152,
+     "armLF": 78,
+     "armUB": 196,
+     "armLB": 158
+    }
+   }
+  ]
+ }
+]

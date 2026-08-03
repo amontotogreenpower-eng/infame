@@ -1,0 +1,210 @@
+[
+ {
+  "name": "PATADA RELÁMPAGO",
+  "type": "kick",
+  "badge": "PR",
+  "dmg": 24,
+  "r": 26,
+  "push": 16,
+  "startup": 22,
+  "active": 10,
+  "recover": 32,
+  "limb": "footF",
+  "guard": "high",
+  "hitstun": 30,
+  "knockdown": true,
+  "air": true,
+  "plant": "none",
+  "slotKind": "super",
+  "keys": [
+   {
+    "t": 0,
+    "p": {
+     "py": -92,
+     "px": 0,
+     "torso": 6,
+     "rot": 0,
+     "head": 2,
+     "armUF": 152,
+     "armLF": 78,
+     "armUB": 196,
+     "armLB": 158,
+     "legUF": 172,
+     "legLF": 180,
+     "legUB": 192,
+     "legLB": 200
+    }
+   },
+   {
+    "t": 8,
+    "p": {
+     "py": -66,
+     "px": 3,
+     "torso": 20,
+     "rot": 0,
+     "head": -6,
+     "armUF": 100,
+     "armLF": 140,
+     "armUB": 210,
+     "armLB": 176,
+     "legUF": 126,
+     "legLF": 232,
+     "legUB": 134,
+     "legLB": 224,
+     "footAF": -18,
+     "toeF": 20
+    }
+   },
+   {
+    "t": 16,
+    "p": {
+     "py": -128,
+     "px": 0,
+     "torso": 8,
+     "rot": -42,
+     "head": -2,
+     "armUF": 70,
+     "armLF": 40,
+     "armUB": 110,
+     "armLB": 64,
+     "armAF": -16,
+     "armAB": 18,
+     "legUF": 150,
+     "legLF": 190,
+     "legUB": 196,
+     "legLB": 214,
+     "legTF": -10,
+     "footAF": -6,
+     "toeF": 10
+    }
+   },
+   {
+    "t": 24,
+    "p": {
+     "py": -168,
+     "px": -4,
+     "torso": 4,
+     "rot": -120,
+     "head": 4,
+     "armUF": 44,
+     "armLF": 22,
+     "armUB": 80,
+     "armLB": 48,
+     "armAF": -30,
+     "armAB": 32,
+     "legUF": 104,
+     "legLF": 210,
+     "legUB": 176,
+     "legLB": 206,
+     "legAF": 14,
+     "footAF": 10,
+     "toeF": -14
+    }
+   },
+   {
+    "t": 30,
+    "p": {
+     "py": -186,
+     "px": -6,
+     "torso": -4,
+     "rot": -186,
+     "head": 8,
+     "armUF": 34,
+     "armLF": 16,
+     "armUB": 64,
+     "armLB": 36,
+     "armAF": -40,
+     "armAB": 42,
+     "legUF": 76,
+     "legLF": 250,
+     "legUB": 168,
+     "legLB": 200,
+     "legAF": 20,
+     "footAF": 22,
+     "toeF": -30
+    }
+   },
+   {
+    "t": 38,
+    "p": {
+     "py": -172,
+     "px": -4,
+     "torso": 2,
+     "rot": -256,
+     "head": 2,
+     "armUF": 52,
+     "armLF": 32,
+     "armUB": 96,
+     "armLB": 60,
+     "armAF": -22,
+     "armAB": 24,
+     "legUF": 118,
+     "legLF": 214,
+     "legUB": 188,
+     "legLB": 212,
+     "legAF": 10,
+     "footAF": 6,
+     "toeF": -10
+    }
+   },
+   {
+    "t": 46,
+    "p": {
+     "py": -132,
+     "px": -2,
+     "torso": 10,
+     "rot": -320,
+     "head": -4,
+     "armUF": 104,
+     "armLF": 66,
+     "armUB": 168,
+     "armLB": 124,
+     "legUF": 152,
+     "legLF": 194,
+     "legUB": 190,
+     "legLB": 208,
+     "footAF": -8,
+     "toeF": 6
+    }
+   },
+   {
+    "t": 54,
+    "p": {
+     "py": -70,
+     "px": 0,
+     "torso": 22,
+     "rot": -360,
+     "head": -10,
+     "armUF": 126,
+     "armLF": 80,
+     "armUB": 200,
+     "armLB": 156,
+     "legUF": 124,
+     "legLF": 234,
+     "legUB": 210,
+     "legLB": 240,
+     "footAF": -22,
+     "toeF": 26
+    }
+   },
+   {
+    "t": 64,
+    "p": {
+     "py": -92,
+     "px": 0,
+     "torso": 6,
+     "rot": -360,
+     "head": 2,
+     "armUF": 152,
+     "armLF": 78,
+     "armUB": 196,
+     "armLB": 158,
+     "legUF": 172,
+     "legLF": 180,
+     "legUB": 192,
+     "legLB": 200
+    }
+   }
+  ]
+ }
+]

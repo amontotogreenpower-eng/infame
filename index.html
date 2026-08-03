@@ -114,6 +114,10 @@ window.addEventListener('unhandledrejection',function(e){
   .cr-swatches label{flex-direction:row;align-items:center;justify-content:space-between}
   #creator input[type=color]{width:40px;height:26px;border:none;background:none;cursor:pointer}
   .tw-navart{display:flex;gap:6px;margin:4px 0}
+  #mocapBox{position:relative;display:none;margin:4px 0}
+  #mocapBox.on{display:block}
+  #mocapVid{width:100%;border-radius:8px;transform:scaleX(-1);background:#000}
+  #mocapCv{position:absolute;inset:0;width:100%;height:100%;transform:scaleX(-1);pointer-events:none}
   .tw-navart button{flex:1}
   /* --- MOVIL: objetivos tactiles mas grandes en el creador/taller --- */
   @media (pointer:coarse),(max-width:860px){
@@ -140,6 +144,9 @@ window.addEventListener('unhandledrejection',function(e){
     border:2px solid rgba(255,255,255,.85);flex:none}
   #tw-warn{color:#ff8c6a;font-weight:bold;min-height:14px}
   #tw-joints{display:flex;flex-direction:column;gap:3px}
+  .tw-jhead{display:flex;align-items:center;gap:8px;margin:8px 0 4px}
+  .tw-jhead b{color:#ffd75a;font-size:12px;white-space:nowrap}
+  #tw-jfil{flex:1;min-width:0}
   #tw-selbox{display:none;border:1px solid rgba(255,215,90,.55);border-radius:6px;
     padding:5px 7px;margin:3px 0;background:rgba(255,215,90,.07)}
   #tw-selbox.on{display:block}
@@ -261,6 +268,7 @@ window.addEventListener('unhandledrejection',function(e){
       <button class="cr-tab" data-pane="mv">4· GOLPES</button>
       <button class="cr-tab" data-pane="taller">5· TALLER</button>
     </div>
+    <span id="cr-build" style="margin-left:auto;color:#8ef0ff;font-size:10px"></span>
     <span id="cr-close">✕ VOLVER</span></div>
   <div class="cr-panes">
     <!-- 1 IDENTIDAD -->
@@ -300,6 +308,30 @@ window.addEventListener('unhandledrejection',function(e){
           <option value="lego">Bloques (LEGO)</option>
           <option value="real">Realista (esculpido)</option>
         </select></label>
+      <label>Cabeza importada (solo estilo Realista)
+        <button id="cr-headglb" class="cr-b" type="button">🗿 IMPORTAR CABEZA (.glb)</button></label>
+      <label>Eje del modelo que debe mirar al frente
+        <select id="cr-headglb-axis">
+          <option value="x">X (sin rotar, la mayoria de exportaciones)</option>
+          <option value="y">Y</option>
+          <option value="z">Z</option>
+          <option value="-x">-X</option>
+          <option value="-y">-Y</option>
+          <option value="-z">-Z (frente habitual en Blender/glTF)</option>
+        </select></label>
+      <label>Escala de la cabeza importada
+        <input type="number" id="cr-headglb-scale" step="0.05" value="1"></label>
+      <label>Desplazamiento X (frente/atras)
+        <input type="number" id="cr-headglb-x" step="0.05" value="0"></label>
+      <label>Desplazamiento Y (arriba/abajo)
+        <input type="number" id="cr-headglb-y" step="0.05" value="0"></label>
+      <label>Desplazamiento Z (izquierda/derecha)
+        <input type="number" id="cr-headglb-z" step="0.05" value="0"></label>
+      <label class="cr-chk"><input type="checkbox" id="cr-headglb-hide"> Ocultar cabeza procedural
+        (util mientras ajustas la posicion, sin esperar a que cargue el .glb)</label>
+      <button id="cr-headglb-clear" class="cr-b" type="button">✕ QUITAR CABEZA IMPORTADA</button>
+      <span id="cr-headglb-info" class="cr-note"></span>
+      <input type="file" id="cr-headglb-file" accept=".glb,model/gltf-binary" style="display:none">
       <label>Vestimenta (estilo realista)
         <select id="cr-outfit">
           <option value="camiseta">Camiseta</option>
@@ -310,7 +342,8 @@ window.addEventListener('unhandledrejection',function(e){
       <div class="cr-note">En REALISTA: cara esculpida y pelo automáticos (mosaico, caras y pelucas son del estilo LEGO).</div>
       <div class="cr-sec">CABEZA</div>
       <label>Longitud vertical <input type="range" id="cr-oval" min="0.7" max="1.5" step="0.02" value="1"></label>
-      <label>Diámetro cabeza <input type="range" id="cr-diam" min="0.75" max="1.4" step="0.02" value="1"></label>
+      <label>Diámetro cabeza (anchura) <input type="range" id="cr-diam" min="0.75" max="1.4" step="0.02" value="1"></label>
+      <label>Profundidad cabeza <input type="range" id="cr-headDepth" min="0.75" max="1.4" step="0.02" value="1"></label>
       <label>Altura cuello <input type="range" id="cr-neckH" min="0.3" max="2" step="0.05" value="1"></label>
       <label>Diámetro cuello <input type="range" id="cr-neckD" min="0.6" max="1.6" step="0.05" value="1"></label>
       <div class="cr-sec">CARA</div>
@@ -414,6 +447,7 @@ window.addEventListener('unhandledrejection',function(e){
       <label>Longitud de piernas <input type="range" id="cr-legLen" min="0.6" max="1.6" step="0.02" value="1"></label>
       <label>Separación de hombros <input type="range" id="cr-armGap" min="0.6" max="2.2" step="0.02" value="1"></label>
       <div class="cr-sec">PIES</div>
+      <label>Tamaño de la mano <input type="range" id="cr-handS" min="0.5" max="2" step="0.05" value="1"></label>
       <label>Largo del pie <input type="range" id="cr-footL" min="0.5" max="2" step="0.05" value="1"></label>
       <label>Ancho del pie <input type="range" id="cr-footW" min="0.5" max="2" step="0.05" value="1"></label>
       <label>Alto del pie <input type="range" id="cr-footH" min="0.5" max="2" step="0.05" value="1"></label>
@@ -517,7 +551,41 @@ window.addEventListener('unhandledrejection',function(e){
         <button id="tw-artprev" class="cr-b">◀ ARTICULACIÓN</button>
         <button id="tw-artnext" class="cr-b">ARTICULACIÓN ▶</button>
       </div>
+      <div class="tw-navart">
+        <button id="tw-mocap" class="cr-b">🎥 CAPTURAR MOVIMIENTO</button>
+        <button id="tw-mocapImp" class="cr-b">📂 IMPORTAR CAPTURA</button>
+        <button id="tw-ref" class="cr-b">👤 VER REFERENCIA</button>
+      </div>
+      <div class="tw-navart">
+        <button id="tw-fprev" class="cr-b">⏪ FOTOGRAMA</button>
+        <button id="tw-fplay" class="cr-b">▶ REPRODUCIR</button>
+        <button id="tw-fnext" class="cr-b">FOTOGRAMA ⏩</button>
+      </div>
+      <div class="tw-navart">
+        <button id="tw-cutA" class="cr-b">⬅ INICIO AQUÍ</button>
+        <button id="tw-cutB" class="cr-b">FIN AQUÍ ➡</button>
+        <button id="tw-cutDo" class="cr-b">✂ RECORTAR</button>
+      </div>
+      <div class="tw-navart">
+        <button id="tw-floop" class="cr-b">🔁 BUCLE: SÍ</button>
+        <button id="tw-fslow" class="cr-b">🐢 LENTO: NO</button>
+      </div>
+      <label>Formato del vídeo original
+        <select id="tw-mocapAR">
+          <option value="1.3333">4:3 (webcam típica)</option>
+          <option value="1.7778">16:9</option>
+          <option value="0.5625">9:16 (móvil vertical)</option>
+          <option value="1">1:1</option>
+        </select></label>
+      <input type="file" id="tw-mocapFile" accept="application/json" style="display:none">
+      <div id="mocapBox"><video id="mocapVid" playsinline muted></video>
+        <canvas id="mocapCv"></canvas></div>
+      <div id="mocapMsg" class="cr-note"></div>
       <div id="tw-selbox"><div id="tw-seltit"></div><div id="tw-sel"></div></div>
+      <div class="tw-jhead">
+        <b>ARTICULACIONES (<span id="tw-jn">0</span>)</b>
+        <input type="text" id="tw-jfil" placeholder="buscar: muñeca, tobillo, dedo…">
+      </div>
       <div id="tw-joints"></div>
     </div>
   </div>
@@ -589,6 +657,14 @@ const W=960,H=540,GROUND=478,GRAV=.92,K=.02,YAW=0;
 const glc=document.getElementById('gl'), hud=document.getElementById('hud'), hx=hud.getContext('2d');
 const D=Math.PI/180;
 const lerp=(a,b,t)=>a+(b-a)*t, ease=t=>t*t*(3-2*t), clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+/* Catmull-Rom con los 4 puntos vecinos: da una curva suave que PASA por cada
+   keyframe (a diferencia de la interpolacion lineal, que solo une dos poses
+   en linea recta). Con pocos keyframes esto es lo que mas se nota: arcos y
+   'peso' en el movimiento en vez de un deslizamiento plano. */
+function catmull(p0,p1,p2,p3,t){
+  const t2=t*t,t3=t2*t;
+  return .5*((2*p1)+(-p0+p2)*t+(2*p0-5*p1+4*p2-p3)*t2+(-p0+3*p1-3*p2+p3)*t3);
+}
 
 /* ---------- audio ---------- */
 let AC=null;
@@ -715,16 +791,50 @@ addEventListener('pointerdown',()=>{if(game.mode==='splash'){audio();uiKey(' ');
 /* ===========================================================
    POSES (ángulos absolutos, grados; 0=arriba, 90=adelante, 180=abajo)
    =========================================================== */
-const IDLE={py:-92,torso:6,head:2,headY:0,rot:0,hip:0,twist:0,footAF:0,footAB:0,legAF:0,legAB:0,legTF:0,legTB:0,armAF:0,armAB:0,
+const IDLE={py:-92,px:0,torso:6,head:2,headY:0,rot:0,hip:0,twist:0,abdo:null,abdoT:null,toeF:0,toeB:0,footRF:0,footRB:0,armTF:0,armTB:0,tside:0,aside:null,wristF:0,wristB:0,wristRF:0,wristRB:0,fingF:null,fingB:null,thumbF:null,thumbB:null,footAF:0,footAB:0,legAF:0,legAB:0,legTF:0,legTB:0,armAF:0,armAB:0,
   armUB:196,armLB:158,armUF:152,armLF:78,
   legUB:192,legLB:200,legUF:172,legLF:180};
-const PK=Object.keys(IDLE), P=o=>Object.assign({},IDLE,o);
-function poseLerp(a,b,t){const o={};for(const k of PK)o[k]=lerp(a[k],b[k],t);return o;}
+const PK=Object.keys(IDLE);
+// P() completa con la pose de reposo; 'd' (direcciones de captura) se conserva
+const P=o=>{const r=Object.assign({},IDLE,o);if(o&&o.d)r.d=o.d;return r;};
+function poseLerp(a,b,t){
+  const o={};for(const k of PK)o[k]=lerp(a[k],b[k],t);
+  if(a.d||b.d)o.d=dirLerp(a.d,b.d,t);   // capturas: tambien las direcciones
+  return o;}
+/* Interpola las direcciones de dos keyframes: mezcla lineal + renormalizado,
+   que para vectores unitarios cercanos equivale a un arco suave. */
+function dirLerp(a,b,u){
+  if(!a&&!b)return null;
+  if(!a)return b; if(!b)return a;
+  const o={};
+  for(const k in a){
+    const x=a[k],y=b[k]||x;
+    const vx=x[0]+(y[0]-x[0])*u, vy=x[1]+(y[1]-x[1])*u, vz=x[2]+(y[2]-x[2])*u;
+    const m=Math.hypot(vx,vy,vz)||1;
+    o[k]=[vx/m,vy/m,vz/m,(x[3]||0)+((y[3]||0)-(x[3]||0))*u];
+  }
+  for(const k in b)if(!(k in o))o[k]=b[k];
+  return o;
+}
 function track(list,t){
   if(t<=list[0][0])return list[0][1];
   for(let i=0;i<list.length-1;i++){const[t0,p0]=list[i],[t1,p1]=list[i+1];
-    if(t>=t0&&t<=t1){const u=t1>t0?(t-t0)/(t1-t0):1;return poseLerp(p0,p1,ease(u));}}
+    if(t>=t0&&t<=t1){
+      const u=t1>t0?(t-t0)/(t1-t0):1;
+      /* Con vecinos a los dos lados se traza una curva Catmull-Rom (pasa por
+         cada pose, con arco); en los extremos de la lista no hay vecino y se
+         cae a la interpolacion lineal de siempre. Las poses con direcciones
+         de captura (p.d) tambien caen a lineal: los cuaterniones no se
+         extrapolan bien con este metodo. */
+      const pm=list[i-1]?list[i-1][1]:p0, pn=list[i+2]?list[i+2][1]:p1;
+      if(p0.d||p1.d)return poseLerp(p0,p1,ease(u));
+      return poseCatmull(pm,p0,p1,pn,ease(u));
+    }}
   return list[list.length-1][1];
+}
+function poseCatmull(pm,p0,p1,pn,t){
+  const o={};for(const k of PK)o[k]=catmull(pm[k],p0[k],p1[k],pn[k],t);
+  return o;
 }
 const POSE={idle:IDLE,
   crouch:P({py:-52,torso:24,head:-10,legUF:128,legLF:228,legUB:136,legLB:222,armUF:158,armLF:86,armUB:206,armLB:150}),
@@ -1239,6 +1349,9 @@ const ARENA_PX=ARENA_R/K;          // mismo radio en las 'x' logicas del juego
 const ARENA_LIM=ARENA_R+1.4;       // hasta donde se puede pisar (junto a la muralla)
 const CANCEL_W=8;   // frames extra tras los activos para cancelar
 const THROW_ESC=11;    // ventana (frames) para zafarse de un agarre
+const STUN_HITS=5;     // golpes seguidos que provocan aturdimiento
+const STUN_TIME=300;   // 5 segundos a 60fps
+const STUN_ESC=8;      // cada pulsacion resta este tiempo (se puede zafar)
 const MOVE_SLOTS=['punch','kick','cpunch','sweep','jpunch','jkick','special','super','apunch','akick','aspec','asuper'];
 const SLOT_ES={punch:'Puñetazo',kick:'Patada',cpunch:'Puño agachado',sweep:'Barrido',
   jpunch:'Puño aéreo',jkick:'Patada aérea',special:'ESPECIAL (L)',super:'SÚPER (I)',
@@ -1587,6 +1700,9 @@ function buildCustom(cfg){
   const outfit=cfg.outfit||'camiseta';
   const skin=col.skin!=null?col.skin:0xd8a877, hair=col.hair!=null?col.hair:0x2a211a, hair2=col.hair2!=null?col.hair2:hair;
   return {id:cfg.id,name:cfg.name||'NUEVO',tag:cfg.tag||'Retador Anónimo',custom:true,
+    headGLB:cfg.headGLB||null,headGLBAxis:cfg.headGLBAxis||'x',headGLBScale:cfg.headGLBScale||1,
+    headGLBX:cfg.headGLBX||0,headGLBY:cfg.headGLBY||0,headGLBZ:cfg.headGLBZ||0,
+    headGLBHide:!!cfg.headGLBHide,
     story:cfg.story&&cfg.story.length?cfg.story:['Un luchador forjado en el CREADOR.','Su historia aún está por escribir.','Pero sus puños ya hablan por él.','Hoy busca su primer título.'],
     ending:cfg.ending&&cfg.ending.length?cfg.ending:['El retador alza el cinturón por fin.','Nadie recordará de dónde salió.','Pero todos recordarán cómo pegaba.','Fin.'],
     quote:cfg.quote||'«Hecho a mano, ganado a puños.»',
@@ -1597,7 +1713,7 @@ function buildCustom(cfg){
     mats:{torso:col.shirt!=null?col.shirt:0x2b3a5e,leg:(outfit==='boxeo')?skin:(col.pants!=null?col.pants:0x1f2630),
       arm:(outfit==='kimono'||outfit==='chandal')?(col.shirt!=null?col.shirt:0x2b3a5e):skin,
       hand:skin,foot:(col.foot!=null?col.foot:0x14100c),head:skin},
-    face:{oval:p.oval||1,diam:p.diam||1,neckH:p.neckH||1,neckD:p.neckD||1},
+    face:{oval:p.oval||1,diam:p.diam||1,depth:p.headDepth||1,neckH:p.neckH||1,neckD:p.neckD||1},
     body2:{upper:p.upper||1,upperH:p.upperH||1,lower:p.lower||1,lowerH:p.lowerH||1,
       waist:p.waist||1,waistH:p.waistH||1,arms:p.arms||1,
       offX:(p.offX!=null?p.offX:-6),offY:(p.offY!=null?p.offY:1),tall:p.tall||1.6,wide:p.wide||1.3,armGap:p.armGap||1},
@@ -1623,16 +1739,53 @@ function buildCustom(cfg){
       [R.armUF,R.armLF,R.armUB,R.armLB,R.legUF,R.legLF,R.legUB,R.legLB].forEach(g=>g.children.forEach(c=>{if(c.type==='Mesh')c.visible=false;}));
       for(const h of[R.handF,R.handB])h.children.forEach(c=>{if(c.type==='Mesh')c.visible=false;});
       if(R.fingers)R.fingers.forEach(f=>f.b.visible=false);
-      for(const ft of[R.footF,R.footB])ft.traverse(o=>{if(o.type==='Mesh')o.visible=false;});
+      for(const ft of[R.footF,R.footB])ft.traverse(o=>{if(o.type==='Mesh')o.visible=false;});  // se redibuja abajo
 
       // ============ CABEZA + CUELLO (editables, pegados) ============
       R.headJ.position.y=-1.5*s;            // acercar el conjunto cabeza-cuello al cuerpo
       const hR=6.4*hd, hH=9*hd*hv;
       const neckH=(F.neckH||1)*3.4, neckD=(F.neckD||1);
-      R.head.add(R.pos(R.cyl(hR*.5*neckD,neckH+1.5,skin),0,neckH*.5-1.5,0));   // cuello (baja bajo el origen)
-      const headBot=neckH-1.5, hC=headBot+hH*.5;
-      R.head.add(R.pos(R.cyl(hR,hH,skin),0,hC,0));                             // cabeza sobre el cuello
-      R.head.add(R.pos(R.cyl(hR*.42,2.4*hd,skin),0,hC+hH*.5+1,0));            // tetón
+      const skinDark=R.mkMat(this._skin); skinDark.color.multiplyScalar(.72);
+      /* CABEZA POR VOLUMENES (antes: un cilindro liso de seccion uniforme, que
+         daba una tapa plana arriba y CERO variacion de perfil delante/detras
+         -> "efecto disco" sin cogote. Ahora: craneo esferico + frente +
+         mandibula + menton + mejillas + nariz + orejas, cada uno un volumen
+         propio, dando anchura y profundidad reales y un cogote de verdad. */
+      const neckTopR=hR*.52*neckD, neckBotR=hR*.32*neckD;
+      R.head.add(R.pos(R.frustum(neckTopR,neckBotR,neckH+1.2,skin),0,neckH*.5-1.2,0));
+      for(const sd of[-1,1]){
+        const trap=R.box(hR*.35,hR*.55,hR*.22,skin);trap.rotation.z=sd*.38;
+        R.head.add(R.pos(trap,-hR*.25,neckH*.35,sd*hR*.42));
+      }
+      const headBot=neckH-1.2, hC=headBot+hH*.5;
+      const skull=R.ball(hR*.95,skin);skull.scale.set(1.05,hv,0.92);
+      R.head.add(R.pos(skull,0,hC,0));
+      const forehead=R.ball(hR*.88,skin);forehead.scale.set(1.18,0.62,0.9);
+      R.head.add(R.pos(forehead,hR*.22,hC+hH*.34,0));
+      const jaw=R.box(hR*.92,hH*.34,hR*.76,skin);
+      R.head.add(R.pos(jaw,hR*.06,hC-hH*.38,0));
+      const chin=R.ball(hR*.34,skin);chin.scale.set(.85,.7,.88);
+      R.head.add(R.pos(chin,hR*.18,hC-hH*.58,0));
+      for(const sd of[-1,1]){
+        const cheek=R.ball(hR*.3,skin);cheek.scale.set(.6,.72,.9);
+        R.head.add(R.pos(cheek,-hR*.12,hC-hH*.1,sd*hR*.84));
+      }
+      const noseBridge=R.box(hR*.1,hR*.38,hR*.14,skin);
+      R.head.add(R.pos(noseBridge,hR*1.02,hC+hH*.1,0));
+      const noseTip=R.ball(hR*.13,skin);noseTip.scale.set(1,.85,.9);
+      R.head.add(R.pos(noseTip,hR*1.16,hC+hH*.04,0));
+      for(const sd of[-1,1]){
+        const wing=R.ball(hR*.07,skin);
+        R.head.add(R.pos(wing,hR*1.1,hC-hH*.01,sd*hR*.16));
+      }
+      for(const sd of[-1,1]){
+        const ear=R.box(hR*.15,hR*.32,hR*.1,skin);ear.rotation.y=sd*.32;
+        R.head.add(R.pos(ear,-hR*.14,hC+hH*.08,sd*hR*.96));
+        const lobe=R.ball(hR*.1,skin);lobe.scale.set(.75,.8,.65);
+        R.head.add(R.pos(lobe,-hR*.18,hC-hH*.06,sd*hR*1.0));
+        const innr=R.box(hR*.07,hR*.16,hR*.04,skinDark);
+        R.head.add(R.pos(innr,-hR*.1,hC+hH*.08,sd*hR*.99));
+      }
       // ---- cara: mosaico dibujado o preset ----
       const painted=this._faceTex&&this._faceTex.some(row=>/[^0]/.test(row));
       const fx=hR*.9, ez=hR*.42, eyeY=hC+hH*.18, mY=hC-hH*.22;
@@ -1710,10 +1863,14 @@ function buildCustom(cfg){
       R.gapZ=R.zA*gap*1.35;
       const aw=d.limbW*.7*(B.arms||1);
       for(const[U,L,H] of[[R.armUF,R.armLF,R.handF],[R.armUB,R.armLB,R.handB]]){
-        U.add(R.pos(R.cyl(aw,aw*1.5,shirt),0,0,0));
-        U.add(R.pos(R.frustum(aw*1.06,aw*.82,d.uarm,shirt),0,-d.uarm/2,0));
-        L.add(R.pos(R.ball(aw*.9,skin),0,0,0));
-        L.add(R.pos(R.frustum(aw*.86,aw*.6,d.farm,skin),0,-d.farm/2,0));
+        // hombro: rotula que une el brazo al pecho
+        U.add(R.pos(R.ball(aw*1.12,shirt),0,0,0));
+        U.add(R.pos(R.frustum(aw*1.0,aw*.78,d.uarm,shirt),0,-d.uarm/2,0));
+        // codo: rotula bien marcada, como en una figura articulada
+        L.add(R.pos(R.ball(aw*.95,skin),0,0,0));
+        L.add(R.pos(R.frustum(aw*.82,aw*.6,d.farm,skin),0,-d.farm/2,0));
+        // muneca
+        L.add(R.pos(R.ball(aw*.62,skin),0,-d.farm,0));
         // mano: cubo mallado (esculpible por rejilla, como el cabello)
         const HG=this._hand, hp=HG&&HG.some(rw=>/[1-9]/.test(rw));
         if(hp){
@@ -1723,18 +1880,41 @@ function buildCustom(cfg){
             H.add(R.pos(box(.95,.9,dp,skin),(hc-(HN-1)/2)*.95,-(hr*.88+.8),0));
           }
         }else{
-          H.add(R.pos(box(aw*2.2,aw*2.2,aw*2.2,skin),0,-aw*1.2,0));
+          /* MANO EN TRES PIEZAS (igual que el rig base): palma aplanada,
+             bloque de dedos y pulgar. Antes era un cubo macizo. */
+          const hw=aw*1.05;
+          H.add(R.pos(box(hw*.9,hw*1.05,hw*1.55,skin),0,-hw*.62,0));      // palma
+          H.add(R.pos(box(hw*.84,hw*.34,hw*1.56,skin),0,-hw*1.2,0));      // nudillos
+          H.add(R.pos(box(hw*.68,hw*1.5,hw*1.46,skin),0,-hw*2.1,0));      // dedos
+          const th=R.pos(box(hw*.46,hw*1.1,hw*.46,skin),hw*.34,-hw*1.15,hw*.62);
+          th.rotation.set(.5,0,-.45);H.add(th);                            // pulgar
         }
       }
       // ============ PIERNAS + PIES (editables) ============
       const lw=d.limbW*.85, ft=this._foot||{w:1,l:1,h:1,col:0x14100c}, footM=R.mkMat(ft.col);
       for(const[U,L,Fg] of[[R.legUF,R.legLF,R.footF],[R.legUB,R.legLB,R.footB]]){
-        U.add(R.pos(R.frustum(lw*1.06,lw*.86,d.thigh,pants),0,-d.thigh/2,0));
-        L.add(R.pos(R.ball(lw*.94,pants),0,0,0));
-        L.add(R.pos(R.frustum(lw*.9,lw*.6,d.shin,pants),0,-d.shin/2,0));
+        // cadera
+        U.add(R.pos(R.ball(lw*1.16,pants),0,0,0));
+        U.add(R.pos(R.frustum(lw*1.0,lw*.84,d.thigh,pants),0,-d.thigh/2,0));
+        // rodilla
+        L.add(R.pos(R.ball(lw*1.0,pants),0,0,0));
+        L.add(R.pos(R.frustum(lw*.86,lw*.6,d.shin,pants),0,-d.shin/2,0));
+        // tobillo
+        L.add(R.pos(R.ball(lw*.6,pants),0,-d.shin,0));
         const ff=new THREE.Group();ff.rotation.z=-Math.PI/2;Fg.add(ff);
-        const boot=box(lw*3.8*ft.l, lw*1.6*ft.h, lw*1.9*ft.w, footM);
-        boot.position.set(lw*1.5*ft.l*s, -lw*.2*ft.h*s, 0);ff.add(boot);
+        /* BOTA EN DOS PIEZAS: talon y punta articulada (usa el pivote toeF/toeB
+           que ya crea el rig, para que la punta se despegue al andar y patear). */
+        const talon=box(lw*2.0*ft.l, lw*1.6*ft.h, lw*1.9*ft.w, footM);
+        talon.position.set(lw*.6*ft.l*s, -lw*.2*ft.h*s, 0);ff.add(talon);
+        ff.add(R.pos(R.ball(lw*.62*ft.h,footM), lw*1.62*ft.l*s, -lw*.2*ft.h*s, 0));
+        const pj=(Fg===R.footF)?R.toeF:R.toeB;
+        if(pj){
+          const punta=box(lw*1.8*ft.l, lw*1.34*ft.h, lw*1.8*ft.w, footM);
+          punta.position.set(lw*.9*ft.l*s, 0, 0);pj.add(punta);
+        }else{
+          const punta=box(lw*1.8*ft.l, lw*1.34*ft.h, lw*1.8*ft.w, footM);
+          punta.position.set(lw*2.5*ft.l*s, -lw*.2*ft.h*s, 0);ff.add(punta);
+        }
         // mosaico de pantalones (frontal/posterior/lateral) sobre muslo y espinilla
         const PP=this._pants;
         if(PP&&((PP.f&&PP.f.some(rw=>/[1-9]/.test(rw)))||(PP.b&&PP.b.some(rw=>/[1-9]/.test(rw)))||(PP.s&&PP.s.some(rw=>/[1-9]/.test(rw))))){
@@ -1814,8 +1994,7 @@ function buildCustom(cfg){
       const mus=B.arms||1, gap=B.armGap||1;
       R.gapZ=R.zA*gap*1.35;
       if(R.torsoBody)R.torsoBody.forEach(m=>m.visible=false);
-      R.sculptHead({r:12.5*hd,skin:this._skin,iris:this._iris,brow:this._hair,browAng:.05,
-        f:{jaw:1,cheek:1,brow:1,nose:1,chin:1,mouth:1,oval:1.30*hv}});
+      R.sculptHeadSimple({r:12.5,rx:F.headDepth||1,ry:hv,rz:hd,skin:this._skin,iris:this._iris,brow:this._hair,browAng:.05});
       R.hairCap(this._hair,{r:13.4*hd,clump:2.6*hd,n:20,minY:.22,faceOpen:.54,seed:7,baseY:.7,baseLift:.5});
       R.ears(R.mkMat(this._skin),{y:1,z:11*hd,r:2.7*hd,fwd:0,inner:this._skin,hex:this._skin});
       const tallR=(B.tall||1.6)/1.6, wideR=(B.wide||1.3)/1.3;
@@ -1827,6 +2006,18 @@ function buildCustom(cfg){
       const k=1+(mus-1)*.85,k2=1+(mus-1)*.45;
       R.armUF.scale.set(k,1,k);R.armUB.scale.set(k,1,k);
       R.legUF.scale.set(k2,1,k2);R.legUB.scale.set(k2,1,k2);
+      /* MIEMBROS ESCULPIDOS: sustituye el cilindro+rotulas de cada segmento
+         por una malla organica con el bulto muscular real (biceps, antebrazo,
+         cuadriceps, gemelo). Solo estilo 'real'; el 'lego' no se toca. */
+      sculptLimb(R,R.armUF,.38,.22,.22,true); sculptLimb(R,R.armUB,.38,.22,.22,true); // biceps + hombro
+      sculptLimb(R,R.armLF,.18,.16,.18);  sculptLimb(R,R.armLB,.18,.16,.18);   // antebrazo
+      sculptLimb(R,R.legUF,.32,.22,.20,true); sculptLimb(R,R.legUB,.32,.22,.20,true); // cuadriceps + cadera
+      sculptLimb(R,R.legLF,.22,.15,.22);  sculptLimb(R,R.legLB,.22,.15,.22);   // gemelo
+      /* CUELLO: nunca se tocaba para el estilo real, asi que se quedaba con
+         el cilindro liso y el material Toon por defecto (mkMat de la clase
+         base), sin relacion con el Phong facetado de la cabeza. Bulto casi
+         nulo (.5) para un ensanche natural, no musculatura marcada. */
+      sculptLimb(R,R.neck,.5,.4,.06,false,true);
       const acc=R.mkMat(this.pal.accent), lightM=R.mkMat(0xe8e8f0),
         shirtM=R.mkMat(this.mats.torso), pantsM=R.mkMat(this._outfit==='boxeo'?0x1f2630:this.mats.leg);
       const bx=(w,h,dp,m)=>R.box(w,h,dp,m);
@@ -1921,12 +2112,13 @@ const renderer=new THREE.WebGLRenderer({canvas:glc,antialias:true});
    Si algo queda quemado, baja GFX_LUZ; si quieres mas contraste, sube GFX_EXP. */
 const GFX_LUZ=1.0, GFX_EXP=1.0;
 /* Empujon de saturacion: 1.0 = sin cambios. Subelo para mas viveza. */
-const GFX_SAT=1.14;
+const GFX_SAT=1.45;   // subido de 1.14: los colores se veian apagados
+const GFX_CONT=1.12;  // contraste sobre la luminosidad (1 = sin cambio)
 function satCol(c){
   const col=new THREE.Color(c);
-  if(GFX_SAT===1)return col;
   const h={};col.getHSL(h);
-  col.setHSL(h.h,Math.min(1,h.s*GFX_SAT),h.l);
+  const l=Math.max(0,Math.min(1,.5+(h.l-.5)*GFX_CONT));
+  col.setHSL(h.h,Math.min(1,h.s*GFX_SAT),l);
   return col;
 }
 renderer.outputEncoding=THREE.sRGBEncoding;
@@ -1962,9 +2154,9 @@ function fit(){
 const CE=id=>document.getElementById(id);
 const crPanel=CE('creator');
 const CF={name:'cr-name',tag:'cr-tag',arch:'cr-arch',stage:'cr-stage',
-  oval:'cr-oval',diam:'cr-diam',neckH:'cr-neckH',neckD:'cr-neckD',face:'cr-face',style:'cr-style',outfit:'cr-outfit',
+  oval:'cr-oval',diam:'cr-diam',headDepth:'cr-headDepth',neckH:'cr-neckH',neckD:'cr-neckD',face:'cr-face',style:'cr-style',outfit:'cr-outfit',
   upper:'cr-upper',upperH:'cr-upperH',waist:'cr-waist',waistH:'cr-waistH',lower:'cr-lower',lowerH:'cr-lowerH',
-  arms:'cr-arms',offX:'cr-offX',offY:'cr-offY',tall:'cr-tall',wide:'cr-wide',armLen:'cr-armLen',legLen:'cr-legLen',armGap:'cr-armGap',footL:'cr-footL',footW:'cr-footW',footH:'cr-footH',
+  arms:'cr-arms',offX:'cr-offX',offY:'cr-offY',tall:'cr-tall',wide:'cr-wide',armLen:'cr-armLen',legLen:'cr-legLen',armGap:'cr-armGap',handS:'cr-handS',footL:'cr-footL',footW:'cr-footW',footH:'cr-footH',
   skin:'cr-skin',hair:'cr-hair',hair2:'cr-hair2',iris:'cr-iris',shirt:'cr-shirt',pants:'cr-pants',accent:'cr-accent',
   scale:'cr-scale',hp:'cr-hp',speed:'cr-speed',dmg:'cr-dmg',
   story:'cr-story',ending:'cr-ending',quote:'cr-quote',taunt:'cr-taunt'};
@@ -1974,12 +2166,12 @@ function crGather(){
   const v=id=>CE(id).value, sl=id=>parseFloat(CE(id).value);
   const lines=t=>t.split('\n').map(x=>x.trim()).filter(Boolean).slice(0,4);
   return {name:v('cr-name').toUpperCase()||'NUEVO',tag:v('cr-tag'),arch:v('cr-arch'),stage:v('cr-stage'),
-    phys:{oval:sl('cr-oval'),diam:sl('cr-diam'),neckH:sl('cr-neckH'),neckD:sl('cr-neckD'),
+    phys:{oval:sl('cr-oval'),diam:sl('cr-diam'),headDepth:sl('cr-headDepth'),neckH:sl('cr-neckH'),neckD:sl('cr-neckD'),
       upper:sl('cr-upper'),upperH:sl('cr-upperH'),waist:sl('cr-waist'),waistH:sl('cr-waistH'),
       lower:sl('cr-lower'),lowerH:sl('cr-lowerH'),arms:sl('cr-arms'),
       offX:sl('cr-offX'),offY:sl('cr-offY'),tall:sl('cr-tall'),wide:sl('cr-wide'),
       armLen:sl('cr-armLen'),legLen:sl('cr-legLen'),armGap:sl('cr-armGap'),
-      footL:sl('cr-footL'),footW:sl('cr-footW'),footH:sl('cr-footH'),
+      handS:sl('cr-handS'),footL:sl('cr-footL'),footW:sl('cr-footW'),footH:sl('cr-footH'),
       scale:sl('cr-scale'),hp:sl('cr-hp'),speed:sl('cr-speed'),dmg:sl('cr-dmg'),jump:17.5,weight:1},
     col:{skin:hx2n(v('cr-skin')),hair:hx2n(v('cr-hair')),hair2:hx2n(v('cr-hair2')),iris:hx2n(v('cr-iris')),
       shirt:hx2n(v('cr-shirt')),pants:hx2n(v('cr-pants')),accent:hx2n(v('cr-accent')),
@@ -1997,6 +2189,10 @@ function crGather(){
     wig:crWig?crWig.slice():null,wigTop:crWigTop?crWigTop.slice():null,wigPreset:v('cr-wigPreset'),
     moveset:Object.assign({},crMoveset),moveTune:JSON.parse(JSON.stringify(crTune)),
     portraits:Object.assign({},crPortraits),
+    headGLB:crHeadGLB||null,
+    headGLBAxis:v('cr-headglb-axis')||'x',headGLBScale:sl('cr-headglb-scale')||1,
+    headGLBX:sl('cr-headglb-x')||0,headGLBY:sl('cr-headglb-y')||0,headGLBZ:sl('cr-headglb-z')||0,
+    headGLBHide:!!CE('cr-headglb-hide').checked,
     winPose:twPose.win.keys.map(k=>({t:k.t,p:Object.assign({},k.p)})),
     losePose:twPose.lose.keys.map(k=>({t:k.t,p:Object.assign({},k.p)})),_idx:crPanel._idx};
 }
@@ -2008,9 +2204,18 @@ function crBuildPreview(){
   const key=usaModelo?('MODELO:'+twModel):JSON.stringify(cfg);
   if(key===crPrevKey)return;crPrevKey=key;
   if(crPrev){scene.remove(crPrev.root);crPrev.dispose();}
-  const c=usaModelo?CHARS[twModel]:buildCustom(cfg);
-  crPrev=new Rig(c);scene.add(crPrev.root);
-  crPrev.root.position.set(2.4,0,2);crPrev.root.scale.setScalar(1.05);
+  try{
+    const c=usaModelo?CHARS[twModel]:buildCustom(cfg);
+    crPrev=new Rig(c);scene.add(crPrev.root);
+    crPrev.root.position.set(2.4,0,2);crPrev.root.scale.setScalar(1.05);
+    const m=document.getElementById('cr-msg');if(m&&/^ERROR/.test(m.textContent))m.textContent='';
+  }catch(err){
+    // sin esto el fallo se lo tragaba el bucle y el maniqui desaparecia sin avisar
+    crPrev=null;crPrevKey='';
+    console.error('crBuildPreview:',err);
+    const m=document.getElementById('cr-msg');
+    if(m)m.textContent='ERROR al construir el modelo: '+(err&&err.message?err.message:err);
+  }
 }
 let crFaceTex=null, crFaceLvl=null, crPalSel=1, crWig=null, crWigTop=null;
 let crTF=null,crTFL=null,crTB=null,crTBL=null,crTS=null,crTSL=null;
@@ -2083,6 +2288,7 @@ function crBuildFaceUI(){
   mkPaint('cr-grid',FCOLS,FROWS,()=>crFaceTex,()=>crFaceLvl);
 }
 let crPortraits={general:null,fight:null,defeat:null},ptTarget='general';
+let crHeadGLB=null;   // base64 data-uri del .glb importado para ESTE personaje (o null)
 function ptBuildUI(){
   const box=CE('cr-pts');
   if(!box.dataset.built){
@@ -2226,6 +2432,57 @@ CE('tw-kdel').onclick=()=>{
   twCur.keys.splice(twKi,1);twKi=Math.max(0,twKi-1);twKeysLoad();};
 CE('tw-model').onchange=()=>{twModel=CE('tw-model').value;crUpdatePreview();};
 CE('tw-spar').onchange=()=>{twSpar=CE('tw-spar').value;twSparBuild();};
+CE('tw-mocap').onclick=mpToggle;
+CE('tw-mocapImp').onclick=()=>CE('tw-mocapFile').click();
+/* Avance fotograma a fotograma: para la reproduccion y mueve twPlay, que es
+   la referencia de tiempo comun; el esqueleto de MediaPipe la sigue solo. */
+function twStep(d){
+  const mv=twCur?userToMove(twCur):null;
+  const tot=mv?Math.max(mv.startup+mv.active+mv.recover,mv.tr[mv.tr.length-1][0]):60;
+  if(twPlay<0)twPlay=twKeyFrame();
+  twPlay=Math.max(0,Math.min(tot,twPlay+d));
+  twPlayAcc=0;
+  CE('tw-fplay').textContent='▶ REPRODUCIR';
+  CE('tw-warn').textContent='Fotograma '+twPlay+' / '+tot;
+}
+/* RECORTE: una captura dura segundos, pero un golpe jugable dura menos de un
+   segundo. Se marcan inicio y fin con el reproductor y se queda solo ese tramo,
+   recolocando los tiempos para que arranque en cero. */
+let twCutA=null,twCutB=null;
+function twCutMsg(){
+  CE('tw-warn').textContent='Recorte: '+(twCutA==null?'—':twCutA)+' a '+
+    (twCutB==null?'—':twCutB)+'  (pulsa ✂ RECORTAR)';
+}
+CE('tw-cutA').onclick=()=>{twCutA=(twPlay>=0?twPlay:twKeyFrame());twCutMsg();};
+CE('tw-cutB').onclick=()=>{twCutB=(twPlay>=0?twPlay:twKeyFrame());twCutMsg();};
+CE('tw-cutDo').onclick=()=>{
+  if(!twCur||!twCur.keys||twCur.keys.length<2){CE('tw-warn').textContent='No hay golpe cargado';return;}
+  const A=(twCutA==null?0:Math.min(twCutA,twCutB==null?1e9:twCutB));
+  const B=(twCutB==null?1e9:Math.max(twCutA==null?0:twCutA,twCutB));
+  const ks=twCur.keys.filter(k=>k.t>=A&&k.t<=B);
+  if(ks.length<2){CE('tw-warn').textContent='El tramo elegido no tiene keyframes suficientes';return;}
+  const off=ks[0].t;
+  twCur.keys=ks.map(k=>({t:k.t-off,p:k.p}));
+  const fin=twCur.keys[twCur.keys.length-1].t;
+  twCur.startup=Math.max(2,Math.round(fin*.25));
+  twCur.active=Math.max(2,Math.round(fin*.15));
+  twCur.recover=Math.max(2,fin-twCur.startup-twCur.active);
+  twCutA=twCutB=null;twKi=0;twPlay=0;twPlayAcc=0;
+  twFormLoad();
+  CE('tw-warn').textContent='Recortado: '+twCur.keys.length+' keyframes, '+
+    fin+' fotogramas ('+(fin/60).toFixed(1)+' s)';
+};
+CE('tw-fprev').onclick=()=>twStep(-1);
+CE('tw-fnext').onclick=()=>twStep(1);
+CE('tw-fplay').onclick=()=>{
+  if(twPlay>=0&&twPlayRun){twPlayRun=false;CE('tw-fplay').textContent='▶ REPRODUCIR';}
+  else{twPlayRun=true;if(twPlay<0)twPlay=0;twPlayAcc=0;CE('tw-fplay').textContent='⏸ PAUSA';}
+};
+CE('tw-floop').onclick=()=>{twLoop=!twLoop;CE('tw-floop').textContent='🔁 BUCLE: '+(twLoop?'SÍ':'NO');};
+CE('tw-fslow').onclick=()=>{twSlow=!twSlow;CE('tw-fslow').textContent='🐢 LENTO: '+(twSlow?'SÍ':'NO');};
+CE('tw-ref').onclick=()=>{refBuild();refShow(!refOn);
+  if(refOn&&!refFrames)mpMsg('Importa o graba una captura para ver la referencia.');};
+CE('tw-mocapFile').onchange=e=>{if(e.target.files[0])mpImportar(e.target.files[0]);e.target.value='';};
 CE('tw-artprev').onclick=()=>twArtStep(-1);
 CE('tw-artnext').onclick=()=>twArtStep(1);
 CE('tw-dist').oninput=()=>{twDist=parseFloat(CE('tw-dist').value)||2.3;};
@@ -2272,9 +2529,18 @@ CE('cr-mvreset').onclick=()=>{const slot=CE('cr-mvslot').value||'punch';
     const slot=sel.dataset.slot,cur=crMoveset[slot]||'';
     sel.innerHTML='';
     const d=document.createElement('option');d.value='';d.textContent='(por defecto del arquetipo)';sel.appendChild(d);
+    /* Antes el filtro era binario (basico vs. no-basico), asi que un golpe
+       guardado como 'special' NO aparecia en la ranura de SUPER ni en las
+       normales, y parecia que solo se podia asignar a especial.
+       Ahora: las ranuras de especial/super aceptan cualquier golpe potente, y
+       las normales aceptan los basicos MAS los de usuario (son los tuyos, y
+       decidir donde van es cosa tuya). */
+    const isSp=(slot==='special'||slot==='super'||slot==='aspec'||slot==='asuper');
     for(const id in MOVELIB){
-      const e=MOVELIB[id],isSp=(slot==='special'||slot==='super');
-      if(isSp?(e.kind==='basic'):(e.kind!=='basic'))continue;
+      const e=MOVELIB[id];
+      const cabe=isSp ? (e.kind!=='basic'||e.user)
+                      : (e.kind==='basic'||e.user);
+      if(!cabe)continue;
       const o=document.createElement('option');o.value=id;o.textContent=e.label;sel.appendChild(o);
     }
     sel.value=cur;
@@ -2282,17 +2548,36 @@ CE('cr-mvreset').onclick=()=>{const slot=CE('cr-mvslot').value||'punch';
   crTuneLoad();crPowerUpd();
 }
 const TW_JOINTS=[
+  {k:'tside',es:'\u2605 Tronco (inclinar de lado)',min:-60,max:60},
+  {k:'aside',es:'\u2605 Abdomen (inclinar de lado)',min:-45,max:45},
+  {k:'armTF',es:'★ Hombro delantero (rotacion)',min:-90,max:90},
+  {k:'armTB',es:'★ Hombro trasero (rotacion)',min:-90,max:90},
+  {k:'px',es:'★ Desplazamiento (adelante/atras)',min:-120,max:120},
+  {k:'wristF',es:'★ Muneca delantera (arriba/abajo)',min:-70,max:70},
+  {k:'wristRF',es:'★ Muneca delantera (giro)',min:-90,max:90},
+  {k:'fingF',es:'★ Nudillos mano delantera',min:0,max:90},
+  {k:'thumbF',es:'★ Pulgar delantero',min:0,max:90},
+  {k:'wristB',es:'★ Muneca trasera (arriba/abajo)',min:-70,max:70},
+  {k:'wristRB',es:'★ Muneca trasera (giro)',min:-90,max:90},
+  {k:'fingB',es:'★ Nudillos mano trasera',min:0,max:90},
+  {k:'thumbB',es:'★ Pulgar trasero',min:0,max:90},
+  {k:'toeF',es:'★ Punta del pie delantero',min:-40,max:60},
+  {k:'footRF',es:'★ Tobillo delantero (giro)',min:-60,max:60},
+  {k:'toeB',es:'★ Punta del pie trasero',min:-40,max:60},
+  {k:'footRB',es:'★ Tobillo trasero (giro)',min:-60,max:60},
+  {k:'abdo',es:'★ Abdomen (doblez, 360° para volteretas)',min:-180,max:180},
+  {k:'abdoT',es:'★ Abdomen (torsion)',min:-60,max:60},
+  {k:'legTF',es:'★ Rotar muslo delantero (rodilla fuera)',min:-90,max:90},
+  {k:'legTB',es:'★ Rotar muslo trasero (rodilla fuera)',min:-90,max:90},
   {k:'py',es:'Altura',min:-150,max:-20},
   {k:'hip',es:'Giro de cadera (todo el cuerpo)',min:-360,max:360},
   {k:'twist',es:'Giro de torso (sobre la cadera)',min:-180,max:180},
   {k:'rot',es:'Volteo lateral',min:-360,max:360},
-  {k:'torso',es:'Torso',min:-60,max:90},
+  {k:'torso',es:'Torso (doblez, 360° para volteretas)',min:-180,max:180},
   {k:'armAF',es:'Abrir brazo delantero',min:-80,max:80},
   {k:'armAB',es:'Abrir brazo trasero',min:-80,max:80},
   {k:'legAF',es:'Abrir pierna delantera',min:-70,max:80},
   {k:'legAB',es:'Abrir pierna trasera',min:-70,max:80},
-  {k:'legTF',es:'Rotar muslo delantero (rodilla fuera)',min:-90,max:90},
-  {k:'legTB',es:'Rotar muslo trasero (rodilla fuera)',min:-90,max:90},
   {k:'footAF',es:'Tobillo delantero',min:-70,max:70},
   {k:'footAB',es:'Tobillo trasero',min:-70,max:70},
   {k:'head',es:'Cabeza (arriba/abajo)',min:-50,max:50},
@@ -2306,18 +2591,18 @@ const TW_JOINTS=[
   {k:'legUB',es:'Muslo trasero',min:60,max:260},
   {k:'legLB',es:'Pierna trasera',min:60,max:285}];
 const TW_HAND=[
-  {es:'Hombro delantero',piv:'armUF',tip:'armLF',ch:'armUF',ch2:'armAF'},
-  {es:'Codo delantero',piv:'armLF',tip:'handF',ch:'armLF'},
-  {es:'Hombro trasero',piv:'armUB',tip:'armLB',ch:'armUB',ch2:'armAB'},
-  {es:'Codo trasero',piv:'armLB',tip:'handB',ch:'armLB'},
-  {es:'Cadera delantera',piv:'legUF',tip:'legLF',ch:'legUF',ch2:'legAF'},
+  {es:'Hombro delantero',piv:'armUF',tip:'armLF',ch:'armUF',ch2:'armAF',mas:['armTF','wristF','wristRF']},
+  {es:'Codo delantero',piv:'armLF',tip:'handF',ch:'armLF',mas:['fingF','thumbF']},
+  {es:'Hombro trasero',piv:'armUB',tip:'armLB',ch:'armUB',ch2:'armAB',mas:['armTB','wristB','wristRB']},
+  {es:'Codo trasero',piv:'armLB',tip:'handB',ch:'armLB',mas:['fingB','thumbB']},
+  {es:'Cadera delantera',piv:'legUF',tip:'legLF',ch:'legUF',ch2:'legAF',mas:['legTF']},
   {es:'Rodilla delantera',piv:'legLF',tip:'footF',ch:'legLF'},
-  {es:'Cadera trasera',piv:'legUB',tip:'legLB',ch:'legUB',ch2:'legAB'},
+  {es:'Cadera trasera',piv:'legUB',tip:'legLB',ch:'legUB',ch2:'legAB',mas:['legTB']},
   {es:'Rodilla trasera',piv:'legLB',tip:'footB',ch:'legLB'},
-  {es:'Tobillo delantero',piv:'footF',off:[5,0,0],ch:'footAF'},
-  {es:'Tobillo trasero',piv:'footB',off:[5,0,0],ch:'footAB'},
+  {es:'Tobillo delantero',piv:'footF',off:[5,0,0],ch:'footAF',mas:['footRF','toeF']},
+  {es:'Tobillo trasero',piv:'footB',off:[5,0,0],ch:'footAB',mas:['footRB','toeB']},
   {es:'Cabeza',piv:'head',off:[0,8,5],ch:'head',ch2:'headY'},
-  {es:'Torso',piv:'torso',tip:'chest',ch:'torso',ch2:'twist'}];
+  {es:'Torso',piv:'torso',tip:'chest',ch:'torso',ch2:'twist',mas:['abdo','abdoT','px','py']}];
 let TW_LIM={},twDragH=null,twSelH=null,twDragOn=false,twMarks=null;
 const twDragOff={x:0,y:0};
 const _tv=new THREE.Vector3();
@@ -2333,13 +2618,33 @@ function twScreen(o,off){
 function twPlace(){
   if(!crPrev)return;
   if(crTab==='taller'){
-    crPrev.root.position.set(TWX,crPrev.root.position.y,TWZ);
-    crPrev.root.rotation.y=Math.PI+YAW;
+    const off=(crPrev.pxOff||0)*K;                 // se ve el desplazamiento al reproducir
+    crPrev.root.position.set(TWX-off,crPrev.root.position.y,TWZ);
+    // con la referencia visible, el maniqui mira al mismo lado para comparar
+    crPrev.root.rotation.y=(typeof refOn!=='undefined'&&refOn?0:Math.PI)+YAW;
   }else{
     crPrev.root.position.set(2.4,crPrev.root.position.y,2);
     crPrev.root.rotation.y=crYaw;
   }
   crPrev.root.updateMatrixWorld(true);
+}
+/* Que eje angular manda sobre que hueso de direccion. Al editar a mano un eje,
+   se suelta ese hueso de la captura para que el cambio SI se vea (si no, la
+   direccion lo sobrescribiria y el deslizador pareceria no hacer nada). */
+const TW_HUESO={armUF:'armUF',armAF:'armUF',armTF:'armUF',armLF:'armLF',
+  armUB:'armUB',armAB:'armUB',armTB:'armUB',armLB:'armLB',
+  legUF:'legUF',legAF:'legUF',legTF:'legUF',legLF:'legLF',
+  legUB:'legUB',legAB:'legUB',legTB:'legUB',legLB:'legLB',
+  footAF:'footF',footRF:'footF',toeF:'footF',
+  footAB:'footB',footRB:'footB',toeB:'footB',
+  torso:'torso',twist:'torso',abdo:'torso',abdoT:'torso'};
+function twSuelta(ch){
+  const k=twCur&&twCur.keys&&twCur.keys[twKi];
+  if(!k||!k.p||!k.p.d)return;
+  const h=TW_HUESO[ch];
+  if(h&&k.p.d[h]){delete k.p.d[h];
+    if(!Object.keys(k.p.d).length)delete k.p.d;
+    CE('tw-warn').textContent='Hueso liberado de la captura: ahora manda el editor';}
 }
 function twApplyEdit(){
   if(!crPrev||!twCur||!twCur.keys[twKi])return;
@@ -2372,6 +2677,7 @@ function twDrag(mx,my){
   twApplyEdit();
   const T0=twScreen(tipObj,off);
   const chs=H.ch2?[H.ch,H.ch2]:[H.ch];
+  chs.forEach(twSuelta);           // arrastrar tambien libera el hueso
   const J=[];
   for(const ch of chs){
     const cur=(p[ch]!=null?p[ch]:IDLE[ch])||0;
@@ -2415,13 +2721,610 @@ function twSelShow(H){
   const box=CE('tw-sel'),tit=CE('tw-seltit'),wrap=CE('tw-selbox');
   if(!H){wrap.classList.remove('on');twSelRestore();return;}
   twSelRestore();
-  tit.textContent=H.es+(H.ch2?'  ·  2 grados de libertad':'  ·  1 grado de libertad');
-  [H.ch,H.ch2].forEach(ch=>{if(ch&&TW_LABELS[ch])box.appendChild(TW_LABELS[ch]);});
+  const ejes=[H.ch,H.ch2].concat(H.mas||[]).filter(Boolean);
+  tit.textContent=H.es+'  ·  '+ejes.length+' grado'+(ejes.length>1?'s':'')+' de libertad';
+  ejes.forEach(ch=>{if(TW_LABELS[ch])box.appendChild(TW_LABELS[ch]);});
   wrap.classList.add('on');
 }
 function twSelRestore(){
   const box=CE('tw-joints');
   TW_JOINTS.forEach(j=>{const lab=TW_LABELS[j.k];if(lab)box.appendChild(lab);});
+}
+/* ===========================================================
+   CAPTURA DE MOVIMIENTO (MediaPipe Pose Landmarker)
+   Se graba al usuario con la camara y se convierten sus articulaciones en
+   keyframes del formato del taller. Es una HERRAMIENTA DE AUTOR: nada de esto
+   corre durante el combate. La libreria se descarga solo al pulsar el boton.
+   Colocate DE PERFIL a la camara: con una sola camara la profundidad es poco
+   fiable, y los golpes de este juego viven en el plano lateral.
+   =========================================================== */
+const MP_VER='0.10.0';
+const MP_MODEL='https://storage.googleapis.com/mediapipe-models/pose_landmarker/'+
+               'pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
+let mpLand=null, mpOn=false, mpStream=null, mpRAF=0, mpMuestras=[], mpT0=0, mpAR=4/3;
+const mpMsg=t=>{const e=document.getElementById('mocapMsg');if(e)e.textContent=t;};
+
+async function mpCargar(){
+  if(mpLand)return mpLand;
+  mpMsg('Descargando el detector de poses…');
+  const V=await import('https://esm.sh/@mediapipe/tasks-vision@'+MP_VER);
+  const fs=await V.FilesetResolver.forVisionTasks(
+    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@'+MP_VER+'/wasm');
+  mpLand=await V.PoseLandmarker.createFromOptions(fs,{
+    baseOptions:{modelAssetPath:MP_MODEL,delegate:'GPU'},   // LITE+GPU: apto para movil
+    runningMode:'VIDEO',numPoses:1});
+  return mpLand;
+}
+
+/* --- landmarks -> angulos del rig -------------------------------------
+   Se trabaja con los landmarks NORMALIZADOS (0..1) corregidos por la relacion
+   de aspecto: valen tanto para la camara en vivo como para un .json importado.
+   Convencion del rig: el hueso apunta a -Y y el angulo vale 180 colgando recto.
+   Aprendido probando con capturas reales:
+     - el lado delantero y el facing se fijan UNA VEZ por captura (voto
+       mayoritario); recalcularlos por fotograma intercambiaba los brazos y
+       metia saltos de 180 grados.
+     - si una articulacion queda oculta (visibility baja) se mantiene el valor
+       anterior en vez de dar un salto.
+     - se desenrolla el angulo para que no salte de 0 a 360 al pasar vertical. */
+const MP_ZW=.55;   // peso de la profundidad (0=plano, 1=crudo)
+const MP_CAL=1;    // 1 = corrige del todo el sesgo de postura; 0 = crudo   // peso de la profundidad (0=plano, 1=crudo)
+const MP_LIM={armUF:[0,300],armLF:[0,300],armUB:[0,300],armLB:[0,300],
+  legUF:[60,260],legLF:[60,285],legUB:[60,260],legLB:[60,285],
+  armAF:[-80,80],armAB:[-80,80],legAF:[-70,80],legAB:[-70,80],
+  footAF:[-70,70],footAB:[-70,70],
+  armTF:[-90,90],armTB:[-90,90],legTF:[-90,90],legTB:[-90,90],
+  torso:[-60,90],abdo:[-40,60],tside:[-60,60],aside:[-45,45],head:[-50,50],twist:[-180,180],hip:[-3600,3600],py:[-150,-20],px:[-120,120]};
+const MP_IDX={H:{I:11,D:12},C:{I:13,D:14},M:{I:15,D:16},
+              P:{I:23,D:24},R:{I:25,D:26},T:{I:27,D:28},
+              TA:{I:29,D:30},PU:{I:31,D:32}};   // talon y punta
+/* --- vectores 3D minimos --- */
+const v3=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]];
+const vd=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const vx=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+const vs=(a,k)=>[a[0]*k,a[1]*k,a[2]*k];
+const vn=a=>{const m=Math.sqrt(vd(a,a))||1e-6;return vs(a,1/m);};
+const vm=(a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2,(a[2]+b[2])/2];
+/* La Z de MediaPipe NO viene en la misma escala que X e Y, y su fiabilidad
+   cambia con cada video. Si se mezcla tal cual, los segmentos se alargan y los
+   angulos salen deformados (medido: rodillas a 124 grados con la persona de
+   pie). Aqui se busca el peso de Z que mantiene la LONGITUD DE LOS HUESOS mas
+   constante a lo largo de la captura, que es la propiedad fisica que sabemos
+   cierta: un femur no cambia de tamaño. */
+function mpZW(frames,ar){
+  const PAR=[[23,25],[25,27],[24,26],[26,28],[11,13],[13,15]];
+  const med=w=>{
+    let acc=0;
+    for(const[a,b]of PAR){
+      const L=[];
+      for(const f of frames){const q=f.landmarks;if(!q||q.length<29)continue;
+        const dx=(q[b].x-q[a].x)*ar, dy=q[b].y-q[a].y, dz=(q[b].z-q[a].z)*ar*w;
+        L.push(Math.hypot(dx,dy,dz));}
+      if(L.length<3)continue;
+      const m=L.reduce((x,y)=>x+y,0)/L.length;
+      const v=Math.sqrt(L.reduce((x,y)=>x+(y-m)*(y-m),0)/L.length)/(m||1);
+      acc+=v;
+    }
+    return acc;
+  };
+  let best=.3,bv=1e9;
+  for(let w=0;w<=1.001;w+=.05){const v=med(w);if(v<bv){bv=v;best=w;}}
+  return Math.max(.05,best);
+}
+function mpCtx(frames,ar){
+  // el lado se fija por anatomia (izq/der), NO por profundidad: si se recalcula
+  // por fotograma, al girar el cuerpo se intercambian brazos y saltan 180 grados
+  const AR=ar||4/3;
+  return{ar:AR,zw:mpZW(frames,AR),de:'I',tr:'D',ref:null,refx:0,prev:null,
+         yaw:null,yaw0:null,up0:null,rt0:null};
+}
+function mpConv(lm,X){
+  const AR=X.ar;
+  // marco del mundo: X derecha, Y arriba, Z hacia la camara
+  /* La Z es la coordenada menos fiable: se atenua para que su ruido no domine
+     el marco ni las direcciones. Sigue aportando profundidad, pero sin mandar. */
+  const ZW=(X.zw!=null)?X.zw:MP_ZW;
+  const V=i=>[lm[i].x*AR,-lm[i].y,-(lm[i].z||0)*AR*ZW];
+  const hom=vm(V(11),V(12)), cad=vm(V(23),V(24));
+  let up=vn(v3(hom,cad));
+  let right=vn(v3(V(12),V(11)));
+  right=vn(v3(right,vs(up,vd(right,up))));      // ortogonal a 'up'
+  /* EL MARCO DEL CUERPO ES LA BASE DE TODO: si tiembla, tiembla la pose entera.
+     La Z de MediaPipe salta ~4.5 veces mas que XY (medido en capturas reales),
+     y el marco depende de ella, asi que se suaviza con fuerza entre fotogramas.
+     Un visor 2D no sufre esto porque ignora la Z; nosotros la necesitamos. */
+  if(X.up0){
+    const mez=(a,b,k)=>vn([a[0]+(b[0]-a[0])*k,a[1]+(b[1]-a[1])*k,a[2]+(b[2]-a[2])*k]);
+    up=mez(X.up0,up,.35);
+    right=mez(X.rt0,right,.25);
+    right=vn(v3(right,vs(up,vd(right,up))));
+  }
+  X.up0=up;X.rt0=right;
+  /* OJO al orden: para una persona mirando a +Z con la cabeza en +Y, su mano
+     derecha apunta a -X, luego adelante = up x right. Con el orden invertido
+     el cuerpo miraba hacia ATRAS y las patadas salian al reves. */
+  const fwd=vn(vx(up,right));
+  const I=MP_IDX,de=X.de,tr=X.tr,P=X.prev,o={};
+  /* GIRO DEL CUERPO: es lo que hacia que todo saliera en un solo plano.
+     El rig mira a +X con rotation.y=0, de ahi el atan2(-fwd.z,fwd.x). */
+  let yaw=Math.atan2(-fwd[2],fwd[0])*180/Math.PI;
+  if(X.yaw!=null){while(yaw-X.yaw>180)yaw-=360;while(yaw-X.yaw<-180)yaw+=360;}
+  X.yaw=yaw;
+  /* El giro se guarda RELATIVO al primer fotograma: si te grabas de frente a la
+     camara, el maniqui no debe empezar mirando de lado a su rival. */
+  if(X.yaw0==null)X.yaw0=yaw;
+  {const h=yaw-X.yaw0;                         // el yaw tiembla si estas de frente
+   o.hip=Math.max(-3600,Math.min(3600,P?P.hip+(h-P.hip)*.3:h));}
+  // torsion de hombros respecto a caderas
+  const rh=vn(v3(V(24),V(23)));
+  o.twist=Math.max(-180,Math.min(180,Math.atan2(vd(vx(rh,right),up),vd(rh,right))*180/Math.PI));
+  /* Inclinacion del tronco: contra la VERTICAL DEL MUNDO. Medirla contra el
+     propio eje del cuerpo daba siempre 0 (son el mismo vector). */
+  {const fh=vn([fwd[0],0,fwd[2]]);
+   const lean=Math.atan2(vd(up,fh),up[1])*180/Math.PI;
+   o.torso=Math.max(-60,Math.min(90,6+lean));
+   o.abdo=Math.max(-40,Math.min(60,6+lean*.45));   // el tronco se curva en dos tramos
+   o.head=Math.max(-50,Math.min(50,-lean*.5));     // la cabeza compensa
+   /* inclinacion LATERAL: cuanto se aparta el tronco de la vertical hacia el
+      costado. Se reparte entre abdomen y pecho, como el doblez. */
+   const rh2=vn([right[0],0,right[2]]);
+   const side=Math.atan2(vd(up,rh2),up[1])*180/Math.PI;
+   o.tside=Math.max(-60,Math.min(60,side));
+   o.aside=Math.max(-45,Math.min(45,side*.5));}
+  const vis=(a,b)=>Math.min(lm[a].visibility==null?1:lm[a].visibility,
+                            lm[b].visibility==null?1:lm[b].visibility);
+  /* Cada miembro se mide EN EL PLANO DEL CUERPO (fwd/up), no en el de la
+     pantalla; la componente lateral (right) va al eje de apertura. */
+  const pares={armUF:[I.H[de],I.C[de],'armAF'],armLF:[I.C[de],I.M[de],null],
+               armUB:[I.H[tr],I.C[tr],'armAB'],armLB:[I.C[tr],I.M[tr],null],
+               legUF:[I.P[de],I.R[de],'legAF'],legLF:[I.R[de],I.T[de],null],
+               legUB:[I.P[tr],I.R[tr],'legAB'],legLB:[I.R[tr],I.T[tr],null]};
+  for(const k in pares){
+    const a=pares[k][0],b=pares[k][1],lat=pares[k][2];
+    if(vis(a,b)<.5&&P){o[k]=P[k];if(lat)o[lat]=P[lat];continue;}
+    const v=v3(V(b),V(a)), u=vn(v);
+    const late=vd(u,right);          // cuanto apunta hacia el costado
+    /* Si el miembro esta casi alineado con el eje lateral, su angulo en el plano
+       del cuerpo queda indefinido y salta con el ruido: se mantiene el anterior.
+       Era la causa principal de que los brazos no cuadraran. */
+    /* Si el miembro apunta al costado, su angulo en el plano del cuerpo queda
+       indefinido. Antes mantenia el valor anterior, y si venia de estar hacia
+       delante el brazo se quedaba delante en vez de abrirse: el neutro correcto
+       es 180 (colgando), que sumado a la apertura lateral da el brazo en cruz. */
+    const proy=Math.hypot(vd(u,fwd),vd(u,up));
+    if(proy<.16){o[k]=P?P[k]+(180-P[k])*.5:180;}
+    else{
+      let ang=180-Math.atan2(vd(v,fwd),-vd(v,up))*180/Math.PI;
+      if(P){while(ang-P[k]>180)ang-=360;while(ang-P[k]<-180)ang+=360;
+        ang=P[k]+(ang-P[k])*.9;}    // casi sin frenar: soltura
+      const li=MP_LIM[k];o[k]=Math.max(li[0],Math.min(li[1],ang));
+    }
+    if(lat){
+      // 'hacia fuera' positivo en los dos lados: el lado izquierdo abre hacia
+      // -right, asi que se invierte para que una postura en "V" salga simetrica
+      /* Los dos lados aplican el eje lateral con signo opuesto en el rig
+         (holdAF usa -armAF y holdAB usa +armAB), asi que aqui hay que invertir
+         SOLO el delantero para que 'hacia dentro' sea hacia dentro en ambos.
+         Sin esto un brazo cruza el pecho y el otro se abre: por eso no se
+         podian juntar las manos. */
+      const sgn=(k==='armUF'||k==='legUF')?1:-1;
+      const la=sgn*Math.asin(Math.max(-1,Math.min(1,late)))*180/Math.PI;
+      const l2=MP_LIM[lat];o[lat]=Math.max(l2[0],Math.min(l2[1],
+        P?P[lat]+(la-P[lat])*.75:la));}
+  }
+  /* BISAGRAS: rodilla y codo solo doblan hacia un lado. Sin esto, el ruido de
+     profundidad las invertia en la mayoria de los fotogramas. */
+  /* ROTACION DEL SEGMENTO (3er grado de libertad de hombro y cadera).
+     No se mide directamente: se deduce del PLANO DE FLEXION. El codo (o la
+     rodilla) solo dobla en un plano, asi que la normal de ese plano dice como
+     esta rotado el brazo o el muslo sobre su propio eje. */
+  {const gir=(a,b,c)=>{
+     const u=vn(v3(V(b),V(a))), f=vn(v3(V(c),V(b)));
+     const n=vx(u,f); if(Math.sqrt(vd(n,n))<.12)return null;   // casi recto: sin dato
+     const nn=vn(n);
+     let refA=v3(right,vs(u,vd(right,u)));
+     if(Math.sqrt(vd(refA,refA))<1e-4)return null;
+     refA=vn(refA); const refB=vn(vx(u,refA));
+     return Math.atan2(vd(nn,refB),vd(nn,refA))*180/Math.PI;};
+   const pon=(k,val,sg)=>{
+     if(val==null){o[k]=P?P[k]:0;return;}
+     let x=sg*val; while(x>90)x-=180; while(x<-90)x+=180;   // el plano es simetrico
+     o[k]=P?P[k]+(x-P[k])*.35:x;};                          // muy ruidoso: suavizar fuerte
+   pon('armTF',gir(I.H[de],I.C[de],I.M[de]),-1);
+   pon('armTB',gir(I.H[tr],I.C[tr],I.M[tr]), 1);
+   pon('legTF',gir(I.P[de],I.R[de],I.T[de]),-1);
+   pon('legTB',gir(I.P[tr],I.R[tr],I.T[tr]), 1);}
+  /* Rodilla y codo doblan en sentidos OPUESTOS en esta convencion:
+     rodilla flexionada -> legL > legU  ·  codo flexionado -> armL < armU
+     (verificado con IDLE armUF152/armLF78 y crouch legUF128/legLF228). */
+  if(o.legLF<o.legUF)o.legLF=o.legUF;
+  if(o.legLB<o.legUB)o.legLB=o.legUB;
+  if(o.armLF>o.armUF)o.armLF=o.armUF;
+  if(o.armLB>o.armUB)o.armLB=o.armUB;
+  /* PIES: angulo talon->punta en el plano del cuerpo, relativo a la espinilla. */
+  {const pie=(ta,pu,esp)=>{
+     const v=v3(V(pu),V(ta));
+     const a2=180-Math.atan2(vd(v,fwd),-vd(v,up))*180/Math.PI;
+     return Math.max(-70,Math.min(70,a2-esp+90));};
+   if(vis(I.TA[de],I.PU[de])>=.5)o.footAF=pie(I.TA[de],I.PU[de],o.legLF);
+   else if(P)o.footAF=P.footAF;else o.footAF=0;
+   if(vis(I.TA[tr],I.PU[tr])>=.5)o.footAB=pie(I.TA[tr],I.PU[tr],o.legLB);
+   else if(P)o.footAB=P.footAB;else o.footAB=0;}
+  const tron=Math.sqrt(vd(v3(hom,cad),v3(hom,cad)))||.2;
+  /* Se guardan medidas CRUDAS; py y px se calculan en mpAKeys, que ve la
+     captura entera. Antes se tomaba el primer fotograma como referencia de
+     "estar de pie", y si ahi ya estabas flexionado todo salia agachado.
+     Ademas el PIE DE APOYO es la referencia estable: sacando el desplazamiento
+     de la cadera, los pies patinaban por el suelo. */
+  const iz=V(27)[1]<=V(28)[1];
+  const tobY=iz?V(27)[1]:V(28)[1], tobX=iz?V(27)[0]:V(28)[0];
+  o._pi=(cad[1]-tobY)/tron;      // extension de la pierna de apoyo
+  o._cy=cad[1]/tron;             // altura de cadera (para saltos)
+  o._ty=tobY/tron;               // pie mas bajo: referencia de suelo
+  o._hx=(cad[0]-tobX)/tron;      // cadera RELATIVA al pie de apoyo
+  o._ap=iz?0:1;                  // cual sostiene
+  o.py=-92;o.px=0;
+  /* ===== DIRECCIONES (camino nuevo) =====
+     Se guarda hacia donde apunta cada hueso, en el marco del luchador:
+     X = adelante, Y = arriba, Z = a su izquierda. Sin angulos de por medio,
+     asi que no hay bloqueo de eje ni saltos: es lo que resolvia el problema. */
+  {const D={}, ejeF=[fwd,up,right];
+   const aMarco=(a,b)=>{
+     const v=vn(v3(V(b),V(a)));
+     return [vd(v,fwd),vd(v,up),-vd(v,right)];   // -right = izquierda del rig
+   };
+   const H=MP_IDX;
+   D.armUF=aMarco(H.H[de],H.C[de]);D.armLF=aMarco(H.C[de],H.M[de]);
+   D.armUB=aMarco(H.H[tr],H.C[tr]);D.armLB=aMarco(H.C[tr],H.M[tr]);
+   D.legUF=aMarco(H.P[de],H.R[de]);D.legLF=aMarco(H.R[de],H.T[de]);
+   D.legUB=aMarco(H.P[tr],H.R[tr]);D.legLB=aMarco(H.R[tr],H.T[tr]);
+   if(lm[H.PU[de]])D.footF=aMarco(H.TA[de],H.PU[de]);
+   if(lm[H.PU[tr]])D.footB=aMarco(H.TA[tr],H.PU[tr]);
+   /* MANOS: de la muneca al indice. Sin esto las munecas no seguian el
+      movimiento porque solo se gobernaba hasta el antebrazo. */
+   const IX={I:19,D:20};
+   if(lm[IX[de]])D.handF=aMarco(H.M[de],IX[de]);
+   if(lm[IX[tr]])D.handB=aMarco(H.M[tr],IX[tr]);
+   /* El TRONCO se deja al camino angular: el torso va en tres piezas con su
+      abdomen y la cabeza compensa la inclinacion; sobrescribirlo por direccion
+      doblaba el cuerpo y la cabeza. */
+   o.d=D;}
+  X.prev=o;return o;
+}
+const MP_EJES=['torso','abdo','head','tside','aside','twist','hip','armUF','armLF','armUB','armLB','armAF','armAB','armTF','armTB','legUF','legLF','legUB','legLB','legAF','legAB','legTF','legTB','footAF','footAB','py','px'];
+
+/* Reduccion a keyframes (Ramer-Douglas-Peucker sobre la curva de angulos):
+   en vez de volcar 30 poses por segundo, deja solo los fotogramas donde el
+   movimiento cambia de verdad. */
+function mpRDP(ms,tol){
+  if(ms.length<3)return ms.map((_,i)=>i);
+  const dist=(i,a,b)=>{
+    const t=(i-a)/((b-a)||1);let d=0;
+    for(const k of MP_EJES){
+      const lin=ms[a].p[k]+(ms[b].p[k]-ms[a].p[k])*t;
+      d=Math.max(d,Math.abs(ms[i].p[k]-lin));}
+    // y el desvio angular de las direcciones capturadas
+    const A=ms[a].p.d,B=ms[b].p.d,C=ms[i].p.d;
+    if(A&&B&&C)for(const k in C){
+      if(!A[k]||!B[k])continue;
+      const v=[0,1,2].map(j=>A[k][j]+(B[k][j]-A[k][j])*t);
+      const m2=Math.hypot(v[0],v[1],v[2])||1;
+      const dp=Math.max(-1,Math.min(1,(v[0]*C[k][0]+v[1]*C[k][1]+v[2]*C[k][2])/m2));
+      d=Math.max(d,Math.acos(dp)*180/Math.PI);}
+    return d;};
+  const keep=new Set([0,ms.length-1]);
+  (function rec(a,b){
+    if(b<=a+1)return;
+    let peor=-1,dm=0;
+    for(let i=a+1;i<b;i++){const d=dist(i,a,b);if(d>dm){dm=d;peor=i;}}
+    if(dm>tol&&peor>0){keep.add(peor);rec(a,peor);rec(peor,b);}
+  })(0,ms.length-1);
+  return [...keep].sort((x,y)=>x-y);
+}
+
+/* Importar una captura .json: admite [{time_ms,landmarks[33]},...] o
+   {frames:[...]}, con landmarks normalizados (0..1). */
+function mpImportar(file){
+  const rd=new FileReader();
+  rd.onload=()=>{
+    try{
+      const j=JSON.parse(rd.result);
+      const F=Array.isArray(j)?j:(j.frames||j.samples||j.data);
+      if(!Array.isArray(F)||!F.length)throw new Error('no encuentro la lista de fotogramas');
+      const norm=F.map((f,i)=>({
+        time_ms:(f.time_ms!=null?f.time_ms:(f.t!=null?f.t:i*33.3)),
+        landmarks:f.landmarks||f.pose||f}));
+      if(!norm[0].landmarks||norm[0].landmarks.length<33)
+        throw new Error('cada fotograma necesita 33 landmarks');
+      const ar=parseFloat(CE('tw-mocapAR').value)||4/3;
+      mpMsg('Convirtiendo '+norm.length+' fotogramas…');
+      mpAKeys(norm,ar);
+    }catch(err){mpMsg('JSON no válido: '+(err&&err.message?err.message:err));}
+  };
+  rd.readAsText(file);
+}
+async function mpToggle(){
+  if(mpOn){mpParar();return;}
+  const vid=document.getElementById('mocapVid');
+  try{
+    document.getElementById('mocapBox').classList.add('on');
+    await mpCargar();
+    mpMsg('Pidiendo la camara…');
+    mpStream=await navigator.mediaDevices.getUserMedia({video:{width:640,height:480},audio:false});
+    vid.srcObject=mpStream;await vid.play();
+    mpAR=(vid.videoWidth/vid.videoHeight)||4/3;
+    mpMuestras=[];mpT0=performance.now();mpOn=true;
+    document.getElementById('tw-mocap').textContent='⏹ PARAR Y CONVERTIR';
+    mpMsg('Grabando… ponte DE PERFIL y haz el golpe. Pulsa parar al terminar.');
+    mpBucle();
+  }catch(err){
+    console.error('mocap:',err);
+    mpMsg('No se pudo iniciar: '+(err&&err.message?err.message:err));
+    mpParar(true);
+  }
+}
+function mpBucle(){
+  if(!mpOn)return;
+  const vid=document.getElementById('mocapVid');
+  try{
+    const r=mpLand.detectForVideo(vid,performance.now());
+    const N=r&&r.landmarks&&r.landmarks[0];
+    // se guardan los landmarks crudos: la conversion necesita ver la captura
+    // entera para fijar el lado delantero, asi que se hace al parar
+    if(N&&N.length>32)mpMuestras.push({time_ms:performance.now()-mpT0,landmarks:N});
+    mpMsg('Grabando… '+mpMuestras.length+' muestras');
+  }catch(e){}
+  mpRAF=requestAnimationFrame(mpBucle);
+}
+function mpParar(silencio){
+  mpOn=false;if(mpRAF)cancelAnimationFrame(mpRAF);mpRAF=0;
+  if(mpStream){mpStream.getTracks().forEach(t=>t.stop());mpStream=null;}
+  const b=document.getElementById('tw-mocap');if(b)b.textContent='🎥 CAPTURAR MOVIMIENTO';
+  document.getElementById('mocapBox').classList.remove('on');
+  if(silencio)return;
+  mpAKeys();
+}
+function mpSuaviza(ms){
+  /* MEDIANA de 3, no media de 5: quita el temblor pero CONSERVA LOS PICOS.
+     Con videos de baja cadencia (10-15 fps) una media de 5 abarca medio segundo
+     y se comia las patadas enteras. */
+  const out=ms.map(m=>({t:m.t,p:Object.assign({},m.p)}));
+  const med=(a,b,c)=>Math.max(Math.min(a,b),Math.min(Math.max(a,b),c));
+  for(let i=1;i<ms.length-1;i++){
+    for(const k of MP_EJES)out[i].p[k]=med(ms[i-1].p[k],ms[i].p[k],ms[i+1].p[k]);
+    const A=ms[i-1].p.d,B=ms[i].p.d,C=ms[i+1].p.d;
+    if(A&&B&&C){const D={};
+      for(const k in B){
+        if(!A[k]||!C[k]){D[k]=B[k];continue;}
+        const v=[0,1,2].map(j=>med(A[k][j],B[k][j],C[k][j]));
+        const m2=Math.hypot(v[0],v[1],v[2])||1;
+        D[k]=[v[0]/m2,v[1]/m2,v[2]/m2];}
+      out[i].p.d=D;}
+  }
+  return out;
+}
+function mpAKeys(frames,ar){
+  const F=frames||mpMuestras;
+  if(!F||F.length<6){mpMsg('Captura demasiado corta.');return;}
+  refFrames=F;refAR=ar||mpAR;refT=0;if(refSk){refSk._K2=0;refSk._zw=null;}
+  const X=mpCtx(F,ar||mpAR);
+  const ms=mpSuaviza(F.map(f=>({t:f.time_ms,p:mpConv(f.landmarks,X)})));
+  /* ALTURA: la referencia de "de pie" es el percentil 90 de la extension de
+     pierna en TODA la captura, no el primer fotograma.
+     DESPLAZAMIENTO: acumula el movimiento de la cadera respecto al PIE DE
+     APOYO, arrastrando el desfase al cambiar de pie: el pie plantado no patina. */
+  /* CALIBRADO DE POSTURA: MediaPipe situa los hombros ligeramente por delante
+     de las caderas, asi que el tronco sale sesgado y el maniqui parece
+     encorvado. Se resta la mediana de la captura para que la postura tipica
+     coincida con la de reposo del rig, conservando las variaciones reales. */
+  {const li=ms.map(m=>m.p.torso).slice().sort((a,b)=>a-b);
+   const sesgo=(li[Math.floor(li.length/2)]||6)-6;
+   const ls=ms.map(m=>m.p.tside).slice().sort((a,b)=>a-b);
+   const sesgoL=ls[Math.floor(ls.length/2)]||0;
+   for(const m of ms){const p=m.p;
+     p.torso=Math.max(-60,Math.min(90,p.torso-sesgo*MP_CAL));
+     p.abdo=Math.max(-40,Math.min(60,p.abdo-sesgo*.45*MP_CAL));
+     p.head=Math.max(-50,Math.min(50,p.head+sesgo*.5*MP_CAL));
+     p.tside=Math.max(-60,Math.min(60,p.tside-sesgoL*MP_CAL));
+     p.aside=Math.max(-45,Math.min(45,p.aside-sesgoL*.5*MP_CAL));}}
+  {const ext=ms.map(m=>m.p._pi).slice().sort((a,b)=>a-b);
+   const p90=ext[Math.floor(ext.length*.9)]||ext[ext.length-1]||1;
+   let acc=0,prevHx=null,prevAp=null;
+   /* ALTURA ABSOLUTA: suelo = pie mas bajo de toda la captura; la cadera se
+      mide contra el, asi los saltos se registran de verdad. */
+   const pies=ms.map(m=>m.p._ty).slice().sort((a,b)=>a-b);
+   const suelo=pies[Math.floor(pies.length*.05)];
+   const alt=ms.map(m=>m.p._cy-suelo).slice().sort((a,b)=>a-b);
+   const dePie=alt[Math.floor(alt.length*.9)]||1;
+   for(const m of ms){const p=m.p;
+     p.py=Math.max(-260,Math.min(-30,-92*((p._cy-suelo)/dePie)));
+     delete p._cy;delete p._ty;
+     if(prevAp!==null&&p._ap!==prevAp)acc+=prevHx-p._hx;
+     prevAp=p._ap;prevHx=p._hx;
+     p.px=(p._hx+acc)*.9*50;
+     delete p._pi;delete p._hx;delete p._ap;}
+   const px0=ms[0].p.px;
+   for(const m of ms)m.p.px=Math.max(-120,Math.min(120,m.p.px-px0));}
+  /* Mas keyframes = movimiento mas fluido. Antes el tope de 40 obligaba a subir
+     la tolerancia hasta 40 grados y el resultado salia a tirones. */
+  let tol=4, idx=mpRDP(ms,tol);
+  while(idx.length>220&&tol<26){tol+=2;idx=mpRDP(ms,tol);}
+  const dur=ms[ms.length-1].t||1;
+  const keys=idx.map(i=>{
+    const p={};for(const k of MP_EJES)p[k]=Math.round(ms[i].p[k]);
+    /* Las direcciones viajan en 'd' dentro del keyframe: el rig las usa tal
+       cual y los angulos quedan como respaldo editable. 3 decimales bastan. */
+    if(ms[i].p.d){const D={};
+      for(const k in ms[i].p.d)D[k]=ms[i].p.d[k].slice(0,3).map(v=>Math.round(v*1000)/1000);
+      p.d=D;}
+    return{t:Math.round(ms[i].t/1000*60),p};   // milisegundos -> fotogramas
+  });
+  if(!twCur)twCur=twDefault();
+  twCur.keys=keys;twKi=0;
+  /* La duracion del golpe debe cubrir la captura entera: si no, el reproductor
+     corta a los 21 fotogramas por defecto (0.35 s) y parecia interrumpirse.
+     Se reparte 25% preparacion / 15% impacto / 60% recuperacion, que es un
+     reparto razonable para revisarlo; luego se ajusta a mano.
+     Sin limite de duracion: el golpe dura exactamente lo que dura la captura.
+     Si hace falta acortarlo, esta el recorte manual (⬅ INICIO / FIN ➡ / ✂). */
+  {const fin=keys.length?keys[keys.length-1].t:60;
+   twCur.startup=Math.max(2,Math.round(fin*.25));
+   twCur.active=Math.max(2,Math.round(fin*.15));
+   twCur.recover=Math.max(2,fin-twCur.startup-twCur.active);}
+  twFormLoad();twPlay=0;twPlayAcc=0;twSlow=false;   // a velocidad real, no camara lenta
+  mpMsg('Listo: '+keys.length+' keyframes de '+F.length+' muestras ('+
+        (dur/1000).toFixed(1)+' s, tolerancia '+tol+'\u00b0). Revisalos y ajusta a mano.');
+}
+
+/* ===========================================================
+   ESQUELETO DE REFERENCIA (MediaPipe crudo)
+   Dibuja los 33 landmarks tal cual, al lado del maniqui, para comparar el
+   movimiento original con el resultado de la conversion. Si el de referencia
+   se mueve bien y el maniqui no, el fallo esta en mi conversion; si los dos
+   fallan, el problema viene de la captura.
+   =========================================================== */
+const MP_HUESOS=[[11,12],[11,23],[12,24],[23,24],
+  [11,13],[13,15],[15,19],[12,14],[14,16],[16,20],
+  [23,25],[25,27],[27,31],[27,29],[24,26],[26,28],[28,32],[28,30],
+  [0,11],[0,12]];
+let refSk=null, refFrames=null, refAR=4/3, refT=0, refOn=false;
+function refBuild(){
+  if(refSk)return refSk;
+  refSk=new THREE.Group();
+  const mJ=new THREE.MeshBasicMaterial({color:0x8ef0ff,depthTest:false});
+  const mH=new THREE.MeshBasicMaterial({color:0xffd75a,depthTest:false});
+  refSk.pts=[];refSk.seg=[];
+  for(let i=0;i<33;i++){
+    const p=new THREE.Mesh(new THREE.SphereGeometry(.075,8,6),mJ);
+    refSk.add(p);refSk.pts.push(p);
+  }
+  for(let i=0;i<MP_HUESOS.length;i++){
+    const c=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,1,6),mH);
+    refSk.add(c);refSk.seg.push(c);
+  }
+  refSk.renderOrder=997;scene.add(refSk);
+  /* Sin captura el esqueleto no se colocaba nunca (refTick salia antes) y
+     quedaba amontonado en el origen: se planta una pose en T para que al
+     pulsar el boton SIEMPRE se vea algo. */
+  refPose(null);
+  return refSk;
+}
+const MP_T=[[0,1.62,0],[0,1.66,0],[0,1.66,0],[0,1.66,0],[0,1.66,0],[0,1.66,0],
+  [0,1.66,0],[.1,1.64,0],[-.1,1.64,0],[0,1.58,0],[0,1.58,0],
+  [.22,1.42,0],[-.22,1.42,0],[.52,1.42,0],[-.52,1.42,0],[.82,1.42,0],[-.82,1.42,0],
+  [.9,1.42,0],[-.9,1.42,0],[.92,1.42,0],[-.92,1.42,0],[.88,1.42,0],[-.88,1.42,0],
+  [.13,.95,0],[-.13,.95,0],[.14,.52,0],[-.14,.52,0],[.15,.08,0],[-.15,.08,0],
+  [.15,.02,0],[-.15,.02,0],[.24,.02,0],[-.24,.02,0]];
+function refPose(pts){
+  const OX=(typeof TWX!=='undefined'?TWX:1.15)+1.9, OZ=(typeof TWZ!=='undefined'?TWZ:2);
+  /* Los puntos llegan en marco del cuerpo (X adelante, Z izquierda). El maniqui
+     del taller esta girado PI, o sea su "adelante" apunta a -X del mundo. Hay
+     que aplicar el MISMO giro o los dos esqueletos salen desalineados. */
+  /* Los puntos ya llegan en el marco del cuerpo, el mismo en el que el rig
+     recibe sus direcciones. Aplicar aqui otra vez la rotacion del root dejaba
+     a los dos esqueletos enfrentados 180 grados. */
+  for(let i=0;i<33;i++){
+    const q=pts?pts[i]:MP_T[i];
+    refSk.pts[i].position.set(OX+q[0],q[1],OZ+q[2]);
+  }
+  const A=new THREE.Vector3(),B=new THREE.Vector3(),M=new THREE.Vector3(),UP=new THREE.Vector3(0,1,0);
+  MP_HUESOS.forEach((h,i)=>{
+    A.copy(refSk.pts[h[0]].position);B.copy(refSk.pts[h[1]].position);
+    const c=refSk.seg[i];M.copy(B).sub(A);
+    const L=M.length()||1e-3;
+    c.position.copy(A).add(B).multiplyScalar(.5);
+    c.scale.set(1,L,1);
+    c.quaternion.setFromUnitVectors(UP,M.normalize());
+  });
+}
+function refShow(on){
+  refOn=!!on;
+  if(refSk)refSk.visible=refOn;
+  const b=document.getElementById('tw-ref');
+  if(b)b.textContent=refOn?'👤 OCULTAR REFERENCIA':'👤 VER REFERENCIA';
+}
+/* Coloca el esqueleto usando la MISMA escala y encuadre que el maniqui:
+   se normaliza por el tronco y se ancla la cadera, para que las diferencias
+   que se vean sean de POSTURA, no de tamaño. */
+function refTick(){
+  if(!refOn||!refFrames||!refFrames.length||!refSk)return;
+  const n=refFrames.length;
+  refSync();
+  const f=refFrames[Math.min(n-1,Math.max(0,Math.round(refT)))];
+  const lm=f.landmarks;if(!lm||lm.length<33)return;
+  const AR=refAR;
+  // misma atenuacion de profundidad que en la conversion: si no, la referencia
+  // tiembla mas que el maniqui y la comparacion enga~na
+  if(refSk._zw==null)refSk._zw=mpZW(refFrames,AR);
+  const P=i=>({x:lm[i].x*AR,y:-lm[i].y,z:-(lm[i].z||0)*AR*refSk._zw});
+  const cad={x:(P(23).x+P(24).x)/2,y:(P(23).y+P(24).y)/2,z:(P(23).z+P(24).z)/2};
+  const hom={x:(P(11).x+P(12).x)/2,y:(P(11).y+P(12).y)/2,z:(P(11).z+P(12).z)/2};
+  /* ESCALA FIJA para toda la captura. Escalar por el tronco de CADA fotograma
+     hacia que el esqueleto se encogiera y estirara (medido: hasta 3.5x), porque
+     al inclinarse o girar el tronco se acorta en proyeccion. Se calcula una vez
+     con el percentil 90, que corresponde a la postura mas erguida. */
+  if(!refSk._K2){
+    const L=[];
+    for(const fr of refFrames){const q=fr.landmarks;if(!q||q.length<25)continue;
+      const hx=(q[11].x+q[12].x)/2*AR, hy=-(q[11].y+q[12].y)/2;
+      const cx=(q[23].x+q[24].x)/2*AR, cy=-(q[23].y+q[24].y)/2;
+      L.push(Math.hypot(hx-cx,hy-cy));}
+    L.sort((a,b)=>a-b);
+    refSk._K2=1.15/(L[Math.floor(L.length*.9)]||.25);
+  }
+  const K2=refSk._K2;
+  /* Los landmarks vienen en el marco de la CAMARA (X derecha, Z hacia el
+     objetivo) y el maniqui vive en el marco del LUCHADOR (X adelante, Z a su
+     izquierda). Sin este cambio de base los dos esqueletos salen girados 90
+     grados uno respecto al otro. Se reconstruye el marco del cuerpo igual que
+     en la conversion y se proyecta sobre el. */
+  const v3=(a,b)=>[a.x-b.x,a.y-b.y,a.z-b.z];
+  const vd=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+  const vx=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+  const vn=a=>{const m=Math.sqrt(vd(a,a))||1e-6;return [a[0]/m,a[1]/m,a[2]/m];};
+  let up=vn(v3(hom,cad));
+  let rt=vn(v3(P(12),P(11)));
+  rt=vn([rt[0]-up[0]*vd(rt,up),rt[1]-up[1]*vd(rt,up),rt[2]-up[2]*vd(rt,up)]);
+  if(refSk._up){
+    const mez=(a,b,k)=>vn([a[0]+(b[0]-a[0])*k,a[1]+(b[1]-a[1])*k,a[2]+(b[2]-a[2])*k]);
+    up=mez(refSk._up,up,.35);rt=mez(refSk._rt,rt,.25);
+    rt=vn([rt[0]-up[0]*vd(rt,up),rt[1]-up[1]*vd(rt,up),rt[2]-up[2]*vd(rt,up)]);
+  }
+  refSk._up=up;refSk._rt=rt;
+  const fw=vn(vx(up,rt));
+  const pts=[];
+  for(let i=0;i<33;i++){
+    const d=v3(P(i),cad);
+    // X = adelante, Y = arriba (vertical real), Z = a su izquierda
+    pts.push([vd(d,fw)*K2, 1.02+(P(i).y-cad.y)*K2, -vd(d,rt)*K2]);
+  }
+  refPose(pts);
+}
+/* El fotograma de la referencia se DEDUCE del reproductor del taller (twPlay,
+   en fotogramas de juego a 60fps), asi los dos van sincronizados: antes cada
+   uno llevaba su propio reloj y se desacoplaban. */
+function refSync(){
+  if(!refFrames||!refFrames.length)return;
+  const n=refFrames.length;
+  const f=(twPlay>=0)?twPlay:twKeyFrame();       // reproduciendo o keyframe fijo
+  /* Se busca por TIEMPO REAL, no por proporcion: cada keyframe se creo con
+     t=round(time_ms/1000*60), asi que el camino exacto de vuelta es
+     ms = t/60*1000 y luego el fotograma cuyo time_ms mas se le acerque.
+     Antes se interpolaba con (n-1) suponiendo cadencia uniforme, y el
+     redondeo hacia que el maniqui se adelantara poco a poco. */
+  const ms=f/60*1000;
+  let lo=0,hi=n-1;
+  while(lo<hi){const mid=(lo+hi)>>1;
+    if((refFrames[mid].time_ms||mid*33.3)<ms)lo=mid+1;else hi=mid;}
+  if(lo>0){
+    const a=refFrames[lo-1].time_ms||((lo-1)*33.3), b=refFrames[lo].time_ms||(lo*33.3);
+    if(Math.abs(a-ms)<Math.abs(b-ms))lo--;
+  }
+  refT=Math.max(0,Math.min(n-1,lo));
+}
+function twKeyFrame(){                           // fotograma del keyframe actual
+  const k=twCur&&twCur.keys&&twCur.keys[twKi];
+  return k?(k.t||0):0;
 }
 /* --- EJE DE COMBATE: linea en el suelo entre luchador y oponente ---
    Sirve para alinear golpes: marca la direccion al rival, la distancia en
@@ -2484,6 +3387,7 @@ function twMarksUpd(){
 }
 const TW_F={name:'tw-name',type:'tw-type',badge:'tw-badge',dmg:'tw-dmg',r:'tw-r',push:'tw-push',
   startup:'tw-startup',active:'tw-active',recover:'tw-recover',limb:'tw-limb',guard:'tw-guard'};
+let twPlayRun=true;
 let twCur=null,twKi=0,twPlay=-1,twSilent=false,twModel='',twWhat='move',twMoveBak=null,twSlow=false,twPlayAcc=0;
 function poseHolder(nm,base){
   const b=Object.assign({},IDLE,base||{});
@@ -2519,7 +3423,12 @@ function twKneeCheck(){
 const TW_INPUTS={},TW_LABELS={};
 function twBuildJoints(){
   const box=CE('tw-joints');
-  if(box.dataset.built)return;
+  /* Se reconstruye si cambia el numero de ejes: antes se marcaba 'built' y los
+     ejes anadidos despues (munecas, tobillos, dedos...) no aparecian nunca. */
+  if(box.dataset.built===String(TW_JOINTS.length))return;
+  box.innerHTML='';
+  for(const k in TW_INPUTS)delete TW_INPUTS[k];
+  for(const k in TW_LABELS)delete TW_LABELS[k];
   TW_JOINTS.forEach(j=>{
     const lab=document.createElement('label');
     const sp=document.createElement('span');sp.textContent=j.es;lab.appendChild(sp);
@@ -2529,13 +3438,29 @@ function twBuildJoints(){
     inp.addEventListener('input',()=>{
       val.textContent=inp.value;
       if(twSilent||!twCur||!twCur.keys[twKi])return;
+      twSuelta(j.k);        // si venia de una captura, este hueso pasa al editor
       twCur.keys[twKi].p[j.k]=parseFloat(inp.value);
-      CE('tw-warn').textContent=twKneeCheck();
+      const av=CE('tw-warn').textContent;
+      if(!/Hueso liberado/.test(av))CE('tw-warn').textContent=twKneeCheck();
     });
     lab.appendChild(val);lab.appendChild(inp);box.appendChild(lab);
     TW_INPUTS[j.k]=inp;TW_LABELS[j.k]=lab;
   });
-  box.dataset.built='1';
+  box.dataset.built=String(TW_JOINTS.length);
+  // sello de diagnostico: si no pone 37 ejes, se esta ejecutando una version vieja
+  const bs=document.getElementById('cr-build');
+  if(bs)bs.textContent='v56 · '+box.children.length+' ejes';
+  const nEl=CE('tw-jn');if(nEl)nEl.textContent=TW_JOINTS.length;
+  const fil=CE('tw-jfil');
+  if(fil&&!fil.dataset.on){
+    fil.dataset.on='1';
+    const quita=t=>t.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    fil.addEventListener('input',()=>{
+      const q=quita(fil.value.trim());
+      TW_JOINTS.forEach(j=>{const lab=TW_LABELS[j.k];if(!lab)return;
+        lab.style.display=(!q||quita(j.es).includes(q)||quita(j.k).includes(q))?'':'none';});
+    });
+  }
 }
 function twJointsLoad(){
   if(!twCur||!twCur.keys[twKi])return;
@@ -2602,7 +3527,7 @@ function twModelsUI(){
   }
 }
 /* --- muneco de sparring: rig pasivo enfrente para ver el alcance --- */
-let twSpar='',twSparRig=null,twDist=2.3,twCam=0;
+let twSpar='',twSparRig=null,twDist=2.3,twCam=0,twLoop=true;
 const TW_CAMS=['LATERAL','GENERAL','CENITAL','3/4'];
 /* Posiciones de combate en el taller: ambos mirandose de frente sobre el eje X.
    El luchador ocupa +X mirando a -X; el sparring enfrente a la distancia elegida. */
@@ -2682,6 +3607,10 @@ function openCreator(startPane,tallerOnly,returnMode){
   crPanel.classList.toggle('taller-only',!!tallerOnly);
   crPanel.classList.remove('fold');CE('cr-fold').textContent='\u2039';
   const hb=crPanel.querySelector('.cr-head b');if(hb)hb.textContent=tallerOnly?'EDITOR DE GOLPES':'CREADOR';
+  /* El coliseo se queda activo tras un combate y hacia que setStage ignorase el
+     escenario pedido: el editor mostraba el ultimo cargado. Se apaga siempre. */
+  tatamiOn(false);
+  if(typeof confetti!=='undefined'&&confetti)confetti.visible=false;
   setStage(tallerOnly?'neutro':(CE('cr-stage').value||'gym'));showcaseOn(false);
   crTab=pane;
   document.querySelectorAll('.cr-tab').forEach(t=>t.classList.toggle('on',t.dataset.pane===pane));
@@ -2701,6 +3630,8 @@ function openCreator(startPane,tallerOnly,returnMode){
 }
 function closeCreator(){
   tatamiOn(false);
+  if(typeof mpOn!=='undefined'&&mpOn)mpParar(true);   // no dejar la camara encendida
+  if(typeof refSk!=='undefined'&&refSk){refSk.visible=false;refOn=false;}
   crPanel.classList.remove('on');crPanel.classList.remove('taller-only');
   twSlow=false;twPlay=-1;
   if(twSparRig){scene.remove(twSparRig.root);twSparRig.dispose();twSparRig=null;}
@@ -2715,7 +3646,7 @@ function crLoadInto(cfg,idx){
   const set=(id,val)=>{if(val!=null)CE(id).value=val;};
   const p=cfg.phys||{},col=cfg.col||{};
   set('cr-name',cfg.name);set('cr-tag',cfg.tag);set('cr-arch',cfg.arch||'rusher');set('cr-stage',cfg.stage||'gym');
-  for(const k of['oval','diam','neckH','neckD','upper','upperH','waist','waistH','lower','lowerH','arms','offX','offY','tall','wide','armLen','legLen','armGap','footL','footW','footH','scale','hp','speed','dmg'])set('cr-'+k,p[k]);
+  for(const k of['oval','diam','headDepth','neckH','neckD','upper','upperH','waist','waistH','lower','lowerH','arms','offX','offY','tall','wide','armLen','legLen','armGap','handS','footL','footW','footH','scale','hp','speed','dmg'])set('cr-'+k,p[k]);
   set('cr-skin',n2hx(col.skin!=null?col.skin:0xd8a877));set('cr-hair',n2hx(col.hair!=null?col.hair:0x2a211a));
   set('cr-hair2',n2hx(col.hair2!=null?col.hair2:(col.hair!=null?col.hair:0x2a211a)));
   set('cr-iris',n2hx(col.iris!=null?col.iris:0x3a4a5e));set('cr-shirt',n2hx(col.shirt!=null?col.shirt:0x2b3a5e));
@@ -2739,6 +3670,10 @@ function crLoadInto(cfg,idx){
   crPSL=(cfg.pantsSL&&cfg.pantsSL.length===LR)?cfg.pantsSL.slice():Z2(LR,LC);
   crHand=(cfg.hand&&cfg.hand.length===HN)?cfg.hand.slice():Z2(HN,HN);
   crPortraits=Object.assign({general:null,fight:null,defeat:null},cfg.portraits||{});ptRefresh();
+  crHeadGLB=cfg.headGLB||null;crHeadGLBInfo();
+  set('cr-headglb-axis',cfg.headGLBAxis||'x');set('cr-headglb-scale',cfg.headGLBScale||1);
+  set('cr-headglb-x',cfg.headGLBX||0);set('cr-headglb-y',cfg.headGLBY||0);set('cr-headglb-z',cfg.headGLBZ||0);
+  CE('cr-headglb-hide').checked=!!cfg.headGLBHide;
   if(cfg.winPose&&cfg.winPose.length)twPose.win.keys=cfg.winPose.map(k=>({t:k.t,p:Object.assign({},k.p)}));
   if(cfg.losePose&&cfg.losePose.length)twPose.lose.keys=cfg.losePose.map(k=>({t:k.t,p:Object.assign({},k.p)}));
   if(twWhat!=='move'){twCur=twPose[twWhat];twKi=0;twFormLoad();}
@@ -3220,6 +4155,38 @@ CE('cr-save').onclick=()=>{
     :('Sin espacio en el navegador'+(conPt?' (las imágenes ocupan mucho): usa EXPORTAR .json':'')+'. Solo queda en esta sesión.');
   setTimeout(()=>CE('cr-msg').textContent='',ok?2600:6000);
 };
+function crHeadGLBInfo(){
+  const el=CE('cr-headglb-info');if(!el)return;
+  el.textContent=crHeadGLB?'Cabeza personalizada cargada ('+Math.round(crHeadGLB.length*.73/1024)+' KB)'
+    :'Ninguna: se usa la cabeza del arquetipo (o la procedural si no hay .glb)';
+}
+CE('cr-headglb').onclick=()=>CE('cr-headglb-file').click();
+CE('cr-headglb-file').onchange=e=>{
+  const f=e.target.files[0];e.target.value='';if(!f)return;
+  if(f.size>8*1024*1024){CE('cr-msg').textContent='El .glb pesa mas de 8MB: elige uno mas ligero.';return;}
+  const rd=new FileReader();
+  rd.onload=()=>{
+    crHeadGLB=rd.result;                 // data:...;base64,xxxx ya listo para guardar
+    crHeadGLBInfo();
+    crPrevKey='';crBuildPreview();       // fuerza reconstruir la vista previa con la cabeza nueva
+    CE('cr-msg').textContent='Cabeza .glb cargada ('+Math.round(f.size/1024)+' KB). '+
+      'Recuerda pulsar GUARDAR o EXPORTAR para conservarla con el personaje.';
+    setTimeout(()=>CE('cr-msg').textContent='',4200);
+  };
+  rd.onerror=()=>{CE('cr-msg').textContent='No se pudo leer el archivo .glb';};
+  rd.readAsDataURL(f);
+};
+CE('cr-headglb-clear').onclick=()=>{
+  crHeadGLB=null;crHeadGLBInfo();crPrevKey='';crBuildPreview();
+  CE('cr-msg').textContent='Cabeza importada quitada: vuelve al arquetipo/procedural.';
+  setTimeout(()=>CE('cr-msg').textContent='',3200);
+};
+CE('cr-headglb-axis').addEventListener('change',()=>{if(game.mode==='creator')crUpdatePreview();});
+CE('cr-headglb-scale').addEventListener('input',()=>{if(game.mode==='creator')crUpdatePreview();});
+for(const id of['cr-headglb-x','cr-headglb-y','cr-headglb-z'])
+  CE(id).addEventListener('input',()=>{if(game.mode==='creator')crUpdatePreview();});
+CE('cr-headglb-hide').addEventListener('change',()=>{if(game.mode==='creator')crUpdatePreview();});
+crHeadGLBInfo();
 CE('cr-export').onclick=()=>{const cfg=crGather();exportCustoms(cfg);
   const conPt=cfg.portraits&&Object.values(cfg.portraits).some(Boolean);
   CE('cr-msg').textContent='Descargado .json'+(conPt?' (con imágenes)':' (sin imágenes)');
@@ -3261,7 +4228,11 @@ const HEADGEOS={};
 function makeHeadGeo(F){
   F=F||{};const key=JSON.stringify(F);
   if(HEADGEOS[key])return HEADGEOS[key];
-  const W=22,Hh=18,pos=[],uv=[];
+  /* W/Hh bajos a proposito: facetas grandes y visibles (busto tallado en
+     piedra), en vez de la curva suave de antes. Los bultos anatomicos (ceja,
+     nariz, pomulos...) siguen siendo los mismos, la baja resolucion es lo que
+     los convierte en planos en vez de curvas. */
+  const W=13,Hh=11,pos=[],uv=[];
   const fN=F.nose||1,fJ=F.jaw||1,fB=F.brow||1,fC=F.chin||1,fK=F.cheek||1,fM=F.mouth||1;
   const sm=(a,b,x)=>{const t=Math.max(0,Math.min(1,(x-a)/(b-a)));return t*t*(3-2*t);};
   for(let j=0;j<=Hh;j++){
@@ -3280,8 +4251,15 @@ function makeHeadGeo(F){
       r-=g(1.02,.3,.2,.18,.06);                          // sienes concavas
       /* --- rasgos (planos de la cara) --- */
       r+=g(0,.55,.34,.22,.04);                           // frontal
-      r+=g(.3,.38,.15,.085,.06)*fB;                      // reborde superciliar
-      r-=g(.36,.28,.01,.105,.125);                       // CUENCAS rehundidas
+      /* Verificado numericamente: la linea de ojos quedaba muy por debajo del
+         punto medio real coronilla-menton (desvio de -0.27 en un total de ~2.0,
+         ~13%). Forzar el punto medio EXACTO desproporciona la frente (el ratio
+         ceja/nariz vs nariz/menton pasa de 1.09, ya bueno, a 1.73) por el
+         acoplamiento no lineal del seno en esta parametrizacion esferica. Se
+         aplica una correccion moderada (dE=.10) que reduce el desvio a la
+         mitad sin romper el orden de los rasgos ni desproporcionar la frente. */
+      r+=g(.3,.38,.25,.085,.06)*fB;                      // reborde superciliar (+dE)
+      r-=g(.36,.28,.11,.105,.125);                       // CUENCAS rehundidas (+dE)
       r+=(g(0,.14,-.03,.17,.15)+g(0,.17,-.16,.075,.13))*fr*fN; // nariz
       r+=g(.58,.3,-.08,.16,.075)*fK;                     // POMULOS (punto mas ancho)
       r+=g(0,.34,-.33,.11,.07)*fM;                       // morro bucal
@@ -3296,7 +4274,20 @@ function makeHeadGeo(F){
       /* --- proyeccion con taper mandibular (ovalo frontal) --- */
       const low=sm(.06,-.58,ph);
       const zTaper=(1-(.34+((fJ-1)*-.10))*low)*(1-.06*sm(.4,1.2,ph)); // cuna hacia el menton + leve cierre en coronilla
-      pos.push(dx*r+xoff, dy*r*(F.oval||1.30), dzu*r*.78*zTaper);
+      /* La anchura lateral (Z) llevaba un .78 fijo frente al 1.0 de la
+         profundidad (X): un 22% de compresion sin base anatomica que, con la
+         camara a tres cuartos de este juego, se lee como "efecto plato"
+         (cabeza mas honda que ancha). Se sube a .94, coherente con el .92 que
+         usa la cabeza del estilo lego para la misma relacion ancho/profundo. */
+      /* pequeño jitter determinista (seno de indices, no Math.random: mismo
+         resultado siempre, cacheable) para romper la rejilla perfecta de la
+         malla UV y dar el aspecto tallado a mano de un busto de bajo poligono,
+         en vez de facetas mecanicamente uniformes. No se aplica en los polos
+         (v cerca de 0/1) para no deformar coronilla ni la base del cuello. */
+      const jit=Math.min(v,1-v)*2;
+      const jx=Math.sin(i*12.9+j*78.2)*.014*jit, jy=Math.sin(i*37.7+j*9.1)*.010*jit,
+            jz=Math.sin(i*54.3+j*23.6)*.014*jit;
+      pos.push(dx*r+xoff+jx, dy*r*(F.oval||1.30)+jy, dzu*r*.94*zTaper+jz);
       uv.push(u*3,v*3);
     }
   }
@@ -3326,6 +4317,60 @@ function faceTexCanvas(ft){
   return c;
 }
 const TORSOGEOS={};
+/* Miembro esculpido: un tubo de revolucion con un bulto muscular gaussiano
+   (biceps, antebrazo, cuadriceps, gemelo). Se construye a longitud unidad
+   (y: 0 arriba -> -1 abajo) y radio unidad en el extremo superior; luego se
+   escala para encajar exactamente donde iba el cilindro que sustituye. */
+const LIMBGEOS={};
+let HEADSIMPLE_GEO=null;   // esfera unidad compartida para sculptHeadSimple
+function makeLimbGeo(ratio,bulgeC,bulgeW,bulgeAmt,segL,segR){
+  const key=[ratio,bulgeC,bulgeW,bulgeAmt,segL,segR].join(',');
+  if(LIMBGEOS[key])return LIMBGEOS[key];
+  segL=segL||10;segR=segR||12;
+  const pos=[],idx=[],gg=(x,c,w)=>Math.exp(-(((x-c)/w)**2));
+  for(let j=0;j<=segL;j++){
+    const v=j/segL;
+    const r=(1+(ratio-1)*v)*(1+bulgeAmt*gg(v,bulgeC,bulgeW));
+    for(let i=0;i<=segR;i++){
+      const th=i/segR*Math.PI*2;
+      pos.push(Math.cos(th)*r,-v,Math.sin(th)*r);
+    }
+  }
+  for(let j=0;j<segL;j++)for(let i=0;i<segR;i++){
+    const a=j*(segR+1)+i,b=a+segR+1;
+    idx.push(a,b,a+1, a+1,b,b+1);
+  }
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  geo.setIndex(idx);geo.computeVertexNormals();
+  LIMBGEOS[key]=geo;return geo;
+}
+/* Sustituye el cilindro+rotulas de un segmento de hueso (grupo ya existente,
+   creado por bone()) por geometria organica, SIN tocar la jerarquia: incluso
+   oculto, el cilindro original sigue ahi dando sus medidas exactas, y el
+   grupo 'end' (por donde cuelga el siguiente hueso/mano/pie) no se toca. */
+function sculptLimb(R,group,bulgeC,bulgeW,bulgeAmt,keepRoot,flat){
+  const cy=group.children[0];if(!cy||!cy.geometry||!cy.geometry.parameters)return;
+  const P=cy.geometry.parameters, ratio=P.radiusBottom/(P.radiusTop||.001);
+  const col=cy.material&&cy.material.color?cy.material.color.getHex():0x808080;
+  /* keepRoot: en hombro y cadera SI se deja la esfera superior visible, como
+     punto de union con el tronco (lo pidio el usuario expresamente). En el
+     resto de articulaciones (codo, muneca, rodilla, tobillo) sigue oculta
+     para una transicion continua, como en el resto del estilo 'real'. */
+  const desde=keepRoot?1:0;
+  for(let i=desde;i<3;i++)if(group.children[i])group.children[i].visible=false;
+  if(keepRoot&&group.children[1]){
+    const cap=group.children[1];
+    cap.scale.setScalar(1.06);   // un pelin mas prominente: lee como insercion muscular
+  }
+  const geo=makeLimbGeo(ratio,bulgeC,bulgeW,bulgeAmt,flat?7:10,flat?10:12);
+  const mat=new THREE.MeshPhongMaterial({color:col,specular:0x1a1512,shininess:6,
+    flatShading:!!flat,side:THREE.DoubleSide});
+  R.M.push(mat);
+  const mesh=new THREE.Mesh(geo,mat);
+  mesh.scale.set(P.radiusTop,P.height,P.radiusTop);
+  mesh.castShadow=true;group.add(mesh);
+}
 function makeTorsoGeo(B){
   B=B||{};const key=JSON.stringify(B);if(TORSOGEOS[key])return TORSOGEOS[key];
   const up=B.upper||1,lo=B.lower||1,mus=B.mus||1,wF=B.waist||1;
@@ -3377,9 +4422,88 @@ function skinTexture(){
   SKINTEX.wrapS=SKINTEX.wrapT=THREE.RepeatWrapping;SKINTEX.repeat.set(2,2);
   return SKINTEX;
 }
+/* ===========================================================
+   CABEZA IMPORTADA DE .GLB, UNA POR ARQUETIPO
+   La cabeza es un objeto RIGIDO colgado del hueso del cuello (no se deforma
+   por vertice como el cuerpo), asi que cargar una malla externa no toca el
+   sistema de huesos ni los golpes: solo sustituye lo que cuelga de this.head.
+   Carga bajo demanda + cache compartida + caida elegante: si el archivo no
+   esta, la cabeza procedural (sculptHead) se queda tal cual, sin más.
+   =========================================================== */
+const HEAD_GLB={bruiser:'src/head-bruiser.glb',zoner:'src/head-zoner.glb',
+  rusher:'src/head-rusher.glb',grappler:'src/head-grappler.glb'};
+const HEADGLB_CACHE={};      // arch -> 'loading' | THREE.Group | null(fallo/ausente)
+const HEADGLB_WAIT={};       // arch -> lista de callbacks pendientes
+let GLTFLoaderPromise=null;
+function loadGLTFLoader(){
+  if(GLTFLoaderPromise)return GLTFLoaderPromise;
+  GLTFLoaderPromise=new Promise((resolve,reject)=>{
+    if(THREE.GLTFLoader){resolve(THREE.GLTFLoader);return;}
+    const sc=document.createElement('script');
+    sc.src='https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js';
+    sc.onload=()=>THREE.GLTFLoader?resolve(THREE.GLTFLoader):reject(new Error('GLTFLoader no disponible'));
+    sc.onerror=()=>reject(new Error('no se pudo cargar GLTFLoader'));
+    document.head.appendChild(sc);
+  });
+  return GLTFLoaderPromise;
+}
+function headGLBFor(C,cb){
+  /* Prioridad 1: cabeza importada PARA ESTE PERSONAJE (base64 en su config).
+     No pasa por la cache de arquetipos: cada personaje trae la suya. */
+  if(C&&C.headGLB){
+    loadGLTFLoader().then(GLTFLoader=>{
+      try{
+        const b64=(C.headGLB.split(',')[1]||'');
+        const bin=atob(b64);
+        const buf=new Uint8Array(bin.length);
+        for(let i=0;i<bin.length;i++)buf[i]=bin.charCodeAt(i);
+        new GLTFLoader().parse(buf.buffer,'',gltf=>cb(gltf.scene),()=>cb(null));
+      }catch(e){cb(null);}
+    }).catch(()=>cb(null));
+    return;
+  }
+  // Prioridad 2: cabeza compartida por arquetipo (cache + fetch de src/*.glb)
+  const arch=(C&&C.arch)||'rusher';
+  const url=HEAD_GLB[arch];
+  if(!url){cb(null);return;}
+  const cur=HEADGLB_CACHE[arch];
+  if(cur==='loading'){(HEADGLB_WAIT[arch]=HEADGLB_WAIT[arch]||[]).push(cb);return;}
+  if(cur!==undefined){cb(cur);return;}                 // ya resuelto (Group o null)
+  HEADGLB_CACHE[arch]='loading';(HEADGLB_WAIT[arch]=HEADGLB_WAIT[arch]||[]).push(cb);
+  loadGLTFLoader().then(GLTFLoader=>{
+    new GLTFLoader().load(url,
+      gltf=>{HEADGLB_CACHE[arch]=gltf.scene;(HEADGLB_WAIT[arch]||[]).forEach(f=>f(gltf.scene));HEADGLB_WAIT[arch]=[];},
+      undefined,
+      ()=>{HEADGLB_CACHE[arch]=null;(HEADGLB_WAIT[arch]||[]).forEach(f=>f(null));HEADGLB_WAIT[arch]=[];});
+  }).catch(()=>{HEADGLB_CACHE[arch]=null;(HEADGLB_WAIT[arch]||[]).forEach(f=>f(null));HEADGLB_WAIT[arch]=[];});
+}
+const HEADGLB_AXES={x:[1,0,0],y:[0,1,0],z:[0,0,1],'-x':[-1,0,0],'-y':[0,-1,0],'-z':[0,0,-1]};
+/* Sustituye la cabeza procedural por el .glb del arquetipo, si existe.
+   headMeshes: array de mallas procedurales (cabeza + orejas) a ocultar.
+   axis: cual de los ejes locales del modelo debe apuntar al frente del rig
+   (+X); se calcula el giro MINIMO que lleva ese eje a +X, sin necesidad de
+   adivinar Euler angles a mano. scale: factor de tamaño, 1 = sin cambios. */
+function swapHeadGLB(R,scene,skinHex,headMeshes,axis,scale,ox,oy,oz){
+  if(!R._alive)return;             // el luchador ya no existe: no tocar nada
+  const clone=scene.clone(true);
+  clone.traverse(o=>{
+    if(o.isMesh){
+      o.castShadow=true;
+      const mm=o.material?(Array.isArray(o.material)?o.material[0]:o.material):null;
+      if(mm&&mm.color){const m2=mm.clone();m2.color.set(skinHex);R.M.push(m2);o.material=m2;}
+    }
+  });
+  const av=HEADGLB_AXES[axis]||HEADGLB_AXES.x;
+  const src=new THREE.Vector3(av[0],av[1],av[2]);
+  clone.quaternion.setFromUnitVectors(src,new THREE.Vector3(1,0,0));
+  clone.scale.setScalar((scale||1));
+  clone.position.set(ox||0,oy||0,oz||0);
+  R.head.add(clone);
+  headMeshes.forEach(m=>{if(m)m.visible=false;});
+}
 class Rig{
   constructor(C){
-    this.C=C;const d=C.d;this.d=d;this.s=K*d.scale;
+    this.C=C;const d=C.d;this.d=d;this.s=K*d.scale;this._alive=true;
     this.M=[];this.extras=[];
     const cols=C.mats;
     const arm=this.mkMat(cols.arm),armB=this.mkMat(this.dark(cols.arm)),
@@ -3388,10 +4512,16 @@ class Rig{
     const s=this.s, w=d.limbW*s;
     this.root=new THREE.Group();
     this.pel=new THREE.Group();this.pel.position.y=1;this.root.add(this.pel);
-    // torso
-    const t=this.bone(this.pel,d.torso*s,d.torsoW*.38*s,torso,.72);
+    /* TORSO EN TRES PIEZAS (como una figura articulada):
+       cadera -> ABDOMEN -> PECHO. Cada tramo gira por separado, asi el cuerpo
+       se dobla y se retuerce con mucha mas vida. */
+    const tAbdo=this.bone(this.pel,d.torso*.42*s,d.torsoW*.33*s,torso,.86);
+    this.abdo=tAbdo.g;this.abdoEnd=tAbdo.end;
+    const t=this.bone(this.abdoEnd,d.torso*.58*s,d.torsoW*.38*s,torso,.66);
     this.torso=t.g;this.chest=t.end;
-    this.torsoBody=t.g.children.slice(0,3);
+    this.torsoBody=tAbdo.g.children.slice(0,3).concat(t.g.children.slice(0,3));
+    // rotula de la cintura, visible entre las dos piezas
+    {const rb=this.ball(d.torsoW*.20*s,torso);this.abdoEnd.add(rb);}
     // cabeza: los huesos apuntan a -Y, así que el marco llega girado 180°.
     // 'head' lo endereza para que los detalles se coloquen con +X = adelante, +Y = arriba.
     const n=this.bone(this.chest,d.neck*s,d.limbW*.55*s,this.mkMat(cols.head));
@@ -3406,7 +4536,8 @@ class Rig{
       const hold=new THREE.Group();hold.position.z=z;this.chest.add(hold);
       const u=this.bone(hold,d.uarm*s,w*.62,mU,.9);
       const l=this.bone(u.end,d.farm*s,w*.55,mL,.92);
-      const h=new THREE.Group();l.end.add(h);
+      const wpiv=new THREE.Group();l.end.add(wpiv);   // MUNECA (arriba/abajo + giro)
+      const h=new THREE.Group();wpiv.add(h);
       const hw=d.limbW*.72;
       // muneca + palma aplanada (mas ancha que gruesa) + nudillos
       const wr=this.cyl(hw*.52,hw*.34,hand);wr.position.y=-hw*.1*this.s;h.add(wr);
@@ -3414,38 +4545,39 @@ class Rig{
       palm.position.y=-hw*.62*this.s;h.add(palm);
       const kn=this.box(hw*.8,hw*.34,hw*1.52,hand);
       kn.position.y=-hw*1.2*this.s;h.add(kn);
-      return{u:u.g,l:l.g,hand:h,hold};
+      return{u:u.g,l:l.g,hand:h,wrist:wpiv,hold};
     };
     const aF=mkArm(zA,arm,arm), aB=mkArm(-zA,armB,armB);
-    this.armUF=aF.u;this.armLF=aF.l;this.handF=aF.hand;this.holdAF=aF.hold;
-    this.armUB=aB.u;this.armLB=aB.l;this.handB=aB.hand;this.holdAB=aB.hold;
+    this.armUF=aF.u;this.armLF=aF.l;this.handF=aF.hand;this.holdAF=aF.hold;this.wristF=aF.wrist;
+    this.armUB=aB.u;this.armLB=aB.l;this.handB=aB.hand;this.holdAB=aB.hold;this.wristB=aB.wrist;
+    {const hs=(C.phys&&C.phys.handS)||1;   // tamano de mano configurable
+     if(hs!==1){this.handF.scale.setScalar(hs);this.handB.scale.setScalar(hs);}}
     // dedos: 4 falanges dobles + pulgar por mano
+    /* MANO EN TRES PIEZAS: PALMA (ya construida arriba), BLOQUE DE DEDOS y
+       PULGAR. Mucho mas solido que 5 dedos sueltos y encaja con el aspecto de
+       figura articulada; el puno se cierra girando solo dos piezas. */
     this.fingers=[];this.fist=.22;
-    const fm=this.mkMat(C.mats.hand),hr=d.limbW*.72,fw=d.limbW*.19,fl=d.limbW*.5;
-    // indice, corazon, anular, menique: largos y alturas de nudillo distintos
-    const FLEN=[.94,1.06,.98,.8], FOFF=[.02,0,.01,.05];
+    const fm=this.mkMat(C.mats.hand),hr=d.limbW*.72;
     for(const hnd of[this.handF,this.handB]){
-      for(let fi=0;fi<4;fi++){
-        const L=fl*FLEN[fi];
-        const b=new THREE.Group();
-        b.position.set(.04*hr*this.s,(-hr*1.34-FOFF[fi]*hr)*this.s,(fi-1.5)*fw*2.25*this.s);
-        b.rotation.x=(fi-1.5)*.055;            // ligero abanico
-        hnd.add(b);
-        const s1=this.box(fw*1.2,L,fw*1.5,fm);s1.position.y=-L*.5*this.s;b.add(s1);
-        const m2=new THREE.Group();m2.position.y=-L*this.s;b.add(m2);
-        const s2=this.box(fw*1.04,L*.82,fw*1.34,fm);s2.position.y=-L*.41*this.s;m2.add(s2);
-        const tip=this.ball(fw*.62,fm);tip.position.y=-L*.82*this.s;m2.add(tip);
-        this.fingers.push({b,m2,th:false});
-      }
-      // pulgar: sale del lateral de la palma y mira hacia dentro
+      const b=new THREE.Group();
+      b.position.set(.02*hr*this.s,-hr*1.36*this.s,0);hnd.add(b);
+      const bloque=this.box(hr*.66,hr*1.0,hr*1.42,fm);
+      bloque.position.y=-hr*.5*this.s;b.add(bloque);
+      const m2=new THREE.Group();m2.position.y=-hr*1.0*this.s;b.add(m2);
+      const seg2=this.box(hr*.58,hr*.72,hr*1.3,fm);
+      seg2.position.y=-hr*.36*this.s;m2.add(seg2);
+      this.fingers.push({b,m2,th:false});
+      if(hnd===this.handF)this.fingF={b,m2};else this.fingB={b,m2};
       const tb=new THREE.Group();
-      tb.position.set(hr*.3*this.s,-hr*.72*this.s,hr*.62*this.s);
-      tb.rotation.set(.62,0,-.5);hnd.add(tb);
-      const t1=this.box(fw*1.3,fl*.8,fw*1.5,fm);t1.position.y=-fl*.4*this.s;tb.add(t1);
-      const tm=new THREE.Group();tm.position.y=-fl*.78*this.s;tb.add(tm);
-      const t2=this.box(fw*1.12,fl*.66,fw*1.32,fm);t2.position.y=-fl*.3*this.s;tm.add(t2);
-      const ttip=this.ball(fw*.6,fm);ttip.position.y=-fl*.6*this.s;tm.add(ttip);
+      tb.position.set(hr*.3*this.s,-hr*.74*this.s,hr*.6*this.s);
+      tb.rotation.set(.6,0,-.5);hnd.add(tb);
+      const t1=this.box(hr*.44,hr*.62,hr*.44,fm);
+      t1.position.y=-hr*.31*this.s;tb.add(t1);
+      const tm=new THREE.Group();tm.position.y=-hr*.62*this.s;tb.add(tm);
+      const t2=this.box(hr*.38,hr*.5,hr*.38,fm);
+      t2.position.y=-hr*.25*this.s;tm.add(t2);
       this.fingers.push({b:tb,m2:tm,th:true});
+      if(hnd===this.handF)this.thumbF={b:tb,m2:tm};else this.thumbB={b:tb,m2:tm};
     }
     // piernas
     const zL=d.torsoW*.24*s;this.zL=zL;
@@ -3453,16 +4585,24 @@ class Rig{
       const hold=new THREE.Group();hold.position.z=z;this.pel.add(hold);
       const u=this.bone(hold,d.thigh*s,w*.78,m,.85);
       const l=this.bone(u.end,d.shin*s,w*.62,m,.9);
-      const fg=new THREE.Group();l.end.add(fg);
+      const fg=new THREE.Group();l.end.add(fg);          // tobillo: arriba/abajo
+      const fr=new THREE.Group();fg.add(fr);              // tobillo: giro
       // el pie se orienta solo (rotación 90 fija): lo enderezamos para colocar la bota
-      const ff=new THREE.Group();ff.rotation.z=-Math.PI/2;fg.add(ff);
-      const fm=this.box(d.limbW*2.1,d.limbW*.9,d.limbW*1.1,foot);
-      fm.position.set(d.limbW*.55*s,-d.limbW*.35*s,0);ff.add(fm);
-      return{u:u.g,l:l.g,foot:fg,hold};
+      const ff=new THREE.Group();ff.rotation.z=-Math.PI/2;fr.add(ff);
+      /* PIE EN DOS PIEZAS: TALON fijo al tobillo y PUNTA articulada, para que
+         se despegue al caminar y al patear (como una figura articulada). */
+      const lw=d.limbW;
+      const talon=this.box(lw*1.15,lw*.9,lw*1.1,foot);
+      talon.position.set(lw*.05*s,-lw*.35*s,0);ff.add(talon);
+      ff.add(this.pos(this.ball(lw*.42,foot),lw*.62*s,-lw*.35*s,0));   // rotula del empeine
+      const pj=new THREE.Group();pj.position.set(lw*.62*s,-lw*.35*s,0);ff.add(pj);
+      const punta=this.box(lw*1.0,lw*.78,lw*1.02,foot);
+      punta.position.set(lw*.5*s,0,0);pj.add(punta);
+      return{u:u.g,l:l.g,foot:fg,ank:fr,toe:pj,hold};
     };
     const lF=mkLeg(zL,leg), lB=mkLeg(-zL,legB);
-    this.legUF=lF.u;this.legLF=lF.l;this.footF=lF.foot;this.holdLF=lF.hold;
-    this.legUB=lB.u;this.legLB=lB.l;this.footB=lB.foot;this.holdLB=lB.hold;
+    this.legUF=lF.u;this.legLF=lF.l;this.footF=lF.foot;this.holdLF=lF.hold;this.toeF=lF.toe;this.ankF=lF.ank;
+    this.legUB=lB.u;this.legLB=lB.l;this.footB=lB.foot;this.holdLB=lB.hold;this.toeB=lB.toe;this.ankB=lB.ank;
     if(C.build)try{C.build(this);}catch(err){console.error('build de',C.id,'falló:',err);}
     try{this.initSoles();}catch(err){console.error('suelas:',err);}
     this.joints={pel:this.pel,chest:this.chest,headC:this.headJ,handF:this.handF,handB:this.handB,
@@ -3534,18 +4674,71 @@ class Rig{
     }
     this.head.add(g);return g;
   }
+  /* ===========================================================
+     POSE POR DIRECCIONES (para movimientos capturados)
+     Cada hueso recibe HACIA DONDE apunta (vector unitario en el marco del
+     luchador) y cuanto gira sobre su propio eje. Se orienta con un cuaternion,
+     sin pasar por angulos: no hay bloqueo de eje, ni saltos de 360, ni signos
+     de bisagra. Es lo que da MediaPipe y lo que necesita Three.js.
+     Los huesos apuntan a -Y en reposo.
+     =========================================================== */
+  applyDirs(D){
+    if(!this._qv){this._qv=new THREE.Vector3();this._qd=new THREE.Vector3();
+      this._qq=new THREE.Quaternion();this._qp=new THREE.Quaternion();
+      this._qm=new THREE.Matrix4();this._down=new THREE.Vector3(0,-1,0);}
+    const V=this._qv,Dv=this._qd,Q=this._qq,QP=this._qp,M=this._qm;
+    /* ORDEN JERARQUICO: el padre debe estar colocado antes que el hijo. Si se
+       recorre el objeto tal cual, los brazos se orientan contra un torso que
+       aun no se ha movido y el cuerpo sale retorcido. */
+    const ORDEN=['armUF','armLF','handF','armUB','armLB','handB',
+                 'legUF','legLF','footF','legUB','legLB','footB'];
+    this.root.updateMatrixWorld(true);this.pel.updateMatrixWorld(true);
+    for(const k of ORDEN){
+      const d=D[k];if(!d||d.length<3)continue;
+      const o=this[k];if(!o||!o.parent)continue;
+      Dv.set(d[0],d[1],d[2]);
+      if(Dv.lengthSq()<1e-6)continue;
+      Dv.normalize();
+      /* La direccion viene en el marco DEL LUCHADOR (X adelante, Y arriba,
+         Z a su izquierda). Hay que llevarla primero al mundo con la matriz de
+         la raiz y luego al espacio del padre del hueso. Antes se saltaba el
+         primer paso y todo quedaba girado segun mirase el luchador. */
+      /* Referencia = la PELVIS, no la raiz: el giro del cuerpo vive en
+         pel.rotation.y, y usando la raiz ese giro quedaba anulado al pasar al
+         espacio del padre. Por eso el maniqui no giraba y los miembros no
+         acompañaban al cuerpo. */
+      V.copy(Dv).transformDirection(this.pel.matrixWorld);
+      o.parent.updateMatrixWorld(true);
+      M.copy(o.parent.matrixWorld).invert();
+      V.transformDirection(M).normalize();
+      Q.setFromUnitVectors(this._down,V);
+      if(d[3]){QP.setFromAxisAngle(this._down,d[3]*Math.PI/180);Q.multiply(QP);}
+      o.quaternion.copy(Q);
+      o.updateMatrixWorld(true);
+    }
+  }
   curlHands(){
-    const f=this.fist;
+    const f=this.fist, P=this._pf||{};
+    const man=(g,v,a1,a2)=>{            // v en grados: 0 abierto, 90 cerrado
+      const k=v/90;g.b.rotation.z=a1*k;g.m2.rotation.z=a2*k;};
     for(const fg of this.fingers){
       if(fg.th){fg.b.rotation.z=-.2-f*1.0;fg.m2.rotation.z=-.15-f*.9;}
       else{fg.b.rotation.z=-.12-f*1.35;fg.m2.rotation.z=-.1-f*1.5;}
     }
+    // los valores de la pose tienen prioridad sobre el cierre automatico
+    if(this.fingF&&P.fF!=null)man(this.fingF,P.fF,-1.47,-1.6);
+    if(this.fingB&&P.fB!=null)man(this.fingB,P.fB,-1.47,-1.6);
+    if(this.thumbF&&P.tF!=null)man(this.thumbF,P.tF,-1.2,-1.05);
+    if(this.thumbB&&P.tB!=null)man(this.thumbB,P.tB,-1.2,-1.05);
   }
   sculptTorso(o){
-    const m=new THREE.MeshPhongMaterial({color:o.color,specular:0x000000,shininess:0,
-      flatShading:true,side:THREE.DoubleSide});
+    /* sombreado suave: la malla ya es organica, flatShading la facetaba de mas */
+    const m=new THREE.MeshPhongMaterial({color:o.color,specular:0x1a1512,shininess:6,
+      flatShading:false,side:THREE.DoubleSide});
     this.M.push(m);
-    const mesh=new THREE.Mesh(makeTorsoGeo({upper:o.upper,lower:o.lower,mus:o.mus,waist:o.waist}),m);
+    const geo=makeTorsoGeo({upper:o.upper,lower:o.lower,mus:o.mus,waist:o.waist});
+    geo.computeVertexNormals();
+    const mesh=new THREE.Mesh(geo,m);
     mesh.castShadow=true;
     const sw=(o.wide||1), sh=(o.tall||1);
     mesh.scale.set(this.s*sw,this.s*sh,this.s*sw);
@@ -3553,15 +4746,18 @@ class Rig{
   }
   sculptHead(o){
     const m=new THREE.MeshPhongMaterial({color:o.skin,map:skinTexture(),
-      specular:0x000000,shininess:0,flatShading:true,side:THREE.DoubleSide});
+      specular:0x1a1512,shininess:6,flatShading:true,side:THREE.DoubleSide});
     m.emissive.setHex(0x140a05);m.userData.em=0x140a05;this.M.push(m);
-    const mesh=new THREE.Mesh(makeHeadGeo(o.f),m);mesh.castShadow=true;
+    const hg=makeHeadGeo(o.f);hg.computeVertexNormals();
+    const mesh=new THREE.Mesh(hg,m);mesh.castShadow=true;
     mesh.scale.setScalar(o.r*this.s);this.head.add(mesh);
     const R=o.r, iris=this.mkMat(o.iris!=null?o.iris:0x4a3320),
       pup=this.mkMat(0x140d10), scl=this.mkMat(0xf2efe6), shn=this.mkMat(0xffffff);
-    const th0=.36,ph0=.01;
+    // ph0 sube junto a la ceja/cuencas de makeHeadGeo (mismo dE=.10)
+    const th0=.36,ph0=.11;
+    // .94 debe coincidir con el factor lateral usado en makeHeadGeo (antes .78)
     const ex=Math.cos(th0)*Math.cos(ph0)*.84, ey=Math.sin(ph0)*1.30*.9,
-      ez=Math.sin(th0)*Math.cos(ph0)*.78*.92;
+      ez=Math.sin(th0)*Math.cos(ph0)*.94*.92;
     const skinM=this.skinMat(o.skin);
     for(const sd of[-1,1]){
       const eg=new THREE.Group();
@@ -3581,7 +4777,7 @@ class Rig{
       if(o.brow!==false){
         const br=this.box(R*.1,R*(o.browTh||.11),eR*2.5,this.mkMat(o.brow!=null?o.brow:0x2a2018));
         br.rotation.x=sd*(o.browAng||0);
-        this.head.add(this.pos(br,Math.cos(th0)*R*.96,Math.sin(.16)*1.30*R,sd*Math.sin(th0)*R*.76));
+        this.head.add(this.pos(br,Math.cos(th0)*R*.96,Math.sin(.26)*1.30*R,sd*Math.sin(th0)*R*.76));
       }
       if(o.glasses){
         const gm=this.mkMat(o.glasses.hex!=null?o.glasses.hex:0xdfe3ee);
@@ -3593,6 +4789,77 @@ class Rig{
     }
     if(o.glasses)this.head.add(this.pos(this.box(R*.06,R*.05,ez*R*1.1,
       this.mkMat(o.glasses.hex!=null?o.glasses.hex:0xdfe3ee)),ex*R+R*.15,ey*R,0));
+    return mesh;
+  }
+  /* ===========================================================
+     CABEZA SIMPLE: elipsoide con 3 radios independientes (profundidad,
+     altura, anchura), sin la escultura anatomica de makeHeadGeo. La usa
+     UNICAMENTE el creador de personajes ('real' style via buildReal), no
+     los personajes del roster (que siguen con sculptHead/makeHeadGeo tal
+     cual estaban). Pensada como base ligera y facil de ajustar; para mas
+     detalle, el importador de cabezas .glb sustituye esta forma entera.
+     Las orejas NO se incluyen aqui: buildReal ya llama a R.ears() aparte,
+     igual que hacen los personajes del roster.
+     =========================================================== */
+  sculptHeadSimple(o){
+    const rx=(o.rx||1)*o.r, ry=(o.ry||1)*o.r, rz=(o.rz||1)*o.r;
+    if(!HEADSIMPLE_GEO)HEADSIMPLE_GEO=new THREE.SphereGeometry(1,20,16);
+    const m=new THREE.MeshPhongMaterial({color:o.skin,specular:0x1a1512,shininess:6,
+      flatShading:false,side:THREE.DoubleSide});this.M.push(m);
+    const mesh=new THREE.Mesh(HEADSIMPLE_GEO,m);mesh.castShadow=true;
+    mesh.scale.set(rx*this.s,ry*this.s,rz*this.s);this.head.add(mesh);
+
+    /* Ojos/cejas/gafas: mismo sistema que sculptHead, pero la posicion en la
+       superficie se calcula EXACTA (punto de una esfera unidad escalado por
+       rx/ry/rz), sin los factores de ajuste que necesitaba la cabeza esculpida. */
+    const iris=this.mkMat(o.iris!=null?o.iris:0x4a3320),
+      pup=this.mkMat(0x140d10), scl=this.mkMat(0xf2efe6), shn=this.mkMat(0xffffff);
+    const th0=.36,ph0=.11;
+    const ux=Math.cos(th0)*Math.cos(ph0), uy=Math.sin(ph0), uz=Math.sin(th0)*Math.cos(ph0);
+    const skinM=this.skinMat(o.skin);
+    const eRbase=o.eyeR||rx*.145;
+    for(const sd of[-1,1]){
+      const eg=new THREE.Group();
+      eg.position.set(ux*rx*this.s,uy*ry*this.s,sd*uz*rz*this.s);
+      eg.rotation.y=-sd*.3;this.head.add(eg);
+      const eR=eRbase;
+      const w=this.fball(eR,scl);w.scale.set(.72,.88,1);eg.add(w);
+      const ir=this.fball(eR*.55,iris);ir.scale.set(.5,1,1);ir.position.x=eR*.6*this.s;eg.add(ir);
+      const pu=this.fball(eR*.3,pup);pu.position.x=eR*.76*this.s;eg.add(pu);
+      const hl=this.fball(eR*.12,shn);hl.position.set(eR*.8*this.s,eR*.3*this.s,-sd*eR*.3*this.s);eg.add(hl);
+      const ul=this.fball(eR*1.16,skinM);ul.scale.set(.55,.5,1.15);
+      ul.position.set(-eR*.3*this.s,eR*.66*this.s,0);eg.add(ul);
+      const ll=this.fball(eR*1.06,skinM);ll.scale.set(.5,.36,1.08);
+      ll.position.set(-eR*.28*this.s,-eR*.68*this.s,0);eg.add(ll);
+      if(o.lash){const la=this.box(eR*.5,eR*.34,eR*1.7,this.mkMat(0x241418));
+        la.position.set(eR*.42*this.s,eR*.72*this.s,0);eg.add(la);}
+      if(o.brow!==false){
+        const br=this.box(rx*.1,ry*(o.browTh||.11),eR*2.5,this.mkMat(o.brow!=null?o.brow:0x2a2018));
+        br.rotation.x=sd*(o.browAng||0);
+        const bx=Math.cos(th0)*Math.cos(ph0+.15), by=Math.sin(ph0+.15), bz=Math.sin(th0)*Math.cos(ph0+.15);
+        this.head.add(this.pos(br,bx*rx,by*ry,sd*bz*rz));
+      }
+      if(o.glasses){
+        const gm=this.mkMat(o.glasses.hex!=null?o.glasses.hex:0xdfe3ee);
+        const gr=this.ring(o.glasses.r||rx*.28,rx*.05,gm);gr.rotation.y=Math.PI/2;
+        this.head.add(this.pos(gr,ux*rx+rx*.14,uy*ry,sd*uz*rz));
+        if(o.glasses.lens){const ln=this.fball(o.glasses.r*.8||rx*.2,this.glowMat(o.glasses.lens));
+          ln.scale.set(.22,1,1);this.head.add(this.pos(ln,ux*rx+rx*.12,uy*ry,sd*uz*rz));}
+      }
+    }
+    if(o.glasses)this.head.add(this.pos(this.box(rx*.06,ry*.05,uz*rz*1.1,
+      this.mkMat(o.glasses.hex!=null?o.glasses.hex:0xdfe3ee)),ux*rx+rx*.15,uy*ry,0));
+
+    /* Cabeza importada por .glb: si hay archivo (por personaje o por
+       arquetipo), sustituye este elipsoide al llegar (async); si no, el
+       elipsoide se queda tal cual, sin más. */
+    {const rig=this, headMeshes=[mesh];
+     if(rig.C&&rig.C.headGLBHide)headMeshes.forEach(mm=>{if(mm)mm.visible=false;});
+     headGLBFor(rig.C,scene=>{
+       if(scene)swapHeadGLB(rig,scene,o.skin,headMeshes,
+         (rig.C&&rig.C.headGLBAxis)||'x',(rig.C&&rig.C.headGLBScale)||1,
+         rig.C&&rig.C.headGLBX,rig.C&&rig.C.headGLBY,rig.C&&rig.C.headGLBZ);
+     });}
     return mesh;
   }
   face2(o){
@@ -3697,26 +4964,84 @@ class Rig{
     this.head.rotation.y=(facing===1?-YAW*.8:YAW*.8)+(p.headY||0)*D;
     this.pel.rotation.z=-(p.rot||0)*D;
     this.pel.rotation.y=(p.hip||0)*D;
-    this.pel.position.y=-p.py*this.s;
-    this.torso.rotation.z=R(p.torso);
-    this.torso.rotation.y=(p.twist||0)*D;
-    this.neck.rotation.z=rel(p.torso,p.head);
+    /* Con captura por direcciones, la altura la determinan las PIERNAS y el
+       plantado de pies. Forzar ademas py hundia la cadera (aspecto agachado),
+       impedia que las piernas se estiraran y hacia patinar los pies, porque el
+       plantado compensaba moviendo la raiz. */
+    /* Con captura la cadera vuelve a su altura neutra y la elevacion real se
+       aplica a la RAIZ tras plantar el pie: asi el maniqui pisa el suelo igual
+       que la referencia (antes flotaba) pero los saltos se siguen viendo. */
+    this._capt=p.d?{py:p.py}:null;
+    this.pel.position.y=-(p.d?-92:p.py)*this.s;
+    /* El doblez y la torsion se REPARTEN entre abdomen y pecho: si un golpe
+       antiguo solo define 'torso'/'twist', el cuerpo se curva en dos tramos en
+       vez de quebrarse en uno. 'abdo'/'abdoT' permiten controlarlo aparte. */
+    const abF=(p.abdo!=null)?p.abdo:((p.torso||0)-6)*.42+6;
+    const abT=(p.abdoT!=null)?p.abdoT:(p.twist||0)*.45;
+    this.abdo.rotation.z=R(abF);
+    this.abdo.rotation.y=abT*D;
+    /* FLEXION LATERAL (doblarse hacia un costado): el tronco solo tenia doblez
+       adelante/atras y giro, asi que inclinarse de lado era imposible. */
+    const latT=(p.tside||0), latA=(p.aside!=null)?p.aside:latT*.5;
+    this.abdo.rotation.x=latA*D;
+    this.torso.rotation.z=rel(abF,p.torso);
+    this.torso.rotation.y=((p.twist||0)-abT)*D;
+    this.torso.rotation.x=(latT-latA)*D;
+    this.neck.rotation.z=rel(p.torso,p.head);   // el pecho ya lleva su parte
     this.armUF.rotation.z=rel(p.torso,p.armUF);this.armLF.rotation.z=rel(p.armUF,p.armLF);
     this.armUB.rotation.z=rel(p.torso,p.armUB);this.armLB.rotation.z=rel(p.armUB,p.armLB);
     this.legUF.rotation.z=R(p.legUF);this.legLF.rotation.z=rel(p.legUF,p.legLF);
     this.legUB.rotation.z=R(p.legUB);this.legLB.rotation.z=rel(p.legUB,p.legLB);
     this.footF.rotation.z=(p.legLF-90+(p.footAF||0))*D;
+    /* TOBILLOS: arriba/abajo (footA*) y giro (footR*). PUNTA: arriba/abajo. */
+    if(this.ankF)this.ankF.rotation.y=(p.footRF||0)*D;
+    if(this.ankB)this.ankB.rotation.y=(p.footRB||0)*D;
+    if(this.toeF)this.toeF.rotation.z=-(p.toeF||0)*D;
+    if(this.toeB)this.toeB.rotation.z=-(p.toeB||0)*D;
+    /* MUNECAS: arriba/abajo (wrist*) y giro (wristR*), relativas al antebrazo. */
+    if(this.wristF){this.wristF.rotation.z=(p.wristF||0)*D;this.wristF.rotation.y=(p.wristRF||0)*D;}
+    if(this.wristB){this.wristB.rotation.z=(p.wristB||0)*D;this.wristB.rotation.y=(p.wristRB||0)*D;}
+    /* NUDILLOS y PULGAR: si la pose los define, mandan sobre el cierre de puno. */
+    this._pf={fF:p.fingF,fB:p.fingB,tF:p.thumbF,tB:p.thumbB};
+    this.pxOff=p.px||0;   // avance/retroceso sobre el eje, en px de juego
+    if(p.d)this.applyDirs(p.d);   // capturas: orientacion directa, sin angulos
     this.footB.rotation.z=(p.legLB-90+(p.footAB||0))*D;
     // apertura lateral (valor positivo = se abre hacia fuera en ambos lados)
-    if(this.holdLF){this.holdLF.rotation.x=-(p.legAF||0)*D;this.holdLF.rotation.y=(p.legTF||0)*D;}
-    if(this.holdLB){this.holdLB.rotation.x=(p.legAB||0)*D;this.holdLB.rotation.y=(p.legTB||0)*D;}
-    if(this.holdAF)this.holdAF.rotation.x=-(p.armAF||0)*D;
-    if(this.holdAB)this.holdAB.rotation.x=(p.armAB||0)*D;
+    /* Con captura por direcciones los soportes de hombro y cadera quedan
+       NEUTROS: el hueso ya recibe su orientacion absoluta y, si ademas gira el
+       padre, el miembro se desvia (por eso las manos no llegaban a juntarse). */
+    const dz=!!p.d;
+    if(this.holdLF){this.holdLF.rotation.x=dz?0:-(p.legAF||0)*D;this.holdLF.rotation.y=dz?0:(p.legTF||0)*D;}
+    if(this.holdLB){this.holdLB.rotation.x=dz?0:(p.legAB||0)*D;this.holdLB.rotation.y=dz?0:(p.legTB||0)*D;}
+    if(this.holdAF){this.holdAF.rotation.x=dz?0:-(p.armAF||0)*D;this.holdAF.rotation.y=dz?0:(p.armTF||0)*D;}
+    if(this.holdAB){this.holdAB.rotation.x=dz?0:(p.armAB||0)*D;this.holdAB.rotation.y=dz?0:(p.armTB||0)*D;}
+    /* SUELO ESTABLE: con captura, en vez de dejar el cuerpo suelto (flotaba)
+       se apoya el pie MAS BAJO, conservando la altura relativa que trae py.
+       Asi el maniqui pisa el suelo como la referencia, pero los saltos siguen
+       viendose porque py sube la cadera por encima del apoyo. */
+    if(p.d)plant='both';
     // plantado de pies
     this.root.position.y=0;this.root.updateMatrixWorld(true);
     let dy=0;
     if(plant==='both')dy=-Math.min(this.lowY(this.footF,this.soleF),this.lowY(this.footB,this.soleB));
     else if(plant==='back')dy=-this.lowY(this.footB,this.soleB);
+    /* En captura, py trae la altura REAL de la cadera. Si el cuerpo esta por
+       encima de su altura de reposo es un salto: entonces no se planta el pie
+       (se dejaria el salto en nada) y se respeta la elevacion medida. */
+    if(this._capt){
+      const salto=(-this._capt.py)-92;          // >0 = cadera mas alta que de pie
+      if(salto>4)dy+=salto*this.s;
+      /* Amortiguacion vertical: sin ella el ruido de los landmarks hace que el
+         cuerpo suba y baje un poco cada fotograma y parece que levita. Al
+         aterrizar de un salto se deja pasar sin filtrar para no perder el golpe. */
+      const yObj=groundY+dy;
+      if(this._lastY==null)this._lastY=yObj;
+      const baja=yObj<this._lastY-.02;
+      this._lastY=baja?yObj:this._lastY+(yObj-this._lastY)*.35;
+      this.root.position.y=this._lastY;
+      this.root.updateMatrixWorld(true);
+      return;
+    }
     this.root.position.y=groundY+dy;
     this.root.updateMatrixWorld(true);
   }
@@ -3753,6 +5078,7 @@ class Rig{
   joint(n){const o=this.joints[n];const v=new THREE.Vector3();o.getWorldPosition(v);return v;}
   tick(t){for(const f of this.extras)f(t);}
   dispose(){
+    this._alive=false;
     this.root.traverse(o=>{if(o.geometry&&!(o.geometry.userData&&o.geometry.userData.shared))o.geometry.dispose();});
     for(const m of this.M)m.dispose();
   }
@@ -4269,7 +5595,7 @@ class Fighter{
     this.x=x;this.y=GROUND;this.vx=0;this.vy=0;this.facing=facing;
     this.hp=this.c.hpMax;this.meter=0;this.t=0;
     this.state='idle';this.mv=null;this.mvT=0;this.hitIds=new Set();this.flashT=0;
-    this.mvHit=false;this.mvTier=0;this.cmb=0;this.thEsc=0;
+    this.mvHit=false;this.mvTier=0;this.cmb=0;this.thEsc=0;this.dizzy=0;this.dizN=0;
     this.stun=0;this.blocking=false;this.crouch=false;this.walkPh=0;
     this.dashT=0;this.dashDir=0;this.tapT=0;this.tapDir=0;this.cd=0;
     this.guardWalk=false;
@@ -4367,7 +5693,7 @@ class Fighter{
     return i;
   }
   pick(i){
-    if(this.stun>0)return;const M=this.M;
+    if(this.stun>0||this.dizzy>0)return;const M=this.M;
     // tier minimo encadenable: 0 libre; >0 solo si venimos de cancelar
     let minT=0;
     if(this.mv){const ct=this.cancelTier();if(ct<0)return;minT=ct;}
@@ -4476,6 +5802,19 @@ class Fighter{
       return;
     }
     this.t++;if(this.cd>0)this.cd--;if(this.tapT>0)this.tapT--;
+    /* Si pasa un segundo sin encajar nada, la cuenta de golpes se olvida:
+       han de ser SEGUIDOS para aturdir. */
+    if(this.state!=='hurt'&&this.stun<=0){this.dizT=(this.dizT||0)+1;
+      if(this.dizT>60){this.dizN=0;this.dizT=0;}}
+    else this.dizT=0;
+    if(this.dizzy>0){
+      this.dizzy--;
+      // machacar botones acorta el aturdimiento
+      if(this.ctrl){const i2=this.read();
+        if(i2.punch||i2.kick||i2.spec||i2.sup)this.dizzy-=STUN_ESC;}
+      else if(Math.random()<.02)this.dizzy-=STUN_ESC;
+      if(this.dizzy<=0){this.dizzy=0;this.dizN=0;}
+    }
     if(this.state==='ko'){this.vy+=GRAV;this.y=Math.min(GROUND,this.y+this.vy);
       this.x+=this.vx;this.vx*=.9;this.clamp();this.sync();return;}
     if(this.state==='win'){this.sync();return;}
@@ -4527,6 +5866,7 @@ class Fighter{
     const threat=(this.opp.mv&&Math.abs(this.opp.x-this.x)<170)||ents.some(e=>e.owner!==this&&Math.abs(e.x-this.x)<130);
     const back=-this.facing;
     if(!this.air&&threat&&(mvx===back||(i.down&&(i.left||i.right)&&(i.right?1:-1)===back))){this.blocking=true;mvx=0;}
+    if(this.dizzy>0)mvx=0;   // aturdido: no se puede mover
     this.x+=mvx*this.c.speed*(this.guardWalk?.30:1);
     if(mvx!==0&&!this.air)this.walkPh+=(this.guardWalk?.10:.22)*(mvx===this.facing?1:-.85);
     if(this.strafe)this.strafePh=(this.strafePh||0)+.08*this.strafe;   // ciclo de paso lateral
@@ -4573,6 +5913,15 @@ class Fighter{
     if(this.state==='blockLow')return POSE.blockLow;
     if(this.state==='crouch')return POSE.crouch;
     if(this.air)return this.vy<0?POSE.jump:POSE.fall;
+    if(this.dizzy>0){
+      // tambaleo: cuerpo suelto, brazos colgando y cabeza girando
+      const w=this.t*.09, w2=this.t*.055;
+      return P({py:-84+Math.sin(w2)*3,torso:10+Math.sin(w)*12,head:Math.sin(w*.7)*16,
+        headY:Math.sin(w2*1.3)*20,
+        armUF:172+Math.sin(w)*14,armLF:150+Math.sin(w+1)*16,
+        armUB:186+Math.sin(w+2)*14,armLB:160+Math.sin(w+3)*16,
+        legUF:172+Math.sin(w2)*8,legLF:184,legUB:186-Math.sin(w2)*8,legLB:196});
+    }
     if(this.state==='gstrafe'){
       /* PASO LATERAL (giro alrededor del rival): en artes marciales se avanza
          de lado abriendo un pie y recogiendo el otro, SIN CRUZARLOS NUNCA.
@@ -4618,7 +5967,8 @@ class Fighter{
   }
   sync(){
     this.pose=this.currentPose();
-    {const w=axW((this.x-480)*K);
+    {const off=(this.rig.pxOff||0)*this.facing;      // desplazamiento del golpe
+     const w=axW((this.x-480+off)*K);
      this.rig.root.position.x=w.x;this.rig.root.position.z=w.z;}
     const fTgt=(this.state==='attack'||this.state==='throw')?1:.22;
     this.rig.fist+=(fTgt-this.rig.fist)*.35;this.rig.curlHands();
@@ -4710,6 +6060,15 @@ class Fighter{
     }else{
       const sc=Math.max(.34,1-this.cmb*.13)*(this.guardWalk?.55:1);
       this.hp-=Math.max(1,Math.round(src.dmg*sc));this.cmb++;this.state='hurt';
+      /* ATURDIMIENTO: encajar muchos golpes seguidos deja al luchador grogui.
+         Da una recompensa real a los combos largos, que ahora escalan el dano
+         a la baja, y abre una ventana para castigar. */
+      this.dizN++;
+      if(this.dizN>=STUN_HITS&&this.dizzy<=0&&this.hp>0){
+        this.dizzy=STUN_TIME;this.dizN=0;
+        game.moveName='\u00a1ATURDIDO!';game.moveNameT=90;game.moveOwner=this.opp;
+        game.freeze=Math.max(game.freeze,8);sfx.heavy&&sfx.heavy();
+      }
       this.vx=dir*src.push/this.c.weight;
       if(src.knockdown||this.air)this.vy=-7.5;
       this.stun=Math.max(this.stun,src.hitstun||14);
@@ -4995,7 +6354,8 @@ function startMatch(c1,c2,twoP,stage,lvl){
   newRound();
 }
 function newRound(){
-  axReset();                       // cada round vuelve al eje y posicion iniciales
+  axReset();
+  if(p1){p1.dizzy=0;p1.dizN=0;}if(p2){p2.dizzy=0;p2.dizN=0;}                       // cada round vuelve al eje y posicion iniciales
   p1.reset(W*.3,1);p2.reset(W*.7,-1);
   for(const e of ents)killEnt(e);ents=[];
   game.timer=99;game.tf=0;game.newMove=null;game.newMoveFrom=null;game.mode='intro';game.bt=0;game.banner='';game.moveNameT=0;game.fatality=false;game.fat=null;
@@ -5314,19 +6674,38 @@ function uiKey(k){
   }else if(game.mode==='orgnews'){
     if(k==='j'||conf){sfx.sel();orgProceed();}
   }else if(game.mode==='select'){
-    if(k==='a'||k==='arrowleft'){game.p1c=(game.p1c+ROSTER.length-1)%ROSTER.length;sfx.sel();game.selAnim=SELT;game.selDir=-1;}
-    if(k==='d'||k==='arrowright'){game.p1c=(game.p1c+1)%ROSTER.length;sfx.sel();game.selAnim=SELT;game.selDir=1;}
-    if(game.mode2P&&game.confirmed[0]&&(k===','||k==='.')){game.p2c=(game.p2c+(k==='.'?1:ROSTER.length-1))%ROSTER.length;sfx.sel();game.selAnim=SELT;game.selDir=k==='.'?1:-1;}
+    /* En 2 jugadores, una vez J1 confirma, A/D pasan a mover a J2: antes J1
+       seguia cambiando su personaje ya fijado y la pantalla se quedaba colgada. */
+    const p2t=game.mode2P&&game.confirmed[0];
+    const mover=d=>{
+      if(p2t)game.p2c=(game.p2c+d+ROSTER.length)%ROSTER.length;
+      else    game.p1c=(game.p1c+d+ROSTER.length)%ROSTER.length;
+      sfx.sel();game.selAnim=SELT;game.selDir=d;
+    };
+    if(k==='a'||k==='arrowleft'||k===',')mover(-1);
+    if(k==='d'||k==='arrowright'||k==='.')mover(1);
     if(conf){
-      sfx.sel();const pick=ROSTER[game.p1c];
-      if(game.tourMode)startTournament(pick);
-      else if(game.kingMode)startKing(pick);
+      sfx.sel();
+      if(game.tourMode)startTournament(ROSTER[game.p1c]);
+      else if(game.kingMode)startKing(ROSTER[game.p1c]);
       else if(game.mode2P){
-        if(!game.confirmed[0]){game.confirmed[0]=true;game.p2c=(game.p1c+1)%ROSTER.length;game.selAnim=SELT;game.selDir=1;}
-        else startMatch(pick,ROSTER[game.p2c],true,CHARS[ROSTER[game.p2c]].stage,1);
-      }else{const opp=ROSTER[Math.floor(Math.random()*ROSTER.length)];startMatch(pick,opp,false,CHARS[opp].stage,1);}
+        if(!game.confirmed[0]){
+          /* return: sin esto, la MISMA pulsacion confirmaba a J1 y acto seguido
+             arrancaba el combate, saltandose la eleccion de J2. */
+          game.confirmed[0]=true;
+          if(game.p2c===game.p1c)game.p2c=(game.p1c+1)%ROSTER.length;
+          game.selAnim=SELT;game.selDir=1;return;
+        }
+        const c1=ROSTER[game.p1c],c2=ROSTER[game.p2c];
+        startMatch(c1,c2,true,CHARS[c2].stage,1);
+      }else{const opp=ROSTER[Math.floor(Math.random()*ROSTER.length)];
+        startMatch(ROSTER[game.p1c],opp,false,CHARS[opp].stage,1);}
     }
-    if(k==='escape')game.mode='title';
+    if(k==='escape'){
+      // atras: J2 devuelve el turno a J1 en vez de salir de golpe
+      if(p2t){game.confirmed[0]=false;sfx.sel();}
+      else game.mode='title';
+    }
   }else if(game.mode==='bracket'){ if(conf){sfx.sel();bracketAdvance();} }
   else if(game.mode==='fatalwait'){
     const C=game.winner&&game.winner.ctrl;
@@ -5389,9 +6768,11 @@ function update(){
         const mv=userToMove(twCur);
         const tot=Math.max(mv.startup+mv.active+mv.recover,mv.tr[mv.tr.length-1][0]);
         pose=track(mv.tr,twPlay);plantM=twCur.air?'none':'both';
-        twPlayAcc=(twPlayAcc||0)+(twSlow?0.34:1);
-        while(twPlayAcc>=1){twPlayAcc-=1;twPlay++;}
-        if(twPlay>tot+8){twPlay=twSlow?0:-1;}
+        if(twPlayRun){                       // pausado: se queda en el fotograma
+          twPlayAcc=(twPlayAcc||0)+(twSlow?0.34:1);
+          while(twPlayAcc>=1){twPlayAcc-=1;twPlay++;}
+        }
+        if(twPlay>tot+8){twPlay=(twLoop||twSlow)?0:-1;}   // bucle propio
       }else if(crTab==='taller'&&twCur&&twCur.keys[twKi]){
         pose=P(twCur.keys[twKi].p);plantM=twCur.air?'none':'both';
       }
@@ -5403,7 +6784,7 @@ function update(){
       // las marcas se calculan DESPUES de posar y colocar, con la matriz al dia
       twMarksUpd();twAxisUpd();
     }
-    twSparTick(performance.now());
+    twSparTick(performance.now());refTick();
     return;}
   if(game.mode==='title'){game.idleT++;if(game.idleT>1150)startAttract();}
   if(game.mode==='title'||game.mode==='select'){if(game.selAnim>0)game.selAnim--;showcaseOn(true);return;}
@@ -5780,6 +7161,18 @@ function drawHUD(){
     if(game.camToast>0){game.camToast--;
       const cl={lateral:'LATERAL',cenital:'CENITAL',pov:'PRIMERA PERSONA'}[game.camMode];
       txt('CÁMARA (C): '+cl+'   ·   LÍNEAS DE TUBO (V): '+(game.crtOn?'SÍ':'NO'),W/2,H-96,14,'#8ef0ff');}
+    // aviso de aturdimiento: estrellas y barra que se vacia al machacar botones
+    for(const f of [p1,p2]){
+      if(f&&f.dizzy>0){
+        const sx=(f===p1)?250:710;
+        const pl=Math.floor(performance.now()/110)%2;
+        txt('\u2726 ATURDIDO \u2726',sx,H-150,17,pl?'#fff':'#ffd75a');
+        if(f.ctrl)txt('\u00a1MACHACA LOS BOTONES!',sx,H-134,11,'#c9bde8');
+        const fw=150,fr=f.dizzy/STUN_TIME;
+        hx.fillStyle='rgba(0,0,0,.55)';hx.fillRect(sx-fw/2,H-128,fw,7);
+        hx.fillStyle='#ff9a3e';hx.fillRect(sx-fw/2,H-128,fw*fr,7);
+      }
+    }
     // aviso de escape de agarre (solo al jugador humano agarrado)
     for(const f of [p1,p2]){
       if(f&&f.ctrl&&f.state==='thrown'&&f.thEsc>0){

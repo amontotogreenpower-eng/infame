@@ -1,5 +1,5 @@
 /* INFAME FIGHTING — service worker (PWA offline) */
-const CACHE = 'infame-v56';
+const CACHE = 'infame-v57';
 
 /* Assets a precachear. Se usa allSettled: si alguno falta (p.ej. Intro.mp4
    todavia no subido) la instalacion NO falla. */
@@ -16,6 +16,7 @@ const CORE = [
   './src/start.mp3','./src/round1.mp3','./src/round2.mp3','./src/round3.mp3',
   './src/luchador1.png','./src/luchador2.png','./src/luchador3.png','./src/luchador4.png',
   './src/luchador5.png','./src/luchador6.png','./src/luchador7.png','./src/luchador8.png',
+  './src/head-bruiser.glb','./src/head-zoner.glb','./src/head-rusher.glb','./src/head-grappler.glb',
   'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'
 ];
 

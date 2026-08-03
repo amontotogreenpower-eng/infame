@@ -527,9 +527,9 @@ window.addEventListener('unhandledrejection',function(e){
       <label>Daño <input type="range" id="tw-dmg" min="1" max="30" step="1" value="9"></label>
       <label>Alcance <input type="range" id="tw-r" min="8" max="42" step="1" value="16"></label>
       <label>Empuje <input type="range" id="tw-push" min="0" max="20" step="1" value="5"></label>
-      <label>Inicio <input type="range" id="tw-startup" min="2" max="30" step="1" value="6"></label>
-      <label>Activo <input type="range" id="tw-active" min="2" max="30" step="1" value="6"></label>
-      <label>Recuperación <input type="range" id="tw-recover" min="2" max="40" step="1" value="12"></label>
+      <label>Inicio <input type="number" id="tw-startup" min="1" step="1" value="6"></label>
+      <label>Activo <input type="number" id="tw-active" min="1" step="1" value="6"></label>
+      <label>Recuperación <input type="number" id="tw-recover" min="1" step="1" value="12"></label>
       <label>Miembro que golpea
         <select id="tw-limb"><option value="handF">Puño</option><option value="footF">Pie</option>
         <option value="pel">Cuerpo</option></select></label>
@@ -2382,7 +2382,9 @@ function crBuildMovesUI(){
   el.addEventListener('input',()=>{
     if(twSilent||!twCur)return;
     const v=el.value;
-    twCur[k]=(el.type==='range')?parseFloat(v):v;
+    // antes solo comprobaba type==='range': al pasar estos campos a type=number
+    // para quitarles el tope, se guardaba TEXTO en vez de numero (rompia sumas).
+    twCur[k]=(el.type==='range'||el.type==='number')?parseFloat(v):v;
     if(k==='name'&&(!twCur.badge||twCur.badge===autoBadge(twCur._prevName||'')))
       {twCur.badge=autoBadge(v);CE('tw-badge').value=twCur.badge;}
     twCur._prevName=twCur.name;
@@ -5833,7 +5835,12 @@ class Fighter{
       if(m.vy){const v=m.vy(this.mvT);if(v)this.vy=v;}
       this.vy+=GRAV;this.y+=this.vy;
       if(this.y>GROUND){this.y=GROUND;this.vy=0;}
-      const tot=m.startup+m.active+m.recover;
+      /* Respaldo con la linea de tiempo real (m.tr): antes 'tot' solo sumaba
+         startup+active+recover, y si esos tres campos no cubrian toda la
+         captura (ver bug de los sliders mas abajo), el golpe se cortaba en
+         COMBATE aunque el editor lo reprodujera entero. */
+      const totKey=(m.tr&&m.tr.length)?m.tr[m.tr.length-1][0]:0;
+      const tot=Math.max(m.startup+m.active+m.recover,totKey);
       if(this.mvT>=tot||(m.air&&!this.air&&this.mvT>m.startup+2)){this.mv=null;this.state='idle';}
       else if(this.mvHit&&this.cancelTier()>=0)this.pick(i);   // ventana de cancelación
       this.clamp();this.sync();return;

@@ -5579,16 +5579,29 @@ function buildStages(){
       lleva tapas solidas por defecto, y una tapa arriba haria de techo
       invisible (el mismo bug que tuvo la cornisa del coliseo tiempo atras).
       side:BackSide porque la camara mira la cara INTERIOR del cilindro. */
-   const wallH=20;
+   const wallH=30;   // +50% (antes 20)
    const wallGeo=new THREE.CylinderGeometry(R2,R2,wallH,48,1,true);
    const wallMat=new THREE.MeshBasicMaterial({color:0x0e0e18,side:THREE.BackSide});
    const wallMesh=new THREE.Mesh(wallGeo,wallMat);
    wallMesh.position.y=wallH/2;G.add(wallMesh);
    G.screens=wallMesh;
-   ringLoadWallMedia(wallMesh);   // async, con caida elegante (ver definicion)
+   ringLoadWallMedia(wallMesh,(2*Math.PI*R2)/wallH);   // async, con caida elegante (ver definicion)
+   ringLoadMatImage(lona);   // imagen central de la lona, opcional (ver definicion)
 
    G.visible=false;ringStage=G;scene.add(G);}
   for(const k in stages){stages[k].visible=false;scene.add(stages[k]);}
+}
+/* Encaja una textura en la superficie SIN deformarla: recorta lo que sobra
+   en vez de estirar (igual que "object-fit: cover" en CSS). srcAspect es el
+   ancho/alto de la imagen o video de origen; surfAspect el de la superficie
+   3D (circunferencia/altura para el cilindro, ~1 para la lona del ring). */
+function texCover(tex,srcAspect,surfAspect){
+  tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+  if(srcAspect>surfAspect){                        // la imagen es mas ancha de lo que hace falta
+    const rw=surfAspect/srcAspect;tex.repeat.set(rw,1);tex.offset.set((1-rw)/2,0);
+  }else{                                            // la imagen es mas alta de lo que hace falta
+    const rh=srcAspect/surfAspect;tex.repeat.set(1,rh);tex.offset.set(0,(1-rh)/2);
+  }
 }
 /* Textura del muro cilindrico exterior: intenta VIDEO primero, si no existe
    cae a IMAGEN, si tampoco existe se queda el panel oscuro por defecto. Los
@@ -5597,12 +5610,16 @@ function buildStages(){
    side:BackSide es obligatorio en los TRES materiales: la camara mira la
    cara interior del cilindro, y sin esto el muro se volveria invisible en
    cuanto cargara el video o la imagen (el material por defecto solo se ve
-   desde fuera). */
-function ringLoadWallMedia(wallMesh){
+   desde fuera).
+   surfAspect se calcula con la circunferencia real del muro, asi que
+   cualquier imagen o video (sea cual sea su proporcion) rellena la
+   superficie entera sin estirarse: se recorta lo que sobre. */
+function ringLoadWallMedia(wallMesh,surfAspect){
   const vid=document.createElement('video');
   vid.src='src/ring-video.mp4';vid.loop=true;vid.muted=true;vid.playsInline=true;
   vid.oncanplay=()=>{
     const tex=new THREE.VideoTexture(vid);tex.colorSpace=THREE.SRGBColorSpace||undefined;
+    texCover(tex,(vid.videoWidth||surfAspect)/(vid.videoHeight||1),surfAspect);
     wallMesh.material=new THREE.MeshBasicMaterial({map:tex,side:THREE.BackSide});
     vid.play().catch(()=>{});
   };
@@ -5610,11 +5627,27 @@ function ringLoadWallMedia(wallMesh){
     const img=new Image();
     img.onload=()=>{
       const tex=new THREE.Texture(img);tex.needsUpdate=true;
+      texCover(tex,(img.naturalWidth||surfAspect)/(img.naturalHeight||1),surfAspect);
       wallMesh.material=new THREE.MeshBasicMaterial({map:tex,side:THREE.BackSide});
     };
     img.onerror=()=>{};              // sin video ni imagen: se queda el panel oscuro
     img.src='src/ring-image.jpg';
   };
+}
+/* Imagen central de la lona (el "logo" del centro del ring, como en un
+   evento real). Solo imagen (no video, para no distraer del combate que
+   ocurre encima). Si no existe el archivo, se queda el color liso de
+   siempre: no rompe nada. surfAspect=1 porque la lona es practicamente
+   circular/octogonal, un cuadrado es la aproximacion mas razonable. */
+function ringLoadMatImage(lona){
+  const img=new Image();
+  img.onload=()=>{
+    const tex=new THREE.Texture(img);tex.needsUpdate=true;
+    texCover(tex,(img.naturalWidth||1)/(img.naturalHeight||1),1);
+    lona.material=new THREE.MeshLambertMaterial({map:tex});
+  };
+  img.onerror=()=>{};   // sin archivo: se queda el color liso ya puesto
+  img.src='src/ring-mat.jpg';
 }
 let arenaOn=false;                      // true = manda un escenario de combate fijo, pase lo que pase
 let combatArena='coliseo';              // 'coliseo' o 'ring' — preferencia elegida en CONFIGURACION

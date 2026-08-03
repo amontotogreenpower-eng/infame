@@ -1,0 +1,54 @@
+[
+ {
+  "name": "DESTELLO",
+  "type": "other",
+  "badge": "DZ",
+  "dmg": 12,
+  "r": 22,
+  "push": 14,
+  "startup": 10,
+  "active": 6,
+  "recover": 18,
+  "limb": "handF",
+  "guard": "mid",
+  "hitstun": 20,
+  "knockdown": false,
+  "air": false,
+  "plant": "both",
+  "slotKind": "special",
+  "keys": [
+   {
+    "t": 0,
+    "p": {
+     "torso": -8,
+     "armUF": 172,
+     "armLF": 16,
+     "armUB": 190,
+     "armLB": 120
+    }
+   },
+   {
+    "t": 10,
+    "p": {
+     "torso": 14,
+     "armUF": 96,
+     "armLF": 92,
+     "armUB": 100,
+     "armLB": 94
+    }
+   },
+   {
+    "t": 18,
+    "p": {
+     "torso": 6,
+     "armUF": 110,
+     "armLF": 100
+    }
+   },
+   {
+    "t": 30,
+    "p": {}
+   }
+  ]
+ }
+]

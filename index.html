@@ -1347,6 +1347,11 @@ const INARENA=m=>(INFIGHT(m)||m==='matchend'||m==='fatalwait'||m==='fatality');
 const ARENA_R=40;
 const ARENA_PX=ARENA_R/K;          // mismo radio en las 'x' logicas del juego
 const ARENA_LIM=ARENA_R+1.4;       // hasta donde se puede pisar (junto a la muralla)
+/* RING OCTOGONAL: escenario alternativo con limite de movimiento octogonal
+   de verdad (no solo visual). RING_APOTHEM = distancia del centro a la mitad
+   de cada lado (cara a cara); en los vertices el alcance es RING_APOTHEM/cos(22.5°). */
+const RING_APOTHEM=24;
+let COMBAT_SHAPE='circle';    // 'circle' (coliseo) u 'octagon' (ring), segun el escenario activo
 const CANCEL_W=8;   // frames extra tras los activos para cancelar
 const THROW_ESC=11;    // ventana (frames) para zafarse de un agarre
 const STUN_HITS=5;     // golpes seguidos que provocan aturdimiento
@@ -3977,10 +3982,18 @@ function orgChampion(ch){
   game.mode='champion';game.bt=0;
   showcaseOn(true);makeConfetti();confetti.visible=true;
 }
+/* Compartida entre el dibujo y el manejo de teclas del menu de CONFIGURACION,
+   para que nunca puedan desincronizarse (el indice game.gsel debe apuntar
+   siempre a la misma entrada en los dos sitios). */
+function cfgMenuItems(){
+  return['ORGANIZADOR DE TORNEOS',
+    'ESCENARIO: '+(combatArena==='ring'?'RING OCTOGONAL':'COLISEO'),
+    'CONTROLES','VOLVER'];
+}
 function drawConfigMenu(){
   hx.fillStyle='rgba(6,5,14,.55)';hx.fillRect(0,0,W,H);
   txt('CONFIGURACIÓN',W/2,120,36,'#ffd75a');
-  const CM=['ORGANIZADOR DE TORNEOS','CONTROLES','VOLVER'];
+  const CM=cfgMenuItems();
   CM.forEach((m,i)=>{const on=i===game.gsel;
     txt((on?'▸ ':'')+m,W/2,200+i*34,on?23:18,on?'#ffd75a':'#c9bde8');});
   txt('W/S elegir · J confirmar · K volver',W/2,200+CM.length*34+18,12,'#9a8cc0');
@@ -5091,7 +5104,7 @@ const w2px=v=>({x:v.x/K+480,y:GROUND-v.y/K});
 /* ===========================================================
    ESCENARIOS 3D
    =========================================================== */
-const stages={};let tatami=null;
+const stages={};let tatami=null,ringStage=null;   // 'ringStage', no 'ring': el escenario ufo ya usa 'ring' como nombre local
 function tileTex(){
   const c=document.createElement('canvas');c.width=c.height=128;
   const x=c.getContext('2d');
@@ -5500,19 +5513,132 @@ function buildStages(){
    const skyM=new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.BackSide,fog:false});
    const sky=new THREE.Mesh(skyG,skyM);sky.position.y=-4;G.add(sky);
    G.visible=false;tatami=G;scene.add(G);}
+  /* ===== RING OCTOGONAL =====
+     Escenario alternativo (se elige en CONFIGURACION). El limite de
+     movimiento real es el octogono verificado en Fighter.octaBounds(); esta
+     geometria usa el MISMO radio (RING_APOTHEM) y la MISMA orientacion
+     (cara, no vertice, mirando a +X) para que lo que se ve coincida con
+     hasta donde de verdad se puede pisar. */
+  {const R=RING_APOTHEM, ROT=-Math.PI/8;   // -22.5°: alinea una CARA con +X, no un vertice
+   const G=new THREE.Group();
+   const cLona=0x1a3a6e,cMetal=0x3a3a44,cSuelo=0x14141c,cApron=0x0a0a12;
+
+   // PLATAFORMA elevada 1m: lona octogonal + borde metalico
+   const lona=new THREE.Mesh(new THREE.CylinderGeometry(R,R,1,8),new THREE.MeshLambertMaterial({color:cLona}));
+   lona.rotation.y=ROT;lona.position.y=.5;lona.receiveShadow=true;G.add(lona);
+   const borde=new THREE.Mesh(new THREE.CylinderGeometry(R+.15,R+.15,.18,8,1,true),
+     new THREE.MeshBasicMaterial({color:cMetal,side:THREE.DoubleSide}));
+   borde.rotation.y=ROT;borde.position.y=1.05;G.add(borde);
+   // patas/soporte (8, una por vertice) hasta el suelo
+   for(let k=0;k<8;k++){const a=k*Math.PI/4+ROT+Math.PI/8;
+     const leg=new THREE.Mesh(new THREE.CylinderGeometry(.18,.18,1,6),new THREE.MeshBasicMaterial({color:cMetal}));
+     leg.position.set(Math.cos(a)*R*.94,.5,Math.sin(a)*R*.94);G.add(leg);}
+
+   // ALAMBRADA: 8 paneles verticales en el borde de la plataforma, textura de
+   // rejilla generada por canvas (sin depender de ningun archivo externo).
+   const fenceCv=document.createElement('canvas');fenceCv.width=fenceCv.height=128;
+   {const fx=fenceCv.getContext('2d');fx.clearRect(0,0,128,128);
+    fx.strokeStyle='rgba(210,215,225,.85)';fx.lineWidth=2;
+    for(let i=-2;i<10;i++){
+      fx.beginPath();fx.moveTo(i*16,0);fx.lineTo(i*16+128,128);fx.stroke();
+      fx.beginPath();fx.moveTo(i*16,128);fx.lineTo(i*16+128,0);fx.stroke();}}
+   const fenceTex=new THREE.CanvasTexture(fenceCv);
+   fenceTex.wrapS=fenceTex.wrapT=THREE.RepeatWrapping;fenceTex.repeat.set(3,1);
+   const fenceM=new THREE.MeshBasicMaterial({map:fenceTex,color:0xc8ccd8,transparent:true,
+     opacity:.8,side:THREE.DoubleSide,depthWrite:false});
+   const faceW=2*R*Math.tan(Math.PI/8), fenceH=2.3;
+   for(let k=0;k<8;k++){const a=k*Math.PI/4;
+     const panel=new THREE.Mesh(new THREE.PlaneGeometry(faceW*.98,fenceH),fenceM);
+     panel.position.set(Math.cos(a)*R,1+fenceH/2,Math.sin(a)*R);
+     panel.rotation.y=-a+Math.PI/2;G.add(panel);}
+   // postes metalicos en cada vertice de la alambrada
+   for(let k=0;k<8;k++){const a=k*Math.PI/4+ROT+Math.PI/8;
+     const post=new THREE.Mesh(new THREE.CylinderGeometry(.09,.09,fenceH+.3,6),
+       new THREE.MeshBasicMaterial({color:cMetal}));
+     post.position.set(Math.cos(a)*R,1+fenceH/2,Math.sin(a)*R);G.add(post);}
+
+   // FRANJA / APRON: suelo octogonal grande al nivel del suelo, bajo y
+   // alrededor de la plataforma elevada (la diferencia de altura ya da el
+   // efecto de "franja" al pie del ring).
+   const R2=R*3;                          // muro exterior, "de gran tamaño"
+   const apron=new THREE.Mesh(new THREE.CylinderGeometry(R2,R2,.4,8),
+     new THREE.MeshLambertMaterial({color:cApron}));
+   apron.rotation.y=ROT;apron.position.y=-.2;apron.receiveShadow=true;G.add(apron);
+   // anillo de luz tenue marcando el borde de la plataforma sobre el apron
+   const marca=new THREE.Mesh(new THREE.RingGeometry(R+.4,R+.7,8),
+     new THREE.MeshBasicMaterial({color:0x8ec8ff,side:THREE.DoubleSide,transparent:true,opacity:.5}));
+   marca.rotation.x=-Math.PI/2;marca.rotation.y=ROT;marca.position.y=.02;G.add(marca);
+
+   // MURO EXTERIOR: 8 pantallas grandes orientadas hacia el ring, con video o
+   // imagen si el usuario las sube a src/, o un panel oscuro si no hay nada.
+   const wallH=20, wallW=2*R2*Math.tan(Math.PI/8);
+   const fallbackM=new THREE.MeshBasicMaterial({color:0x0e0e18});
+   const screens=[];
+   for(let k=0;k<8;k++){const a=k*Math.PI/4;
+     const m=fallbackM.clone();
+     const wall=new THREE.Mesh(new THREE.PlaneGeometry(wallW*.99,wallH),m);
+     wall.position.set(Math.cos(a)*R2,wallH/2,Math.sin(a)*R2);
+     wall.rotation.y=-a+Math.PI/2;wall.rotation.y+=Math.PI;   // normal hacia dentro
+     G.add(wall);screens.push(wall);}
+   G.screens=screens;
+   ringLoadWallMedia(screens);   // async, con caida elegante (ver definicion)
+
+   G.visible=false;ringStage=G;scene.add(G);}
   for(const k in stages){stages[k].visible=false;scene.add(stages[k]);}
 }
-let arenaOn=false;                      // true = manda el coliseo, pase lo que pase
-function tatamiOn(v){arenaOn=!!v;if(tatami)tatami.visible=!!v;}
+/* Textura de las pantallas del muro exterior: intenta VIDEO primero, si no
+   existe cae a IMAGEN, si tampoco existe se queda el panel oscuro por
+   defecto. Los tres casos son validos, ninguno rompe nada si falta el
+   archivo (mismo patron que Intro.mp4 o las cabezas .glb). */
+function ringLoadWallMedia(screens){
+  const vid=document.createElement('video');
+  vid.src='src/ring-video.mp4';vid.loop=true;vid.muted=true;vid.playsInline=true;
+  vid.oncanplay=()=>{
+    const tex=new THREE.VideoTexture(vid);tex.colorSpace=THREE.SRGBColorSpace||undefined;
+    const m=new THREE.MeshBasicMaterial({map:tex});
+    screens.forEach(s=>s.material=m);
+    vid.play().catch(()=>{});
+  };
+  vid.onerror=()=>{
+    const img=new Image();
+    img.onload=()=>{
+      const tex=new THREE.Texture(img);tex.needsUpdate=true;
+      const m=new THREE.MeshBasicMaterial({map:tex});
+      screens.forEach(s=>s.material=m);
+    };
+    img.onerror=()=>{};              // sin video ni imagen: se queda el panel oscuro
+    img.src='src/ring-image.jpg';
+  };
+}
+let arenaOn=false;                      // true = manda un escenario de combate fijo, pase lo que pase
+let combatArena='coliseo';              // 'coliseo' o 'ring' — preferencia elegida en CONFIGURACION
+function tatamiOn(v){
+  arenaOn=!!v;
+  const showColiseo=arenaOn&&combatArena==='coliseo';
+  const showRing=arenaOn&&combatArena==='ring';
+  if(tatami)tatami.visible=showColiseo;
+  if(typeof ringStage!=='undefined'&&ringStage)ringStage.visible=showRing;
+  COMBAT_SHAPE=(arenaOn&&combatArena==='ring')?'octagon':'circle';
+}
 function setStage(k){
-  if(arenaOn||INARENA(game.mode)){   // en combate solo se ve el coliseo
+  if(arenaOn||INARENA(game.mode)){   // en combate solo se ve el escenario fijo elegido
     for(const s in stages)stages[s].visible=false;
-    scene.fog=new THREE.Fog(0x8fc4f0,260,900);
-    scene.background=new THREE.Color(0x5aa9e6);   // cielo azul abierto
-    rim.color.setHex(0xffe9c0);
+    if(combatArena==='ring'){
+      // interior de recinto: mas oscuro, ambiente de evento con focos
+      scene.fog=new THREE.Fog(0x0c0c14,90,340);
+      scene.background=new THREE.Color(0x05050a);
+      rim.color.setHex(0x9fc8ff);
+      if(ringStage)ringStage.visible=true;
+      if(tatami)tatami.visible=false;
+    }else{
+      scene.fog=new THREE.Fog(0x8fc4f0,260,900);
+      scene.background=new THREE.Color(0x5aa9e6);   // cielo azul abierto
+      rim.color.setHex(0xffe9c0);
+      if(tatami)tatami.visible=true;
+      if(ringStage)ringStage.visible=false;
+    }
     if(typeof TILEFLOOR!=='undefined'&&TILEFLOOR)TILEFLOOR.visible=false;
     if(typeof motes!=='undefined'&&motes)motes.visible=false;
-    if(tatami)tatami.visible=true;
     return;
   }
   if(typeof motes!=='undefined'&&motes)motes.visible=true;
@@ -5895,10 +6021,35 @@ class Fighter{
     }
     this.clamp();this.sync();
   }
+  /* Interseccion del eje con un OCTOGONO REGULAR centrado en el origen, con
+     RING_APOTHEM de cara a cara. El octogono es la interseccion de 8
+     semiplanos (uno por lado); se resuelve el rango de 'a' (parametro a lo
+     largo del eje) que cumple los 8 a la vez, igual que la circunferencia
+     resuelve una ecuacion cuadratica pero aqui son 8 rectas.
+     Verificado numericamente: simetria de 8, radio oscila entre RING_APOTHEM
+     (cara) y RING_APOTHEM/cos(22.5°) (vertice), puntos extremos exactos. */
+  octaBounds(){
+    const R=RING_APOTHEM, cx=AX.cx, cz=AX.cz, dx=axCos(), dz=axSin();
+    let aMin=-1e9, aMax=1e9;
+    for(let k=0;k<8;k++){
+      const th=k*Math.PI/4, nx=Math.cos(th), nz=Math.sin(th);
+      const denom=dx*nx+dz*nz, rhs=R-(cx*nx+cz*nz);
+      if(denom>1e-9)aMax=Math.min(aMax,rhs/denom);
+      else if(denom<-1e-9)aMin=Math.max(aMin,rhs/denom);
+    }
+    return[aMin,aMax];
+  }
   clamp(){
-    /* El limite es un CIRCULO en el mundo, no un tramo del eje: como el origen
+    /* El limite es una figura en el mundo, no un tramo del eje: como el origen
        del eje se desplaza al girar, limitar solo 'x' dejaba huecos y permitia
-       salirse por un lado. Se resuelve donde la recta del eje corta el circulo. */
+       salirse por un lado. Se resuelve donde la recta del eje corta la figura
+       (circulo para el coliseo, octogono de verdad para el ring). */
+    if(COMBAT_SHAPE==='octagon'){
+      const[aMin,aMax]=this.octaBounds();
+      if(aMin>aMax){this.x=480;return;}
+      const ax=clamp((this.x-480)*K,aMin,aMax);
+      this.x=480+ax/K;return;
+    }
     const R=ARENA_LIM;
     const cx=AX.cx, cz=AX.cz, dx=axCos(), dz=axSin();
     const b2=cx*dx+cz*dz, c2=cx*cx+cz*cz-R*R;
@@ -6630,7 +6781,7 @@ function uiKey(k){
       else if(C==='PERSONAJES DISPONIBLES')openBrowser('char');
       else openBrowser('keys');}
   }else if(game.mode==='config'){
-    const CM=['ORGANIZADOR DE TORNEOS','CONTROLES','VOLVER'];
+    const CM=cfgMenuItems();
     if(k==='w'||k==='arrowup'){game.gsel=(game.gsel+CM.length-1)%CM.length;sfx.sel();}
     if(k==='s'||k==='arrowdown'){game.gsel=(game.gsel+1)%CM.length;sfx.sel();}
     if(k==='k'||k==='escape'){game.mode='title';sfx.sel();return;}
@@ -6638,6 +6789,11 @@ function uiKey(k){
       const C=CM[game.gsel];
       if(C==='VOLVER')game.mode='title';
       else if(C==='ORGANIZADOR DE TORNEOS')orgOpen();
+      else if(C.indexOf('ESCENARIO')===0){
+        // alterna coliseo/ring sin salir del menu, para poder ver el cambio de etiqueta
+        combatArena=(combatArena==='ring')?'coliseo':'ring';
+        if(arenaOn)tatamiOn(true);   // si hay un combate en curso, refleja el cambio ya
+      }
       else {game.mode='controls';game.cfsel=0;game.cfcap=false;}}
   }else if(game.mode==='controls'){
     if(game.cfcap){

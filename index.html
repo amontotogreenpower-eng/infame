@@ -5588,8 +5588,36 @@ function buildStages(){
    ringLoadWallMedia(wallMesh,(2*Math.PI*R2)/wallH);   // async, con caida elegante (ver definicion)
    ringLoadMatImage(lona);   // imagen central de la lona, opcional (ver definicion)
 
-   G.visible=false;ringStage=G;scene.add(G);}
+   G.visible=false;ringStage=G;scene.add(G);
+   loadRingModelGLB(G);   // async, con caida elegante: si no hay .glb, se queda el ring procedural
+   }
   for(const k in stages){stages[k].visible=false;scene.add(stages[k]);}
+}
+/* Escenario del ring importado de .glb (opcional). A diferencia de la
+   cabeza, el ring es un objeto RIGIDO sin huesos: no hace falta calibrar
+   ninguna jerarquia, solo colgarlo del grupo del ring y ajustar escala si
+   hace falta. El ring PROCEDURAL (lona, alambrada, muro) se construye
+   SIEMPRE primero -> el juego nunca espera a la red. Si el .glb llega, se
+   ocultan las piezas procedurales y se cuelga el modelo importado; si no
+   existe o falla, no pasa nada, el ring procedural se queda tal cual.
+   El modelo debe construirse centrado en el origen, con el suelo del
+   cuadrilatero en Y=RING_FLOOR_Y (1 unidad) y radio ~RING_APOTHEM, para
+   coincidir con el limite de movimiento real (que no cambia: sigue siendo
+   el octogono de RING_APOTHEM, sea cual sea el aspecto visual). */
+const RING_GLB_SCALE=1;   // ajuste unico si las proporciones del modelo no encajan
+function loadRingModelGLB(G){
+  loadGLTFLoader().then(GLTFLoader=>{
+    new GLTFLoader().load('src/ring-model.glb',
+      gltf=>{
+        const scene2=gltf.scene;
+        scene2.traverse(o=>{if(o.isMesh)o.castShadow=o.receiveShadow=true;});
+        scene2.scale.setScalar(RING_GLB_SCALE);
+        G.children.forEach(c=>{c.visible=false;});   // se ocultan lona/alambrada/muro/etc procedurales
+        G.add(scene2);
+      },
+      undefined,
+      ()=>{});   // sin archivo o error: se queda el ring procedural, sin avisos
+  }).catch(()=>{});
 }
 /* Encaja una textura en la superficie SIN deformarla: recorta lo que sobra
    en vez de estirar (igual que "object-fit: cover" en CSS). srcAspect es el

@@ -14,8 +14,14 @@ window.__fatal=function(m){try{
   d.textContent='⚠ ERROR: '+m+'\n(Copia este texto y pásamelo para arreglarlo)';
 }catch(_){}};
 /* Recursos OPCIONALES: si faltan, el juego funciona igual (retratos
-   procedurales / sin intro). No deben disparar el aviso de error. */
-window.__optRes=/(?:src\/Intro\.mp4|src\/luchador\d+[^\/]*\.png|src\/start\.mp3|src\/round\d\.mp3)$/i;
+   procedurales / sin intro / cabeza-ring procedural / sin bloom). No deben
+   disparar el aviso de error. Cubre tanto archivos locales (src/...) como
+   los scripts de mejora que se cargan bajo demanda desde CDN (GLTFLoader,
+   el post-procesado de bloom): si esos fallan por red, el propio codigo que
+   los usa ya cae con gracia por dentro, y este filtro evita que ADEMAS
+   salte el aviso bloqueante. NO cubre three.min.js: si esa falla, el juego
+   no puede arrancar de verdad y el aviso debe seguir apareciendo. */
+window.__optRes=/(?:src\/Intro\.mp4|src\/luchador\d+[^\/]*\.png|src\/start\.mp3|src\/round\d\.mp3|src\/head-[\w-]+\.glb|src\/ring-[\w-]+\.(?:glb|mp4|jpg)|examples\/js\/loaders\/GLTFLoader\.js|examples\/js\/(?:shaders|postprocessing)\/[\w]+\.js)$/i;
 window.addEventListener('error',function(e){
   if(e&&e.target&&e.target!==window&&e.target.tagName){
     var u=e.target.src||e.target.href||'';
@@ -36,7 +42,9 @@ window.addEventListener('unhandledrejection',function(e){
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link rel="apple-touch-icon" href="icon-192.png">
 <style>
-  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;
+    -webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+  input,textarea,select{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
   html,body{height:100%;background:#05040a;overflow:hidden;font-family:"Courier New",monospace;
     touch-action:none;overscroll-behavior:none}
   #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
@@ -82,7 +90,7 @@ window.addEventListener('unhandledrejection',function(e){
   .cr-tab{background:#1a1430;color:#9a8cc0;border:1px solid rgba(255,255,255,.15);
     border-radius:5px;padding:5px 8px;cursor:pointer;font:bold 10px "Courier New"}
   .cr-tab.on{background:#ffd75a;color:#1a1024;border-color:#ffd75a}
-  #creator.taller-only .cr-tab[data-pane="id"],#creator.taller-only .cr-tab[data-pane="look"],#creator.taller-only .cr-tab[data-pane="phys"],#creator.taller-only .cr-tab[data-pane="mv"]{display:none}
+  #creator.taller-only .cr-tab[data-pane="id"],#creator.taller-only .cr-tab[data-pane="look"],#creator.taller-only .cr-tab[data-pane="phys"],#creator.taller-only .cr-tab[data-pane="mv"],#creator.taller-only .cr-tab[data-pane="glb"]{display:none}
   #creator.taller-only .cr-foot{display:none}
   #introVid{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;background:#000;z-index:40;display:none}
   #introSkip{position:fixed;right:14px;bottom:12px;z-index:41;color:#fff;font:bold 12px system-ui,sans-serif;background:rgba(0,0,0,.45);padding:6px 10px;border-radius:8px;display:none;pointer-events:none}
@@ -92,7 +100,7 @@ window.addEventListener('unhandledrejection',function(e){
   .br-head b{color:#ffd75a;font-size:16px;letter-spacing:.5px}
   #br-close{margin-left:auto;color:#ff8c6a;cursor:pointer;font-weight:bold;font-size:12px}
   #br-msg{color:#c9bde8;font-size:12px;min-height:16px;margin-bottom:6px}
-  #br-list{flex:1;overflow:auto;display:flex;flex-direction:column;gap:8px}
+  #br-list{flex:1;overflow:auto;touch-action:pan-y;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:8px}
   .br-item{background:rgba(20,16,40,.7);border:1px solid rgba(255,215,90,.25);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:10px}
   .br-item .bi-info{flex:1;min-width:0}
   .br-item .bi-name{color:#ffd75a;font-weight:bold;font-size:14px}
@@ -100,7 +108,7 @@ window.addEventListener('unhandledrejection',function(e){
   .br-item button{background:#2a2140;color:#e8e2ff;border:1px solid #5a4b84;border-radius:7px;padding:8px 10px;font-size:12px;font-weight:bold;cursor:pointer;white-space:nowrap}
   .br-item button.bi-imp{background:#ffd75a;color:#1a1024;border-color:#ffd75a}
   #cr-close{color:#ff8c6a;cursor:pointer;font-weight:bold;font-size:11px}
-  .cr-panes{flex:1;overflow:auto}
+  .cr-panes{flex:1;overflow:auto;touch-action:pan-y;-webkit-overflow-scrolling:touch}
   .cr-pane{display:none;flex-direction:column;gap:6px}
   .cr-pane.on{display:flex}
   .cr-sec{color:#ffd75a;font-weight:bold;margin-top:6px;border-bottom:1px solid rgba(255,215,90,.25);
@@ -121,8 +129,9 @@ window.addEventListener('unhandledrejection',function(e){
   .tw-navart button{flex:1}
   /* --- MOVIL: objetivos tactiles mas grandes en el creador/taller --- */
   @media (pointer:coarse),(max-width:860px){
+    #creator{width:min(400px,48vw)}
     #creator label{font-size:13px;gap:4px}
-    #creator input[type=text],#creator input:not([type]),#creator select,#creator textarea{
+    #creator input[type=text],#creator input[type=number],#creator input:not([type]),#creator select,#creator textarea{
       font-size:16px;padding:9px 8px;min-height:42px}
     #creator input[type=range]{height:34px}
     #creator input[type=color]{width:52px;height:38px}
@@ -205,7 +214,7 @@ window.addEventListener('unhandledrejection',function(e){
   #organizer button{background:#241a3a;color:#e8e2ff;border:1px solid rgba(255,215,90,.4);
     border-radius:6px;padding:7px 11px;cursor:pointer;font:bold 11px "Courier New"}
   #organizer button:hover{background:#33285a}
-  #org-list{flex:1;overflow:auto;display:flex;flex-direction:column;gap:3px;margin:2px 0;
+  #org-list{flex:1;overflow:auto;touch-action:pan-y;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:3px;margin:2px 0;
     border:1px solid rgba(255,255,255,.12);padding:4px;border-radius:6px}
   .org-row{display:flex;align-items:center;gap:8px;font-size:12px}
   .org-row .nm{flex:1}
@@ -267,6 +276,7 @@ window.addEventListener('unhandledrejection',function(e){
       <button class="cr-tab" data-pane="phys">3· FÍSICO</button>
       <button class="cr-tab" data-pane="mv">4· GOLPES</button>
       <button class="cr-tab" data-pane="taller">5· TALLER</button>
+      <button class="cr-tab" data-pane="glb">6· MODELO GLB</button>
     </div>
     <span id="cr-build" style="margin-left:auto;color:#8ef0ff;font-size:10px"></span>
     <span id="cr-close">✕ VOLVER</span></div>
@@ -307,7 +317,10 @@ window.addEventListener('unhandledrejection',function(e){
         <select id="cr-style">
           <option value="lego">Bloques (LEGO)</option>
           <option value="real">Realista (esculpido)</option>
+          <option value="glb">Modelo GLB importado</option>
         </select></label>
+      <div id="cr-glbhint" class="cr-note" style="display:none">Estilo GLB activo: el cuerpo se
+        sustituye por el modelo importado. Elige el archivo en la pestaña <b>6· MODELO GLB</b>.</div>
       <label>Cabeza importada (solo estilo Realista)
         <button id="cr-headglb" class="cr-b" type="button">🗿 IMPORTAR CABEZA (.glb)</button></label>
       <label>Eje del modelo que debe mirar al frente
@@ -515,6 +528,15 @@ window.addEventListener('unhandledrejection',function(e){
         <button id="tw-importbtn">IMPORTAR .json</button>
         <input type="file" id="tw-importfile" accept="application/json" style="display:none">
       </div>
+      <div class="cr-sec">CUERPO IMPORTADO POR PIEZAS (avanzado)</div>
+      <div class="cr-note">Alternativa antigua: trocea el GLB en piezas rígidas y las cuelga del
+        esqueleto. Requiere calibrar con calibrador_v3.html. Útil solo para armaduras rígidas.</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <button id="tw-bodyimportbtn">IMPORTAR .json</button>
+        <input type="file" id="tw-bodyimportfile" accept="application/json" style="display:none">
+        <button id="tw-bodyremove">QUITAR cuerpo importado</button>
+      </div>
+      <div id="tw-bodyimport-status" class="cr-note"></div>
       <label>Nombre <input id="tw-name" maxlength="22"></label>
       <label>Tipo (color de medalla)
         <select id="tw-type">
@@ -587,6 +609,54 @@ window.addEventListener('unhandledrejection',function(e){
         <input type="text" id="tw-jfil" placeholder="buscar: muñeca, tobillo, dedo…">
       </div>
       <div id="tw-joints"></div>
+    </div>
+    <div class="cr-pane" data-pane="glb">
+      <div class="cr-sec">MODELO GLB DEL PERSONAJE</div>
+      <div class="cr-note">Sube un GLB humanoide con esqueleto (Mixamo, VRM, ReadyPlayerMe…) y el
+        personaje que estás creando pasa a usar ese cuerpo: se deforma de verdad siguiendo la
+        animación del juego. Los huesos se emparejan solos por su nombre, no hay que calibrar nada.</div>
+      <div id="cr-glb-off" class="cr-note" style="color:#ffcf7f">Para que se aplique, pon
+        <b>Estilo del personaje = Modelo GLB importado</b> en la pestaña 2· APARIENCIA.</div>
+      <label>Archivo .glb (debe estar en la misma carpeta que este index.html)
+        <input type="text" id="cr-glbfile" placeholder="mi_modelo.glb" style="width:100%"></label>
+      <div class="cr-note">Al escribir aquí el nombre, el personaje se guarda con esa referencia y
+        el modelo se recarga solo cada vez que juegues, sin volver a subirlo.</div>
+      <div id="cr-glb-fileproto" class="cr-note" style="display:none;color:#ffcf7f">Has abierto el
+        juego con doble clic (file://). Así el navegador no deja leer archivos de la carpeta: usa
+        "PROBAR un .glb…" para verlo ahora, y para que funcione la ruta permanente sirve la carpeta
+        por http (en esa carpeta: <b>python3 -m http.server</b> y abre localhost:8000).</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <button id="cr-glbpick">PROBAR un .glb…</button>
+        <input type="file" id="cr-glbpickfile" accept=".glb,.gltf" style="display:none">
+        <button id="cr-glbclear">QUITAR</button>
+      </div>
+      <div class="cr-note">"PROBAR" lo carga al momento para ver cómo queda, pero solo durante
+        esta sesión. Para que sea permanente escribe el nombre del archivo arriba.</div>
+      <label>Escala del modelo <input type="range" id="cr-glbscale" min="0.4" max="2.5" step="0.01" value="1"></label>
+      <div class="cr-note">El tamaño se ajusta solo a la estatura del personaje; usa esto solo para
+        retocar si queda algo grande o pequeño.</div>
+      <div class="cr-sec">AJUSTE TRAS LA CARGA</div>
+      <div class="cr-note">Si el modelo no encaja con el esqueleto, corrígelo aquí. Todo se guarda
+        con el personaje, así que solo hay que hacerlo una vez por modelo.</div>
+      <label><input type="checkbox" id="cr-glbauto" checked> Orientar automáticamente (recomendado)</label>
+      <label>Girar en Y (izquierda/derecha) <input type="range" id="cr-glbyaw" min="-180" max="180" step="5" value="0"></label>
+      <label>Girar en X (adelante/atrás) <input type="range" id="cr-glbpitch" min="-180" max="180" step="5" value="0"></label>
+      <label>Girar en Z (de lado) <input type="range" id="cr-glbroll" min="-180" max="180" step="5" value="0"></label>
+      <label><input type="checkbox" id="cr-glbswap"> Intercambiar lados izquierda / derecha</label>
+      <div class="cr-sec">AJUSTE HUESO A HUESO</div>
+      <div class="cr-note">Elige un hueso, gíralo hasta que encaje con el esqueleto y pulsa
+        <b>FIJAR COMO REPOSO</b>. Ese desfase queda guardado y se aplicará siempre a ese hueso,
+        encima de la animación. Es también la forma de corregir el giro de muñecas, pies y cabeza.</div>
+      <label>Hueso <select id="cr-glbbone"></select></label>
+      <label>Girar X <input type="range" id="cr-glbbx" min="-180" max="180" step="5" value="0"></label>
+      <label>Girar Y <input type="range" id="cr-glbby" min="-180" max="180" step="5" value="0"></label>
+      <label>Girar Z <input type="range" id="cr-glbbz" min="-180" max="180" step="5" value="0"></label>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <button id="cr-glbfix" type="button">FIJAR COMO REPOSO</button>
+        <button id="cr-glbbonereset" type="button">Reponer este hueso</button>
+      </div>
+      <button id="cr-glbreset" class="cr-b" type="button">RESTABLECER TODOS LOS AJUSTES</button>
+      <div id="cr-glb-status" class="cr-note"></div>
     </div>
   </div>
   <div class="cr-foot">
@@ -786,7 +856,7 @@ function buildTouch(){
 addEventListener('touchstart',buildTouch,{passive:true});
 if(matchMedia('(pointer:coarse)').matches||'ontouchstart' in window)addEventListener('load',buildTouch);
 glc.addEventListener('pointerdown',()=>audio());
-addEventListener('pointerdown',()=>{if(game.mode==='splash'){audio();uiKey(' ');}else if(game.mode==='introvid'){endIntro();}});
+addEventListener('pointerdown',()=>{try{if(game.mode==='splash'){audio();uiKey(' ');}else if(game.mode==='introvid'){endIntro();}}catch(e){/* clic antes de que el juego acabe de inicializarse: se ignora */}});
 
 /* ===========================================================
    POSES (ángulos absolutos, grados; 0=arriba, 90=adelante, 180=abajo)
@@ -1709,6 +1779,13 @@ function buildCustom(cfg){
   const outfit=cfg.outfit||'camiseta';
   const skin=col.skin!=null?col.skin:0xd8a877, hair=col.hair!=null?col.hair:0x2a211a, hair2=col.hair2!=null?col.hair2:hair;
   return {id:cfg.id,name:cfg.name||'NUEVO',tag:cfg.tag||'Retador Anónimo',custom:true,
+    /* CUERPO GLB: solo si el estilo de APARIENCIA es 'glb'. Se guarda como
+       ruta RELATIVA (junto al index.html), que ocupa unos pocos bytes y por
+       tanto sí cabe en localStorage: el personaje reaparece al recargar.
+       _glbTest es un .glb probado a mano; vale para la vista previa de la
+       sesion pero no se guarda. */
+    glbBody:(cfg.style==='glb')?(cfg._glbTest||cfg.glbFile||null):null,
+    glbScale:cfg.glbScale||1, glbAdjust:cfg.glbAdjust||null,
     headGLB:cfg.headGLB||null,headGLBAxis:cfg.headGLBAxis||'x',headGLBScale:cfg.headGLBScale||1,
     headGLBX:cfg.headGLBX||0,headGLBY:cfg.headGLBY||0,headGLBZ:cfg.headGLBZ||0,
     headGLBHide:!!cfg.headGLBHide,
@@ -2115,6 +2192,8 @@ if(typeof THREE==='undefined'){
   throw new Error('THREE missing');
 }
 const renderer=new THREE.WebGLRenderer({canvas:glc,antialias:true});
+let composer=null;   // compositor de bloom (opcional, se carga bajo demanda mas abajo);
+                      // declarado aqui, temprano, porque fit() ya lo consulta desde el arranque
 /* --- COLOR ---
    outputEncoding sRGB es imprescindible: sin el, r128 saca todo apagado.
    Sin tone mapping filmico los colores salen vivos (look arcade).
@@ -2158,6 +2237,7 @@ function fit(){
   const pr=Math.min(devicePixelRatio||1,PRCAP,Math.max(1,1500/Math.max(1,w)));
   renderer.setPixelRatio(pr);
   renderer.setSize(w,h,false);cam.aspect=W/H;cam.updateProjectionMatrix();
+  if(composer)composer.setSize(renderer.domElement.width,renderer.domElement.height);
 }
 /* ---------- CREADOR (panel HTML) ---------- */
 const CE=id=>document.getElementById(id);
@@ -2171,6 +2251,55 @@ const CF={name:'cr-name',tag:'cr-tag',arch:'cr-arch',stage:'cr-stage',
   story:'cr-story',ending:'cr-ending',quote:'cr-quote',taunt:'cr-taunt'};
 const hx2n=h=>parseInt(h.replace('#',''),16);
 const n2hx=n=>'#'+('000000'+(n>>>0).toString(16)).slice(-6);
+/* .glb probado a mano en la pestana MODELO GLB: {url,name}, solo esta sesion.
+   Se declara AQUI (ambito global) porque crGather() lo lee, y crGather se
+   ejecuta antes y fuera del bloque que construye el panel del creador. */
+let _crGLBTest=null;
+/* desfases de reposo por hueso del modelo GLB: {rol:[x,y,z] en grados}.
+   Global por el mismo motivo: crGather() y crLoad() lo leen desde fuera del
+   bloque que construye el panel del creador. */
+let crGLBPose={};
+
+/* Funciones del panel MODELO GLB. Van en ambito GLOBAL porque crLoad() y
+   setupGLBBody() las llaman desde fuera del bloque que construye el panel:
+   si quedaran anidadas, sus guardas typeof fallarian en silencio. */
+/* refresca los avisos de "hace falta activar el estilo GLB" en las dos pestanas */
+function crGLBSync(){
+  const on=(CE('cr-style')&&CE('cr-style').value==='glb');
+  const h=CE('cr-glbhint'); if(h)h.style.display=on?'':'none';
+  const w=CE('cr-glb-off'); if(w)w.style.display=on?'none':'';
+}
+function crGLBStatus(t){const e=CE('cr-glb-status');if(e)e.textContent=t;}
+/* --- ajuste hueso a hueso --- */
+const GLB_BONE_ES={hips:'Cadera',spine:'Abdomen',chest:'Pecho',neck:'Cuello',head:'Cabeza',
+  leftUpperArm:'Brazo izq.',leftLowerArm:'Antebrazo izq.',leftHand:'Mano izq.',
+  rightUpperArm:'Brazo der.',rightLowerArm:'Antebrazo der.',rightHand:'Mano der.',
+  leftUpperLeg:'Muslo izq.',leftLowerLeg:'Pierna izq.',leftFoot:'Pie izq.',
+  rightUpperLeg:'Muslo der.',rightLowerLeg:'Pierna der.',rightFoot:'Pie der.'};
+// crGLBPose se declara arriba, en ambito global (crGather/crLoad lo leen)
+function crGLBBoneSel(){return CE('cr-glbbone')?CE('cr-glbbone').value:'';}
+function crGLBFillBones(){
+  const s=CE('cr-glbbone'); if(!s)return;
+  const roles=(crPrev&&crPrev._glbRoles)?crPrev._glbRoles:Object.keys(GLB_BONE_ES);
+  const prev=s.value;
+  s.innerHTML='';
+  roles.forEach(r=>{const o=document.createElement('option');
+    o.value=r;o.textContent=(GLB_BONE_ES[r]||r)+(crGLBPose[r]?' •':'');s.appendChild(o);});
+  if(prev&&roles.includes(prev))s.value=prev;
+}
+function crGLBBoneUI(){
+  const r=crGLBBoneSel(), a=crGLBPose[r]||[0,0,0];
+  const set=(id,v)=>{const e=CE(id);if(e)e.value=v;};
+  set('cr-glbbx',a[0]);set('cr-glbby',a[1]);set('cr-glbbz',a[2]);
+}
+/* aplica en vivo sin reconstruir el luchador (reclonar la malla en cada
+   movimiento del deslizador daria tirones) */
+function crGLBLive(){
+  const r=crGLBBoneSel(); if(!r)return;
+  const v=[+CE('cr-glbbx').value,+CE('cr-glbby').value,+CE('cr-glbbz').value];
+  if(crPrev&&crPrev._glbSetCorr)crPrev._glbSetCorr(r,v[0],v[1],v[2]);
+}
+
 function crGather(){
   const v=id=>CE(id).value, sl=id=>parseFloat(CE(id).value);
   const lines=t=>t.split('\n').map(x=>x.trim()).filter(Boolean).slice(0,4);
@@ -2199,6 +2328,15 @@ function crGather(){
     moveset:Object.assign({},crMoveset),moveTune:JSON.parse(JSON.stringify(crTune)),
     portraits:Object.assign({},crPortraits),
     headGLB:crHeadGLB||null,
+    glbFile:(CE('cr-glbfile')&&CE('cr-glbfile').value.trim())||null,
+    glbScale:sl('cr-glbscale')||1,
+    glbAdjust:{autoYaw:!CE('cr-glbauto')||CE('cr-glbauto').checked,
+      yaw:sl('cr-glbyaw')||0, pitch:sl('cr-glbpitch')||0, roll:sl('cr-glbroll')||0,
+      swap:!!(CE('cr-glbswap')&&CE('cr-glbswap').checked),
+      pose:(typeof crGLBPose==='object'&&crGLBPose)?JSON.parse(JSON.stringify(crGLBPose)):{}},
+    /* .glb probado a mano: no se guarda (es un objectURL de sesion), pero
+       si entra en la clave de la vista previa para que se vea al momento */
+    _glbTest:(_crGLBTest?_crGLBTest.url:null),
     headGLBAxis:v('cr-headglb-axis')||'x',headGLBScale:sl('cr-headglb-scale')||1,
     headGLBX:sl('cr-headglb-x')||0,headGLBY:sl('cr-headglb-y')||0,headGLBZ:sl('cr-headglb-z')||0,
     headGLBHide:!!CE('cr-headglb-hide').checked,
@@ -2532,6 +2670,87 @@ CE('tw-importfile').onchange=e=>{
     }catch(err){CE('tw-warn').textContent='Archivo no válido';}
   };
   rd.readAsText(f);e.target.value='';};
+CE('tw-bodyimportbtn').onclick=()=>CE('tw-bodyimportfile').click();
+CE('tw-bodyimportfile').onchange=e=>{
+  const f=e.target.files[0];if(!f)return;
+  const rd=new FileReader();
+  rd.onload=()=>{
+    try{
+      const data=JSON.parse(rd.result);
+      if(!data.glb||!data.boneGroups||!data.calib)throw new Error('el JSON debe tener glb, boneGroups y calib (usa la salida del calibrador_v3.html)');
+      if(!twModel||!CHARS[twModel]){CE('tw-bodyimport-status').textContent='Elige antes un "Modelo para posar" del desplegable de arriba.';return;}
+      CHARS[twModel].importedBody=data;
+      crPrevKey='';crUpdatePreview(); // fuerza reconstruir el maniqui con el cuerpo nuevo
+      CE('tw-bodyimport-status').textContent='Aplicado a '+CHARS[twModel].name+
+        ' (solo esta sesión — si recargas la página se pierde, a menos que sea un personaje ★ guardado y lo vuelvas a aplicar).';
+    }catch(err){CE('tw-bodyimport-status').textContent='Error: '+err.message;}
+  };
+  rd.readAsText(f);e.target.value='';};
+CE('tw-bodyremove').onclick=()=>{
+  if(!twModel||!CHARS[twModel]){CE('tw-bodyimport-status').textContent='Elige antes un "Modelo para posar".';return;}
+  delete CHARS[twModel].importedBody;
+  crPrevKey='';crUpdatePreview();
+  CE('tw-bodyimport-status').textContent='Cuerpo importado quitado de '+CHARS[twModel].name+'.';
+};
+/* ---- MODELO GLB DEL PERSONAJE (pestana 6) ----
+   El GLB forma parte del personaje que se esta creando: se guarda en su
+   configuracion (cfg.glbFile) igual que el resto de opciones, y solo se
+   aplica si el estilo elegido en APARIENCIA es 'glb'. */
+CE('cr-glbpick').onclick=()=>CE('cr-glbpickfile').click();
+CE('cr-glbpickfile').onchange=e=>{
+  const f=e.target.files[0];e.target.value='';if(!f)return;
+  if(_crGLBTest)URL.revokeObjectURL(_crGLBTest.url);
+  _crGLBTest={url:URL.createObjectURL(f),name:f.name};
+  if(CE('cr-glbfile')&&!CE('cr-glbfile').value.trim())CE('cr-glbfile').value=f.name;
+  if(CE('cr-style').value!=='glb'){CE('cr-style').value='glb';crGLBSync();}
+  crPrevKey='';crUpdatePreview();
+  crGLBStatus('Probando "'+f.name+'". Para que sea permanente, deja el archivo junto a index.html '+
+    'y asegúrate de que el nombre de arriba coincide.');
+};
+CE('cr-glbclear').onclick=()=>{
+  if(_crGLBTest){URL.revokeObjectURL(_crGLBTest.url);_crGLBTest=null;}
+  if(CE('cr-glbfile'))CE('cr-glbfile').value='';
+  crPrevKey='';crUpdatePreview();
+  crGLBStatus('Modelo quitado.');
+};
+CE('cr-glbfile').addEventListener('input',()=>{crPrevKey='';crUpdatePreview();});
+CE('cr-glbscale').addEventListener('input',()=>{crPrevKey='';crUpdatePreview();});
+/* los ajustes globales sí reconstruyen la vista previa al cambiar */
+['cr-glbauto','cr-glbyaw','cr-glbpitch','cr-glbroll','cr-glbswap'].forEach(id=>{
+  const e=CE(id); if(!e)return;
+  e.addEventListener(e.type==='checkbox'?'change':'input',()=>{crPrevKey='';crUpdatePreview();});
+});
+/* --- ajuste hueso a hueso: definiciones movidas a ambito global --- */
+['cr-glbbx','cr-glbby','cr-glbbz'].forEach(id=>{
+  const e=CE(id); if(e)e.addEventListener('input',crGLBLive);
+});
+CE('cr-glbbone').addEventListener('change',crGLBBoneUI);
+CE('cr-glbfix').onclick=()=>{
+  const r=crGLBBoneSel(); if(!r){crGLBStatus('No hay ningún hueso seleccionado.');return;}
+  const v=[+CE('cr-glbbx').value,+CE('cr-glbby').value,+CE('cr-glbbz').value];
+  if(v[0]||v[1]||v[2])crGLBPose[r]=v; else delete crGLBPose[r];
+  crGLBFillBones();
+  crGLBStatus('Reposo fijado para '+(GLB_BONE_ES[r]||r)+'. Se guarda con el personaje.');
+};
+CE('cr-glbbonereset').onclick=()=>{
+  const r=crGLBBoneSel(); if(!r)return;
+  delete crGLBPose[r];
+  const set=(id)=>{const e=CE(id);if(e)e.value=0;};
+  set('cr-glbbx');set('cr-glbby');set('cr-glbbz');
+  crGLBLive();crGLBFillBones();
+  crGLBStatus('Hueso '+(GLB_BONE_ES[r]||r)+' devuelto a su reposo original.');
+};
+CE('cr-glbreset').onclick=()=>{
+  const set=(id,v)=>{const e=CE(id);if(!e)return;if(e.type==='checkbox')e.checked=v;else e.value=v;};
+  set('cr-glbauto',true);set('cr-glbyaw',0);set('cr-glbpitch',0);set('cr-glbroll',0);
+  set('cr-glbswap',false);set('cr-glbscale',1);
+  set('cr-glbbx',0);set('cr-glbby',0);set('cr-glbbz',0);
+  crGLBPose={};crGLBFillBones();
+  crPrevKey='';crUpdatePreview();crGLBStatus('Ajustes restablecidos.');
+};
+CE('cr-style').addEventListener('change',crGLBSync);
+{const fp=CE('cr-glb-fileproto'); if(fp&&location.protocol==='file:')fp.style.display='';}
+crGLBSync();
 CE('cr-mvreset').onclick=()=>{const slot=CE('cr-mvslot').value||'punch';
       delete crTune[slot];crTuneLoad();crPowerUpd();};
     box.dataset.built='1';
@@ -3664,6 +3883,15 @@ function crLoadInto(cfg,idx){
   set('cr-pants',n2hx(col.pants!=null?col.pants:0x1f2630));set('cr-accent',n2hx(col.accent!=null?col.accent:0x7fa8ff));set('cr-foot',n2hx(col.foot!=null?col.foot:0x14100c));
   CE('cr-story').value=(cfg.story||[]).join('\n');CE('cr-ending').value=(cfg.ending||[]).join('\n');
   set('cr-quote',cfg.quote);set('cr-taunt',cfg.taunt);set('cr-face',cfg.face||'normal');set('cr-style',cfg.style||'lego');set('cr-outfit',cfg.outfit||'camiseta');
+  set('cr-glbfile',cfg.glbFile||'');set('cr-glbscale',cfg.glbScale||1);
+  {const a=cfg.glbAdjust||{}, ck=(id,v)=>{const e=CE(id);if(e)e.checked=!!v;};
+   set('cr-glbyaw',a.yaw||0);set('cr-glbpitch',a.pitch||0);set('cr-glbroll',a.roll||0);
+   ck('cr-glbauto',a.autoYaw!==false);ck('cr-glbswap',a.swap);
+   if(typeof crGLBPose==='object'){
+     crGLBPose=a.pose?JSON.parse(JSON.stringify(a.pose)):{};
+     if(typeof crGLBFillBones==='function'){crGLBFillBones();crGLBBoneUI();}
+   }}
+  if(typeof crGLBSync==='function')crGLBSync();
   const Z2=(r,c)=>Array(r).fill('0'.repeat(c));
   crFaceTex=(cfg.faceTex&&cfg.faceTex.length===FROWS)?cfg.faceTex.slice():Z2(FROWS,FCOLS);
   crFaceLvl=(cfg.faceLvl&&cfg.faceLvl.length===FROWS)?cfg.faceLvl.slice():Z2(FROWS,FCOLS);
@@ -4466,6 +4694,41 @@ function loadGLTFLoader(){
   });
   return GLTFLoaderPromise;
 }
+/* ===========================================================
+   BLOOM SUTIL (solo para lo que ya brilla: glowMat = MeshBasicMaterial
+   sin sombreado, los ojos del alien, la energia ki, etc). Se carga bajo
+   demanda igual que GLTFLoader: si falla o no hay red, el juego se queda
+   exactamente como estaba, sin postprocesado, sin ningun error visible.
+   Se usan las versiones CLASICAS (examples/js, no examples/jsm) de la
+   misma r128 ya cargada: este juego no usa modulos ES. */
+function loadBloom(){
+  const urls=[
+    'https://unpkg.com/three@0.128.0/examples/js/shaders/CopyShader.js',
+    'https://unpkg.com/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js',
+    'https://unpkg.com/three@0.128.0/examples/js/postprocessing/EffectComposer.js',
+    'https://unpkg.com/three@0.128.0/examples/js/postprocessing/RenderPass.js',
+    'https://unpkg.com/three@0.128.0/examples/js/postprocessing/ShaderPass.js',
+    'https://unpkg.com/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js',
+  ];
+  Promise.all(urls.map(u=>new Promise((res,rej)=>{
+    const sc=document.createElement('script');sc.src=u;
+    sc.onload=res;sc.onerror=()=>rej(new Error('fallo cargando '+u));
+    document.head.appendChild(sc);
+  }))).then(()=>{
+    if(!THREE.EffectComposer||!THREE.UnrealBloomPass)return;   // caida elegante
+    const c=new THREE.EffectComposer(renderer);
+    c.addPass(new THREE.RenderPass(scene,cam));
+    /* umbral alto a proposito: solo lo realmente brillante y sin sombrear
+       (glowMat) dispara el bloom; el resto del toon-shading, mas tenue por
+       la iluminacion, no se ve afectado. Fuerza baja: brillo sutil, no un
+       resplandor exagerado que rompa el look arcade. */
+    const bloom=new THREE.UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),.35,.4,.82);
+    c.addPass(bloom);
+    c.setSize(renderer.domElement.width,renderer.domElement.height);
+    composer=c;
+  }).catch(()=>{});   // sin red o addon no disponible: el juego sigue sin bloom, tal cual
+}
+loadBloom();
 function headGLBFor(C,cb){
   /* Prioridad 1: cabeza importada PARA ESTE PERSONAJE (base64 en su config).
      No pasa por la cache de arquetipos: cada personaje trae la suya. */
@@ -4520,6 +4783,828 @@ function swapHeadGLB(R,scene,skinHex,headMeshes,axis,scale,ox,oy,oz){
   R.head.add(clone);
   headMeshes.forEach(m=>{if(m)m.visible=false;});
 }
+/* ============================================================
+   CUERPO IMPORTADO -- sistema generico
+   ============================================================
+   A diferencia de la version anterior (piezas pre-troceadas y
+   embebidas como base64), esta version carga el GLB ORIGINAL por
+   HTTP en tiempo de ejecucion (GLTFLoader) y lo trocea con el mismo
+   algoritmo que usa el calibrador (bodyimport.js). Un mismo GLB +
+   un mismo JSON de calibracion sirve para el calibrador Y para el
+   juego -- si quieres importar otro cuerpo distinto de Spartan, solo
+   hace falta otro GLB + otro boneGroups/calib, sin tocar mas codigo. */
+/* ============================================================
+   bodyimport.js — carga de "cuerpo importado" generica
+   ============================================================
+   Dado un GLB con SkinnedMesh (esqueleto Mixamo o similar), lo
+   trocea en piezas rigidas por hueso dominante (usando los pesos
+   de piel que ya trae el GLB) y las cuelga de los Group del rig
+   de INFAME, aplicando una calibracion de posicion/rotacion/escala
+   por pieza. Pensado para usarse TANTO desde el calibrador (previo
+   en el navegador) COMO desde el juego en tiempo de ejecucion --
+   mismo codigo, mismo resultado.
+
+   boneGroups: { slotName: { anchor:'NombreHueso', include:['Nombre',...] } }
+     - anchor: hueso cuyo espacio local se usa para hornear la pieza
+       (debe corresponder 1:1 con el Group del rig al que se cuelga)
+     - include: huesos cuyos vertices dominantes se incluyen en esta
+       pieza (normalmente el propio anchor, a veces mas de uno si
+       quieres fusionar zonas, p.ej. cadera+columna baja)
+
+   calib: { slotName: { bone:'nombreGroupDelRig', pos:[x,y,z],
+                         rotDeg:[x,y,z], scale:n } }
+     - bone: a que Group del rig se cuelga esta pieza (puede diferir
+       del "anchor" de boneGroups si se reasigno en el calibrador)
+     - pos/scale estan en el mismo espacio "d puro" usado por el
+       calibrador (sin la escala de mundo K*d.scale del juego real);
+       por eso attachImportedGLBBody multiplica por worldScale.
+   ============================================================ */
+
+/* trocea un GLB (ya cargado, gltf.scene de GLTFLoader) segun boneGroups.
+   Devuelve { slotName: THREE.Group } reutilizando geometria/material
+   ORIGINALES del GLB (texturas incluidas, sin reexportar nada). */
+function splitGLBBySlots(gltfScene, boneGroups){
+  const skinned = [];
+  gltfScene.traverse(o=>{ if(o.isSkinnedMesh) skinned.push(o); });
+  if(!skinned.length) throw new Error('el GLB no contiene ningun SkinnedMesh (no tiene esqueleto)');
+
+  const slots = {};
+  for(const slotName in boneGroups){
+    const def = boneGroups[slotName];
+    const group = new THREE.Group();
+    let any = false;
+
+    for(const mesh of skinned){
+      const skeleton = mesh.skeleton;
+      const boneNames = skeleton.bones.map(b=>b.name);
+      const anchorIdx = boneNames.indexOf(def.anchor);
+      if(anchorIdx < 0) continue;
+      const includeIdx = new Set(def.include.map(n=>boneNames.indexOf(n)).filter(i=>i>=0));
+      if(!includeIdx.size) continue;
+
+      const geo = mesh.geometry;
+      const pos = geo.attributes.position;
+      const skinIndex = geo.attributes.skinIndex;
+      const skinWeight = geo.attributes.skinWeight;
+      const uv = geo.attributes.uv;
+      const nrm = geo.attributes.normal;
+      const nVerts = pos.count;
+
+      // hueso dominante por vertice (mayor peso de piel). OJO: skinIndex/
+      // skinWeight suelen venir como InterleavedBufferAttribute (three r128),
+      // que no tiene .getComponent() -- se usa getX/Y/Z/W explicitamente.
+      const getComp = (attr,i,k)=> k===0?attr.getX(i): k===1?attr.getY(i): k===2?attr.getZ(i): attr.getW(i);
+      const dominant = new Int32Array(nVerts);
+      for(let i=0;i<nVerts;i++){
+        let bi=-1, bw=-1;
+        for(let k=0;k<4;k++){
+          const w = getComp(skinWeight,i,k);
+          if(w>bw){ bw=w; bi=getComp(skinIndex,i,k); }
+        }
+        dominant[i]=bi;
+      }
+
+      const idxArr = geo.index ? geo.index.array : null;
+      const triCount = idxArr ? idxArr.length/3 : nVerts/3;
+      const newPos=[], newUv=[], newNrm=[], outIdx=[];
+      const remap = new Map();
+      function pushVert(vi){
+        if(remap.has(vi)) return remap.get(vi);
+        const ni = newPos.length/3;
+        newPos.push(pos.getX(vi),pos.getY(vi),pos.getZ(vi));
+        if(uv) newUv.push(uv.getX(vi),uv.getY(vi));
+        if(nrm) newNrm.push(nrm.getX(vi),nrm.getY(vi),nrm.getZ(vi));
+        remap.set(vi,ni);
+        return ni;
+      }
+      // solo se conservan triangulos cuyos 3 vertices caen en el set
+      // incluido (evita costuras raras con vertices de otras piezas)
+      for(let t=0;t<triCount;t++){
+        const a=idxArr?idxArr[t*3]:t*3, b=idxArr?idxArr[t*3+1]:t*3+1, c=idxArr?idxArr[t*3+2]:t*3+2;
+        if(includeIdx.has(dominant[a]) && includeIdx.has(dominant[b]) && includeIdx.has(dominant[c])){
+          outIdx.push(pushVert(a),pushVert(b),pushVert(c));
+        }
+      }
+      if(!outIdx.length) continue;
+      any = true;
+
+      // hornear en el espacio local del hueso ancla (misma logica que
+      // el pipeline offline: aplicar la inverseBindMatrix del ancla)
+      const boneInverse = skeleton.boneInverses[anchorIdx];
+      const v = new THREE.Vector3();
+      for(let i=0;i<newPos.length/3;i++){
+        v.set(newPos[i*3],newPos[i*3+1],newPos[i*3+2]).applyMatrix4(boneInverse);
+        newPos[i*3]=v.x; newPos[i*3+1]=v.y; newPos[i*3+2]=v.z;
+      }
+      if(newNrm.length){
+        const nm = new THREE.Matrix3().getNormalMatrix(boneInverse);
+        for(let i=0;i<newNrm.length/3;i++){
+          v.set(newNrm[i*3],newNrm[i*3+1],newNrm[i*3+2]).applyMatrix3(nm).normalize();
+          newNrm[i*3]=v.x; newNrm[i*3+1]=v.y; newNrm[i*3+2]=v.z;
+        }
+      }
+
+      const newGeo = new THREE.BufferGeometry();
+      newGeo.setAttribute('position', new THREE.Float32BufferAttribute(newPos,3));
+      if(newUv.length) newGeo.setAttribute('uv', new THREE.Float32BufferAttribute(newUv,2));
+      if(newNrm.length) newGeo.setAttribute('normal', new THREE.Float32BufferAttribute(newNrm,3));
+      else newGeo.computeVertexNormals();
+      newGeo.setIndex(outIdx);
+
+      // los materiales PBR (MeshStandardMaterial) del GLB se ven casi negros
+      // sin un mapa de entorno (el metalness se apoya casi del todo en
+      // reflejos). Se clona y se limita metalness/roughness.
+      let mat = mesh.material;
+      if(mat && ('metalness' in mat || 'roughness' in mat)){
+        mat = mat.clone();
+        if('metalness' in mat) mat.metalness = Math.min(mat.metalness ?? 1, 0.25);
+        if('roughness' in mat) mat.roughness = Math.max(mat.roughness ?? 0.5, 0.55);
+      }
+      const newMesh = new THREE.Mesh(newGeo, mat);
+      newMesh.userData.slot = slotName;
+      group.add(newMesh);
+    }
+    if(any) slots[slotName] = group;
+  }
+  return slots;
+}
+
+// hueso "F" (o el que se le haya asignado a una pieza) -> su pareja espejo "B"
+const BODYIMPORT_MIRROR_BONE = { holdAF:'holdAB', armUF:'armUB', armLF:'armLB', handF:'handB',
+  holdLF:'holdLB', legUF:'legUB', legLF:'legLB', footF:'footB' };
+
+/* cuelga las piezas trozeadas (slots) del rig (o de cualquier objeto que
+   tenga propiedades con esos nombres de Group), aplicando la calibracion.
+   worldScale: 1 para el calibrador (espacio "d puro"); rig.s en el juego
+   real (para convertir a la escala de mundo K*d.scale del personaje). */
+function attachSlotsToRig(rigLike, slots, calib, worldScale, mirror){
+  const built = {};
+  for(const slotName in slots){
+    const c = calib[slotName];
+    if(!c) continue;
+    const parent = rigLike[c.bone];
+    if(!parent){ console.warn('bodyimport: hueso no encontrado:', c.bone); continue; }
+
+    const holderF = slots[slotName];
+    holderF.position.set(c.pos[0]*worldScale, c.pos[1]*worldScale, c.pos[2]*worldScale);
+    holderF.rotation.set(c.rotDeg[0]*Math.PI/180, c.rotDeg[1]*Math.PI/180, c.rotDeg[2]*Math.PI/180);
+    holderF.scale.setScalar(c.scale*worldScale);
+    parent.add(holderF);
+    built[slotName] = {F:holderF, B:null};
+
+    if(mirror!==false){
+      const mirrorBone = BODYIMPORT_MIRROR_BONE[c.bone];
+      if(mirrorBone && rigLike[mirrorBone]){
+        const holderB = holderF.clone(); // clona jerarquia, comparte geometria/material
+        rigLike[mirrorBone].add(holderB);
+        built[slotName].B = holderB;
+      }
+    }
+  }
+  return built;
+}
+
+
+/* ---- configuracion concreta del cuerpo "spartan" ---- */
+const SPARTAN_BONE_GROUPS = {
+  "head": {
+    "anchor": "mixamorigNeck_05",
+    "include": [
+      "mixamorigNeck_05"
+    ]
+  },
+  "torso": {
+    "anchor": "mixamorigSpine2_04",
+    "include": [
+      "mixamorigSpine2_04"
+    ]
+  },
+  "abdo": {
+    "anchor": "mixamorigHips_01",
+    "include": [
+      "mixamorigHips_01",
+      "mixamorigSpine_02",
+      "mixamorigSpine1_03"
+    ]
+  },
+  "armUF": {
+    "anchor": "mixamorigLeftArm_09",
+    "include": [
+      "mixamorigLeftArm_09",
+      "mixamorigLeftShoulder_08"
+    ]
+  },
+  "armLF": {
+    "anchor": "mixamorigLeftForeArm_010",
+    "include": [
+      "mixamorigLeftForeArm_010"
+    ]
+  },
+  "handF": {
+    "anchor": "mixamorigLeftHand_011",
+    "include": [
+      "mixamorigLeftHand_011",
+      "mixamorigLeftHandThumb1_012",
+      "mixamorigLeftHandThumb2_013",
+      "mixamorigLeftHandThumb3_014",
+      "mixamorigLeftHandThumb4_015",
+      "mixamorigLeftHandIndex1_016",
+      "mixamorigLeftHandIndex2_017",
+      "mixamorigLeftHandIndex3_018",
+      "mixamorigLeftHandIndex4_019",
+      "mixamorigLeftHandMiddle1_020",
+      "mixamorigLeftHandMiddle2_021",
+      "mixamorigLeftHandMiddle3_022",
+      "mixamorigLeftHandMiddle4_023",
+      "mixamorigLeftHandRing1_024",
+      "mixamorigLeftHandRing2_025",
+      "mixamorigLeftHandRing3_026",
+      "mixamorigLeftHandRing4_027",
+      "mixamorigLeftHandPinky1_028",
+      "mixamorigLeftHandPinky2_029",
+      "mixamorigLeftHandPinky3_030",
+      "mixamorigLeftHandPinky4_031"
+    ]
+  },
+  "legUF": {
+    "anchor": "mixamorigLeftUpLeg_055",
+    "include": [
+      "mixamorigLeftUpLeg_055"
+    ]
+  },
+  "legLF": {
+    "anchor": "mixamorigLeftLeg_056",
+    "include": [
+      "mixamorigLeftLeg_056"
+    ]
+  },
+  "footF": {
+    "anchor": "mixamorigLeftFoot_057",
+    "include": [
+      "mixamorigLeftFoot_057",
+      "mixamorigLeftToeBase_058"
+    ]
+  }
+};
+const SPARTAN_CALIB = {
+  "head": {
+    "bone": "headJ",
+    "pos": [
+      -3.7,
+      16.6,
+      0.0
+    ],
+    "rotDeg": [
+      180,
+      90,
+      0
+    ],
+    "scale": 1.2
+  },
+  "torso": {
+    "bone": "torso",
+    "pos": [
+      -0.9,
+      -15.0,
+      0.0
+    ],
+    "rotDeg": [
+      -88,
+      3,
+      -86
+    ],
+    "scale": 1.0
+  },
+  "abdo": {
+    "bone": "abdo",
+    "pos": [
+      -1.7,
+      0.0,
+      0.0
+    ],
+    "rotDeg": [
+      180,
+      90,
+      0
+    ],
+    "scale": 1.0
+  },
+  "armUF": {
+    "bone": "armUF",
+    "pos": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotDeg": [
+      180,
+      0,
+      0
+    ],
+    "scale": 1.0
+  },
+  "armLF": {
+    "bone": "armLF",
+    "pos": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotDeg": [
+      180,
+      0,
+      0
+    ],
+    "scale": 1.0
+  },
+  "handF": {
+    "bone": "handF",
+    "pos": [
+      -0.5,
+      4.4,
+      -1.3
+    ],
+    "rotDeg": [
+      173,
+      86,
+      0
+    ],
+    "scale": 1.0
+  },
+  "legUF": {
+    "bone": "legUF",
+    "pos": [
+      3.2,
+      -6.9,
+      0.8
+    ],
+    "rotDeg": [
+      180,
+      -11,
+      2
+    ],
+    "scale": 1.0
+  },
+  "legLF": {
+    "bone": "legLF",
+    "pos": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotDeg": [
+      180,
+      -86,
+      0
+    ],
+    "scale": 1.0
+  },
+  "footF": {
+    "bone": "footF",
+    "pos": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotDeg": [
+      -91,
+      -38,
+      96
+    ],
+    "scale": 1.0
+  }
+};
+
+const _importedBodyCache = {}; // url -> Promise<gltf.scene> (para no recargar el GLB por cada personaje)
+function loadGLBCached(url){
+  if(!_importedBodyCache[url]){
+    _importedBodyCache[url] = ensureGLBLibs().then(()=>new Promise((resolve,reject)=>{
+      new THREE.GLTFLoader().load(url, gltf=>resolve(gltf.scene), undefined, reject);
+    }));
+  }
+  return _importedBodyCache[url];
+}
+
+/* oculta TODA la geometria primitiva del cuerpo (torso, brazos, piernas,
+   cabeza construida por C.build...) colgando de rig.pel, para sustituirla
+   por el cuerpo importado. Las piernas cuelgan tambien de pel (holdLF/
+   holdLB), asi que un solo traverse cubre el cuerpo entero. */
+function hideBodyPrimitives(rig){
+  rig.pel.traverse(o=>{ if(o.isMesh) o.visible = false; });
+}
+
+/* punto de enganche principal: llamar tras construir el Rig (ver hook en
+   el constructor de Rig). Async: oculta las primitivas al momento, pero
+   las piezas importadas aparecen uno o dos frames despues (mientras
+   carga/trocea el GLB -- se cachea, asi que solo pasa una vez por sesion). */
+function attachImportedBody(rig, C){
+  if(!C.importedBody) return;
+  const body = C.importedBody; // {glb, boneGroups, calib}
+  hideBodyPrimitives(rig);
+  loadGLBCached(body.glb).then(scene=>{
+    if(!rig._alive) return; // el luchador pudo destruirse mientras cargaba
+    const slots = splitGLBBySlots(scene, body.boneGroups);
+    attachSlotsToRig(rig, slots, body.calib, rig.s);
+  }).catch(err=>console.error('cuerpo importado:', body.glb, err));
+}
+
+/* ============================================================
+   LUCHADOR DESDE GLB — retargeting en tiempo real
+   ============================================================
+   ENFOQUE: en vez de trocear el GLB en piezas rigidas (que deja
+   costuras en codos/rodillas), aqui se conserva el SkinnedMesh
+   ENTERO del GLB y se le copia la pose del rig de INFAME hueso a
+   hueso, cada fotograma.
+
+   El rig de primitivas del juego sigue existiendo y funcionando
+   EXACTAMENTE igual que siempre -- solo que invisible. Actua de
+   "rig de control": apply(), combatJoint(), las hitboxes, el
+   TALLER, las capturas de mocap y todo el sistema de poses siguen
+   operando sobre el, sin un solo cambio. El GLB es una piel que
+   lo sigue.
+
+   Ventajas frente al troceo en piezas:
+     - deformacion suave real (skinning), sin huecos al flexionar
+     - no hay que calibrar pieza por pieza: el emparejamiento de
+       huesos se deduce del nombre automaticamente
+     - vale para cualquier humanoide (Mixamo, VRM, ReadyPlayerMe...)
+   ============================================================ */
+
+/* --- 1. Reconocer huesos humanoides por nombre ---------------- */
+
+// normaliza un nombre de hueso para compararlo: quita el sufijo
+// numerico que anaden algunos exportadores (_09, _057), el prefijo
+// del rig (mixamorig, armature, bip01) y cualquier separador.
+// OJO: el sufijo _NN se quita ANTES de nada; no se pueden quitar
+// digitos finales en general porque Spine/Spine1/Spine2 son huesos
+// distintos y se confundirian entre si.
+function normBoneName(raw){
+  let s = String(raw||'').replace(/_\d+$/,'');
+  s = s.toLowerCase();
+  // "mixamorig" va pegado al nombre (GLTFLoader elimina los ':'), asi que
+  // se quita sin exigir separador
+  s = s.replace(/^mixamorig[:_\-\s|]*/,'');
+  /* Los demas prefijos SI exigen separador: sin el, "rig" se comeria el
+     principio de "rightArm" -> "htarm" y no se reconoceria ningun hueso
+     del lado derecho (pasaba con los nombres estilo VRM). */
+  s = s.replace(/^(armature|bip01|bip|rig|def)[:_\-\s|]+/,'');
+  s = s.replace(/[^a-z0-9]/g,'');
+  return s;
+}
+
+// patrones por rol humanoide. El orden importa poco porque los
+// patrones estan anclados (^...$) para no solaparse: p.ej.
+// "leftarm" (brazo) no colisiona con "leftforearm" (antebrazo).
+const HUMANOID_PATTERNS = {
+  hips:          [/^hips?$/, /^pelvis$/, /^cadera$/],
+  spine:         [/^spine$/, /^spine1$/, /^abdomen$/],
+  chest:         [/^spine2$/, /^chest$/, /^upperchest$/, /^torso$/],
+  neck:          [/^neck$/, /^cuello$/],
+  head:          [/^head$/, /^cabeza$/],
+  leftUpperArm:  [/^left(upper)?arm$/, /^l(upper)?arm$/, /^brazoizq$/],
+  leftLowerArm:  [/^left(fore|lower)arm$/, /^l(fore|lower)arm$/],
+  leftHand:      [/^lefthand$/, /^lhand$/, /^manoizq$/],
+  rightUpperArm: [/^right(upper)?arm$/, /^r(upper)?arm$/, /^brazoder$/],
+  rightLowerArm: [/^right(fore|lower)arm$/, /^r(fore|lower)arm$/],
+  rightHand:     [/^righthand$/, /^rhand$/, /^manoder$/],
+  leftUpperLeg:  [/^left(up|upper)leg$/, /^l(up|upper)leg$/, /^leftthigh$/],
+  leftLowerLeg:  [/^left(low|lower)?leg$/, /^l(low|lower)?leg$/, /^leftshin$/],
+  leftFoot:      [/^leftfoot$/, /^lfoot$/, /^pieizq$/],
+  rightUpperLeg: [/^right(up|upper)leg$/, /^r(up|upper)leg$/, /^rightthigh$/],
+  rightLowerLeg: [/^right(low|lower)?leg$/, /^r(low|lower)?leg$/, /^rightshin$/],
+  rightFoot:     [/^rightfoot$/, /^rfoot$/, /^pieder$/],
+};
+
+function roleOfBone(rawName){
+  const n = normBoneName(rawName);
+  if(!n) return null;
+  for(const role in HUMANOID_PATTERNS){
+    for(const re of HUMANOID_PATTERNS[role]){
+      if(re.test(n)) return role;
+    }
+  }
+  return null;
+}
+
+/* Que hueso del rig de INFAME manda sobre que rol humanoide.
+   El rig del juego usa F/B (delantero/trasero respecto a la camara)
+   en vez de izquierda/derecha anatomica: se mapea F->izquierda y
+   B->derecha de forma fija. Como la malla sigue a su hueso, al
+   cambiar de lado el luchador la figura acompana sola. */
+const RIG_TO_ROLE = {
+  pel:'hips', abdo:'spine', torso:'chest', neck:'neck', headJ:'head',
+  armUF:'leftUpperArm',  armLF:'leftLowerArm',  handF:'leftHand',
+  armUB:'rightUpperArm', armLB:'rightLowerArm', handB:'rightHand',
+  legUF:'leftUpperLeg',  legLF:'leftLowerLeg',  footF:'leftFoot',
+  legUB:'rightUpperLeg', legLB:'rightLowerLeg', footB:'rightFoot',
+};
+// inverso: rol humanoide -> nombre del hueso en el rig del juego
+const ROLE_TO_RIG = {};
+for(const k in RIG_TO_ROLE) ROLE_TO_RIG[RIG_TO_ROLE[k]] = k;
+
+/* --- 2. Montar el luchador GLB sobre un rig ------------------- */
+
+function depthOf(obj){ let d=0,o=obj; while(o.parent){d++;o=o.parent;} return d; }
+
+/* CADENAS: por cada hueso, hacia que hueso apunta. La direccion de un
+   hueso es lo unico que hace falta para orientarlo; es el mismo enfoque
+   por vectores de direccion del pipeline de captura de video. */
+const HUMANOID_CHAINS = [
+  ['hips','spine','chest','neck','head'],
+  ['leftUpperArm','leftLowerArm','leftHand'],
+  ['rightUpperArm','rightLowerArm','rightHand'],
+  ['leftUpperLeg','leftLowerLeg','leftFoot'],
+  ['rightUpperLeg','rightLowerLeg','rightFoot'],
+];
+// roles que se intercambian al marcar "intercambiar lados"
+const SWAP_ROLES = [['leftUpperArm','rightUpperArm'],['leftLowerArm','rightLowerArm'],
+  ['leftHand','rightHand'],['leftUpperLeg','rightUpperLeg'],
+  ['leftLowerLeg','rightLowerLeg'],['leftFoot','rightFoot']];
+
+/* gltfScene: THREE.Object3D ya cargado (se CLONA, asi que el mismo
+   GLB puede usarse por varios luchadores a la vez). */
+function attachGLBFighter(rig, gltfScene, opts){
+  opts = opts || {};
+  const skinRoot = (typeof THREE.SkeletonUtils!=='undefined' && THREE.SkeletonUtils.clone)
+    ? THREE.SkeletonUtils.clone(gltfScene)
+    : gltfScene.clone(true);
+
+  // localizar huesos humanoides por nombre
+  const found = {};
+  skinRoot.traverse(o=>{
+    if(!o.isBone) return;
+    const role = roleOfBone(o.name);
+    if(role && !found[role]) found[role] = o;
+  });
+  if(!found.hips) throw new Error('no se reconocio un esqueleto humanoide en el GLB (no se encontro el hueso de cadera/hips)');
+
+  // los SkinnedMesh desaparecen a veces al salir de camara porque su
+  // caja se calcula en pose de bind, no deformada
+  skinRoot.traverse(o=>{
+    if(!o.isMesh) return;
+    o.frustumCulled = false;
+    o.castShadow = true;
+    // los materiales PBR se ven casi negros sin mapa de entorno
+    const mats = Array.isArray(o.material)?o.material:[o.material];
+    mats.forEach(mm=>{
+      if(!mm || mm._infameFixed) return;
+      if('metalness' in mm) mm.metalness = Math.min(mm.metalness ?? 1, .25);
+      if('roughness' in mm) mm.roughness = Math.max(mm.roughness ?? .5, .55);
+      mm._infameFixed = true;
+    });
+  });
+
+  const wrapper = new THREE.Group();
+  wrapper.add(skinRoot);
+  rig.root.add(wrapper);
+  rig.root.updateMatrixWorld(true);
+
+  // AJUSTE DE TAMANO automatico: se compara la distancia cadera->cabeza
+  // del GLB con la del rig del juego, para que el modelo importado tenga
+  // la estatura del personaje sin tocar ninguna escala a mano
+  const pA=new THREE.Vector3(), pB=new THREE.Vector3(), pC=new THREE.Vector3(), pD=new THREE.Vector3();
+  found.hips.getWorldPosition(pA);
+  (found.head||found.chest||found.hips).getWorldPosition(pB);
+  rig.pel.getWorldPosition(pC);
+  rig.headJ.getWorldPosition(pD);
+  const glbH = pA.distanceTo(pB), gameH = pC.distanceTo(pD);
+  const fit = (glbH>1e-6 && gameH>1e-6) ? (gameH/glbH) : 1;
+  wrapper.scale.setScalar(fit * (opts.scale||1));
+  rig.root.updateMatrixWorld(true);
+
+  /* ORIENTACION: el rig del juego separa los miembros en Z (delantero /
+     trasero respecto a la camara) mientras que la mayoria de esqueletos
+     humanoides usan X como eje izquierda-derecha. Sin corregirlo el
+     luchador aparece girado 90 grados. Se mide el vector hombro izq ->
+     hombro der en ambos esqueletos y se gira el conjunto en Y lo justo
+     para que coincidan (tambien arregla el caso de 180 grados, porque el
+     vector va dirigido de un lado concreto al otro). */
+  if(opts.autoYaw!==false && found.leftUpperArm && found.rightUpperArm && rig.armUF && rig.armUB){
+    const gl=new THREE.Vector3(), gr=new THREE.Vector3(), rl=new THREE.Vector3(), rr=new THREE.Vector3();
+    found.leftUpperArm.getWorldPosition(gl);  found.rightUpperArm.getWorldPosition(gr);
+    rig.armUF.getWorldPosition(rl);           rig.armUB.getWorldPosition(rr);
+    rig.root.worldToLocal(gl); rig.root.worldToLocal(gr);
+    rig.root.worldToLocal(rl); rig.root.worldToLocal(rr);
+    const a=new THREE.Vector3(gr.x-gl.x,0,gr.z-gl.z);
+    const b=new THREE.Vector3(rr.x-rl.x,0,rr.z-rl.z);
+    if(a.lengthSq()>1e-8 && b.lengthSq()>1e-8){
+      a.normalize(); b.normalize();
+      // angulo con signo alrededor de Y para llevar 'a' sobre 'b'
+      wrapper.rotation.y += Math.atan2(a.z*b.x-a.x*b.z, a.x*b.x+a.z*b.z);
+      rig.root.updateMatrixWorld(true);
+    }
+  }
+
+  /* AJUSTE MANUAL tras la orientacion automatica: si el modelo sigue mirando
+     mal, estos giros lo corrigen y se guardan con el personaje. */
+  const G=Math.PI/180;
+  if(opts.yaw)   wrapper.rotation.y += opts.yaw*G;
+  if(opts.pitch) wrapper.rotation.x += opts.pitch*G;
+  if(opts.roll)  wrapper.rotation.z += opts.roll*G;
+  rig.root.updateMatrixWorld(true);
+
+  /* INTERCAMBIAR LADOS: algunos modelos tienen la izquierda y la derecha al
+     reves respecto al criterio delantero/trasero del juego. */
+  const roleRig = Object.assign({}, ROLE_TO_RIG);
+  if(opts.swap) for(const [a,b] of SWAP_ROLES){
+    const t=roleRig[a]; roleRig[a]=roleRig[b]; roleRig[b]=t;
+  }
+
+  /* SEGMENTOS: para cada hueso del GLB se guarda hacia donde apunta en su
+     pose de bind, EN SU PROPIO ESPACIO LOCAL (constante). Cada fotograma
+     basta con girar el hueso para que esa direccion local coincida con la
+     direccion que tiene el hueso equivalente del rig de control.
+
+     Esto es inmune a que las poses de referencia no coincidan (T-pose vs
+     A-pose vs el rig del juego sin posar): no se copian rotaciones, se
+     copian DIRECCIONES. Lo unico que no se transfiere es el giro sobre el
+     propio eje del hueso (torsion), que se queda en el valor de bind. */
+  const segs=[], missing=[], byRole={};
+  const wp=new THREE.Vector3(), wc=new THREE.Vector3(), qb=new THREE.Quaternion();
+  const poseCorr = opts.pose||{};
+  const _e=new THREE.Euler(), G2=Math.PI/180;
+  const corrDe=(role)=>{
+    const a=poseCorr[role];
+    const q=new THREE.Quaternion();
+    if(a&&(a[0]||a[1]||a[2])) q.setFromEuler(_e.set(a[0]*G2,a[1]*G2,a[2]*G2,'XYZ'));
+    return q;
+  };
+  for(let ci=0;ci<HUMANOID_CHAINS.length;ci++){
+    const chain=HUMANOID_CHAINS[ci];
+    for(let i=0;i<chain.length;i++){
+      const role=chain[i], dst=found[role];
+      if(!dst){ if(!missing.includes(role)) missing.push(role); continue; }
+      byRole[role]=dst;
+      // hueso hijo del GLB: el siguiente de la cadena que exista
+      let child=null;
+      for(let j=i+1;j<chain.length;j++){ if(found[chain[j]]){ child=found[chain[j]]; break; } }
+      const src=rig[roleRig[role]];
+      if(!child || !src){
+        /* PUNTA DE CADENA (mano, pie, cabeza): no tiene hijo al que apuntar,
+           asi que conserva su rotacion de bind; solo se le puede aplicar la
+           correccion manual. */
+        segs.push({role, dst, leaf:true, base:dst.quaternion.clone(),
+                   corr:corrDe(role), depth:depthOf(dst)});
+        continue;
+      }
+      dst.getWorldPosition(wp); child.getWorldPosition(wc);
+      if(wp.distanceTo(wc)<1e-6) continue;
+      dst.getWorldQuaternion(qb);
+      const bindDir = wc.clone().sub(wp).normalize().applyQuaternion(qb.clone().invert()).normalize();
+      // en el rig de control, la referencia es la posicion de esa misma
+      // articulacion y la de la siguiente de la cadena
+      const srcNext=[];
+      for(let j=i+1;j<chain.length;j++){ const o=rig[roleRig[chain[j]]]; if(o) srcNext.push(o); }
+      if(!srcNext.length) continue;
+      segs.push({role, dst, bindDir, src, srcNext, corr:corrDe(role), depth:depthOf(dst)});
+    }
+  }
+  segs.sort((a,b)=>a.depth-b.depth);   // padres antes que hijos
+
+  // las primitivas del cuerpo se ocultan DESPUES de medir (initSoles ya
+  // corrio en el constructor, asi que el plantado de pies no se ve afectado)
+  rig.pel.traverse(o=>{ if(o.isMesh) o.visible=false; });
+
+  const tmpV=new THREE.Vector3(), dW=new THREE.Vector3(), pPos=new THREE.Vector3(),
+        cPos=new THREE.Vector3(), qp=new THREE.Quaternion(), dL=new THREE.Vector3();
+  const hips = found.hips;
+
+  /* Se llama al final de apply(), cuando las matrices del rig de control ya
+     estan actualizadas. Se recorre de padre a hijo y tras fijar cada hueso se
+     refresca su subarbol, para que los huesos intermedios NO mapeados
+     (hombros, Spine1, dedos...) arrastren bien a sus hijos. */
+  rig._retarget = function(){
+    // la cadera del GLB sigue a la pelvis del rig de control
+    tmpV.setFromMatrixPosition(rig.pel.matrixWorld);
+    hips.parent.worldToLocal(tmpV);
+    hips.position.copy(tmpV);
+    hips.updateMatrixWorld(true);
+
+    for(let i=0;i<segs.length;i++){
+      const sg=segs[i];
+      if(sg.leaf){
+        /* punta de cadena: mantiene su rotacion de bind, mas la correccion
+           manual (util para enderezar manos, pies o la cabeza) */
+        sg.dst.quaternion.copy(sg.base).multiply(sg.corr);
+        sg.dst.updateMatrixWorld(true);
+        continue;
+      }
+      // direccion real del hueso en el rig de control: de esta articulacion
+      // a la siguiente que no este pegada encima (evita segmentos de long. 0)
+      sg.src.getWorldPosition(pPos);
+      let ok=false;
+      for(let j=0;j<sg.srcNext.length;j++){
+        sg.srcNext[j].getWorldPosition(cPos);
+        if(pPos.distanceToSquared(cPos)>1e-8){ ok=true; break; }
+      }
+      if(!ok) continue;
+      dW.copy(cPos).sub(pPos).normalize();
+      // pasar esa direccion al espacio del PADRE del hueso GLB
+      sg.dst.parent.getWorldQuaternion(qp);
+      dL.copy(dW).applyQuaternion(qp.invert()).normalize();
+      sg.dst.quaternion.setFromUnitVectors(sg.bindDir, dL);
+      /* la alineacion por direccion no fija el giro sobre el propio eje del
+         hueso: esa parte (y cualquier desfase que quede) viene de la
+         correccion ajustada a mano y guardada con el personaje */
+      sg.dst.quaternion.multiply(sg.corr);
+      sg.dst.updateMatrixWorld(true);
+    }
+  };
+
+  /* ajuste EN VIVO desde la pestana MODELO GLB: cambia la correccion de un
+     hueso sin reconstruir el luchador entero (reclonar la malla en cada
+     movimiento del deslizador seria lentisimo) */
+  const _eL=new THREE.Euler();
+  rig._glbSetCorr = function(role, x, y, z){
+    for(let i=0;i<segs.length;i++) if(segs[i].role===role)
+      segs[i].corr.setFromEuler(_eL.set(x*G2, y*G2, z*G2, 'XYZ'));
+    if(rig._retarget) rig._retarget();
+  };
+  rig._glbRoles = Object.keys(byRole);
+  rig._glbRoot = wrapper;
+  rig._retarget();
+
+  return {bones:found, pairs:segs.length, missing, fit};
+}
+
+/* Los loaders de GLB no se cargan al arrancar (bloqueaban el inicio del
+   juego esperando a la red): se piden la primera vez que hacen falta. */
+function _loadScriptOnce(url){
+  return new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    /* sin crossOrigin, cualquier fallo dentro del script externo llega al
+       navegador como un opaco "Script error." sin archivo ni linea */
+    s.crossOrigin='anonymous';
+    s.src=url; s.onload=res; s.onerror=()=>rej(new Error('no se pudo cargar '+url));
+    document.head.appendChild(s);
+  });
+}
+let _glbLibsP=null;
+function ensureGLBLibs(){
+  if(_glbLibsP) return _glbLibsP;
+  const CDN=['https://unpkg.com/three@0.128.0/examples/js/',
+             'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/'];
+  const grab=(rel,test,obligatorio)=>{
+    if(test()) return Promise.resolve();
+    return _loadScriptOnce(CDN[0]+rel)
+      .catch(()=>_loadScriptOnce(CDN[1]+rel))
+      .then(()=>{
+        /* un 404 puede devolver una pagina HTML con exito aparente: hay que
+           comprobar que la libreria quedo realmente definida */
+        if(!test() && obligatorio) throw new Error('se descargó '+rel+' pero no quedó disponible (¿versión equivocada en el CDN?)');
+      });
+  };
+  _glbLibsP = grab('loaders/GLTFLoader.js',()=>typeof THREE.GLTFLoader!=='undefined',true)
+    // SkeletonUtils es opcional: sin el se usa un clonado mas simple
+    .then(()=>grab('utils/SkeletonUtils.js',()=>typeof THREE.SkeletonUtils!=='undefined',false).catch(()=>{}));
+  return _glbLibsP;
+}
+
+/* cache de GLBs por url (varios luchadores comparten la descarga) */
+const _glbFighterCache = {};
+function loadGLBFighterCached(url){
+  if(!_glbFighterCache[url]){
+    _glbFighterCache[url] = ensureGLBLibs().then(()=>new Promise((res,rej)=>{
+      new THREE.GLTFLoader().load(url,
+        g=>res(g.scene),
+        undefined,
+        e=>{
+          /* Abriendo el juego con doble clic (file://) el navegador prohibe
+             leer archivos de la carpeta por XHR: solo funcionan los .glb
+             elegidos a mano (blob:). Para usar rutas relativas hace falta
+             servir la carpeta por http (p.ej. `python3 -m http.server`). */
+          if(location.protocol==='file:' && url.indexOf('blob:')!==0)
+            rej(new Error('con el juego abierto como archivo local (file://) no se pueden leer .glb '+
+              'de la carpeta. Usa el botón "PROBAR un .glb…", o sirve la carpeta por http.'));
+          else rej(new Error('no se pudo leer el modelo: '+url));
+        });
+    }));
+  }
+  return _glbFighterCache[url];
+}
+
+/* punto de entrada desde el constructor de Rig */
+function setupGLBBody(rig, C){
+  if(!C.glbBody) return;
+  const aviso=m=>{
+    console.error('cuerpo GLB:',m);
+    // si el creador esta abierto, el fallo se ve en la pestana MODELO GLB
+    if(typeof crGLBStatus==='function')try{crGLBStatus('⚠ '+m);}catch(e){}
+  };
+  loadGLBFighterCached(C.glbBody).then(scene=>{
+    if(!rig._alive) return;      // el luchador se destruyo mientras cargaba
+    let info;
+    try{ info = attachGLBFighter(rig, scene, Object.assign({scale:C.glbScale||1}, C.glbAdjust||{})); }
+    catch(err){ aviso(err.message); return; }
+    if(info.missing.length) console.warn('luchador GLB', C.id, '- huesos no encontrados:', info.missing.join(', '));
+    if(typeof crGLBStatus==='function')try{
+      crGLBStatus('Modelo aplicado ('+info.pairs+' segmentos, escala '+info.fit.toFixed(2)+')'+
+        (info.missing.length?'. Huesos no reconocidos: '+info.missing.join(', '):'.'));
+    }catch(e){}
+  }).catch(err=>aviso(err&&err.message?err.message:String(err)));
+}
+
+
 class Rig{
   constructor(C){
     this.C=C;const d=C.d;this.d=d;this.s=K*d.scale;this._alive=true;
@@ -4627,6 +5712,8 @@ class Rig{
     this.joints={pel:this.pel,chest:this.chest,headC:this.headJ,handF:this.handF,handB:this.handB,
       footF:this.footF,footB:this.footB,kneF:this.legLF,kneB:this.legLB};
     this._v=new THREE.Vector3();
+    if(C.importedBody)try{attachImportedBody(this,C);}catch(err){console.error('cuerpo importado:',err);}
+    if(C.glbBody)try{setupGLBBody(this,C);}catch(err){console.error('luchador GLB:',err);}
   }
   dark(c){const col=new THREE.Color(c);col.multiplyScalar(.72);return col.getHex();}
   mkMat(c){const m=new THREE.MeshToonMaterial({color:satCol(c)});this.M.push(m);return m;}
@@ -5059,10 +6146,12 @@ class Rig{
       this._lastY=baja?yObj:this._lastY+(yObj-this._lastY)*.35;
       this.root.position.y=this._lastY;
       this.root.updateMatrixWorld(true);
+      if(this._retarget)this._retarget();
       return;
     }
     this.root.position.y=groundY+dy;
     this.root.updateMatrixWorld(true);
+    if(this._retarget)this._retarget();
   }
   wy(o){o.getWorldPosition(this._v);return this._v.y;}
   initSoles(){
@@ -6675,6 +7764,16 @@ function cycleCam(){
   game.camToast=95;game.camYaw=0;sfx.sel();
 }
 const IS_TOUCH=(function(){try{return matchMedia('(pointer:coarse)').matches||('ontouchstart' in window);}catch(e){return false;}})();
+/* Segunda capa de seguridad: en algunos Chrome de Android, mantener pulsado
+   un boton (moverse, golpear...) dispara el menu nativo de "compartir/guardar
+   imagen" pese al CSS, dejando el juego injugable hasta cerrarlo. Se bloquea
+   el evento salvo dentro de un campo de formulario real, donde SI hace falta
+   (para poder pegar texto, por ejemplo). */
+document.addEventListener('contextmenu',e=>{
+  const t=e.target;
+  if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.tagName==='SELECT'))return;
+  e.preventDefault();
+},{passive:false});
 const extraEl=CE('extraUI');let extraSig='';
 function extraUIUpd(){
   const on=IS_TOUCH&&game.extra.length&&(game.mode==='fight'||game.mode==='intro')&&!game.attract;
@@ -7683,7 +8782,7 @@ function loop(){
   try{
     update();
     tickStage(T0);tickShowcase(T0);tickMotes(T0);tickCam(T0);
-    renderer.render(scene,cam);
+    if(composer)composer.render();else renderer.render(scene,cam);
     drawHUD();
   }catch(err){
     console.error('loop error:',err);

@@ -2086,7 +2086,14 @@ function buildCustom(cfg){
       const mus=B.arms||1, gap=B.armGap||1;
       R.gapZ=R.zA*gap*1.35;
       if(R.torsoBody)R.torsoBody.forEach(m=>m.visible=false);
-      R.sculptHeadSimple({r:12.5,rx:F.headDepth||1,ry:hv,rz:hd,skin:this._skin,iris:this._iris,brow:this._hair,browAng:.05});
+      
+      // PANDA: cabeza especializada con ojos dentro de las manchas negras
+      if(this.id==='panda'){
+        R.sculptPandaHead({r:12.5,rx:F.headDepth||1,ry:hv,rz:hd,skin:this._skin,iris:this._iris});
+      } else {
+        R.sculptHeadSimple({r:12.5,rx:F.headDepth||1,ry:hv,rz:hd,skin:this._skin,iris:this._iris,brow:this._hair,browAng:.05});
+      }
+      
       R.hairCap(this._hair,{r:13.4*hd,clump:2.6*hd,n:20,minY:.22,faceOpen:.54,seed:7,baseY:.7,baseLift:.5});
       R.ears(R.mkMat(this._skin),{y:1,z:11*hd,r:2.7*hd,fwd:0,inner:this._skin,hex:this._skin});
       const tallR=(B.tall||1.6)/1.6, wideR=(B.wide||1.3)/1.3;
@@ -6152,6 +6159,84 @@ class Rig{
          rig.C&&rig.C.headGLBX,rig.C&&rig.C.headGLBY,rig.C&&rig.C.headGLBZ);
      });}
     return mesh;
+  }
+  
+  /* ===========================================================
+     CABEZA DE PANDA: ojos dentro de las manchas negras caracteristicas
+     =========================================================== */
+  sculptPandaHead(o){
+    const rx=(o.rx||1)*o.r, ry=(o.ry||1)*o.r, rz=(o.rz||1)*o.r;
+    const s=this.s;
+    
+    // Cabeza base blanca
+    if(!HEADSIMPLE_GEO)HEADSIMPLE_GEO=new THREE.SphereGeometry(1,32,24);
+    const skinM=new THREE.MeshStandardMaterial({color:o.skin,roughness:0.35,metalness:0.05});this.M.push(skinM);
+    const headMesh=new THREE.Mesh(HEADSIMPLE_GEO,skinM);headMesh.castShadow=true;headMesh.receiveShadow=true;
+    headMesh.scale.set(rx*s,ry*s,rz*s);this.head.add(headMesh);
+    
+    // Orejas negras
+    const blackM=this.mkMat(0x111111);
+    for(const sd of[-1,1]){
+      const ear=this.ball(rx*.28,blackM);ear.scale.set(1,.9,1);
+      this.head.add(this.pos(ear,-rx*.15,ry*.85,sd*rz*.9));
+    }
+    
+    // Manchas negras alrededor de los ojos (posicionadas para que los ojos queden DENTRO)
+    const patchGeo=new THREE.SphereGeometry(1,16,16);
+    for(const sd of[-1,1]){
+      const patch=new THREE.Mesh(patchGeo,blackM);
+      patch.position.set(rx*.18*s,ry*.15*s,sd*rz*.85*s);
+      patch.scale.set(rx*.22,ry*.18,rz*.16);
+      patch.rotation.z=sd*0.25;
+      patch.castShadow=true;
+      this.head.add(patch);
+    }
+    
+    // Ojos blancos (DENTRO de las manchas negras)
+    const sclM=this.mkMat(0xffffff);
+    for(const sd of[-1,1]){
+      const eyeWhite=this.fball(rx*.12,sclM);
+      eyeWhite.position.set(rx*.22*s,ry*.18*s,sd*rz*.88*s);
+      this.head.add(eyeWhite);
+      
+      // Iris marron/verde
+      const irisM=this.mkMat(o.iris||0x4a3320);
+      const iris=this.fball(rx*.06,irisM);
+      iris.position.set(rx*.28*s,ry*.18*s,sd*rz*.9*s);
+      this.head.add(iris);
+      
+      // Pupila negra
+      const pupM=this.mkMat(0x000000);
+      const pupil=this.fball(rx*.03,pupM);
+      pupil.position.set(rx*.31*s,ry*.18*s,sd*rz*.91*s);
+      this.head.add(pupil);
+      
+      // Brillo en los ojos
+      const shineM=this.mkMat(0xffffff);
+      const shine=this.fball(rx*.015,shineM);
+      shine.position.set(rx*.32*s,ry*.22*s,sd*rz*.89*s);
+      this.head.add(shine);
+    }
+    
+    // Nariz negra
+    const noseM=this.mkMat(0x111111);
+    const nose=this.box(rx*.08,ry*.06,rz*.12,noseM);
+    nose.position.set(rx*.35*s,ry*.05*s,0);
+    nose.rotation.x=0.3;
+    this.head.add(nose);
+    
+    // Boca sonriente
+    const mouthShape=new THREE.Shape();
+    mouthShape.moveTo(-rx*.12,ry*-0.08);
+    mouthShape.quadraticCurveTo(0,ry*-0.16,rx*.12,ry*-0.08);
+    const mouthGeo=new THREE.ShapeGeometry(mouthShape);
+    const mouthM=new THREE.MeshBasicMaterial({color:0x111111,side:THREE.DoubleSide});
+    const mouth=new THREE.Mesh(mouthGeo,mouthM);
+    mouth.position.set(rx*.32*s,ry*-0.02*s,0);
+    mouth.scale.set(1,1,1);
+    this.head.add(mouth);
+    
+    return headMesh;
   }
   face2(o){
     const H=this.head, hr=o.headR, eR=o.eyeR||1.7, yaw=o.yaw||.46, up=o.up!=null?o.up:.14;

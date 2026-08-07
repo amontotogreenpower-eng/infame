@@ -1,1017 +1,47 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <meta name="mobile-web-app-capable" content="yes">
-    <title>INFAME FIGHTING - Hyperrealistic Edition</title>
-    <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: 'Arial', sans-serif; }
-        canvas { display: block; }
-        
-        /* UI Overlay */
-        #ui-layer {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            pointer-events: none;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-        }
-
-        /* Top Bar */
-        .top-bar {
-            display: flex;
-            justify-content: space-between;
-            padding: 20px;
-            pointer-events: auto;
-        }
-
-        .update-time {
-            color: #6a7a9a;
-            font-size: 14px;
-            font-weight: bold;
-            text-shadow: 0 0 5px rgba(0,0,0,0.8);
-            align-self: flex-end;
-        }
-
-        .graph-controls {
-            display: flex;
-            gap: 10px;
-        }
-
-        .btn-graph {
-            background: rgba(0, 0, 0, 0.6);
-            border: 1px solid #d4af37;
-            color: #d4af37;
-            padding: 8px 15px;
-            cursor: pointer;
-            font-size: 12px;
-            border-radius: 4px;
-            transition: all 0.3s;
-            backdrop-filter: blur(5px);
-        }
-
-        .btn-graph:hover {
-            background: #d4af37;
-            color: #000;
-            box-shadow: 0 0 15px #d4af37;
-        }
-
-        /* Graph Container */
-        #graph-container {
-            position: absolute;
-            top: 80px;
-            left: 20px;
-            width: 300px;
-            height: 200px;
-            background: rgba(10, 15, 30, 0.85);
-            border: 1px solid #334;
-            border-radius: 8px;
-            backdrop-filter: blur(10px);
-            display: none;
-            flex-direction: column;
-            padding: 10px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            pointer-events: auto;
-            z-index: 100;
-        }
-
-        .graph-tabs {
-            display: flex;
-            gap: 5px;
-            margin-bottom: 10px;
-        }
-
-        .tab-btn {
-            flex: 1;
-            background: transparent;
-            border: none;
-            color: #889;
-            cursor: pointer;
-            padding: 5px;
-            font-size: 11px;
-            border-bottom: 2px solid transparent;
-        }
-
-        .tab-btn.active {
-            color: #fff;
-            border-bottom: 2px solid #d4af37;
-        }
-
-        canvas#fpsGraph, canvas#combatGraph {
-            width: 100%;
-            height: 140px;
-            background: rgba(0,0,0,0.3);
-            border-radius: 4px;
-        }
-
-        .stats-box {
-            margin-top: 10px;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 5px;
-            font-size: 10px;
-            color: #ccc;
-        }
-
-        .stat-item span { color: #d4af37; font-weight: bold; }
-
-        /* Stats Panel */
-        #stats-panel {
-            position: absolute;
-            top: 80px;
-            right: 20px;
-            width: 220px;
-            background: rgba(10, 15, 30, 0.85);
-            border: 1px solid #334;
-            border-radius: 8px;
-            backdrop-filter: blur(10px);
-            padding: 15px;
-            display: none;
-            color: #fff;
-            pointer-events: auto;
-            z-index: 100;
-        }
-
-        #stats-panel h3 { margin: 0 0 10px 0; color: #d4af37; font-size: 14px; border-bottom: 1px solid #334; padding-bottom: 5px; }
-        .stat-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 12px; }
-        .stat-val { color: #0f0; font-weight: bold; }
-
-        /* Menu Styles */
-        #menu-screen {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: radial-gradient(circle at center, #1a1a2e 0%, #000 100%);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 10;
-            pointer-events: auto;
-        }
-
-        h1 {
-            font-size: 60px;
-            color: #d4af37;
-            text-transform: uppercase;
-            letter-spacing: 10px;
-            text-shadow: 0 0 20px #d4af37, 0 0 40px #ff4500;
-            margin-bottom: 40px;
-            animation: pulseTitle 3s infinite;
-        }
-
-        @keyframes pulseTitle {
-            0%, 100% { text-shadow: 0 0 20px #d4af37, 0 0 40px #ff4500; transform: scale(1); }
-            50% { text-shadow: 0 0 30px #d4af37, 0 0 60px #ff4500; transform: scale(1.02); }
-        }
-
-        .char-select {
-            display: flex;
-            gap: 20px;
-            margin-bottom: 40px;
-        }
-
-        .char-card {
-            width: 150px;
-            height: 200px;
-            background: rgba(255,255,255,0.05);
-            border: 2px solid #333;
-            border-radius: 10px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.3s;
-            overflow: hidden;
-            position: relative;
-        }
-
-        .char-card:hover, .char-card.selected {
-            border-color: #d4af37;
-            box-shadow: 0 0 20px rgba(212, 175, 55, 0.4);
-            transform: translateY(-5px);
-            background: rgba(212, 175, 55, 0.1);
-        }
-
-        .char-card img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            opacity: 0.7;
-        }
-
-        .char-name {
-            position: absolute;
-            bottom: 0;
-            width: 100%;
-            background: rgba(0,0,0,0.8);
-            color: #fff;
-            text-align: center;
-            padding: 5px 0;
-            font-weight: bold;
-            text-transform: uppercase;
-        }
-
-        .start-btn {
-            padding: 15px 60px;
-            font-size: 24px;
-            background: linear-gradient(45deg, #d4af37, #ff4500);
-            border: none;
-            color: #000;
-            font-weight: bold;
-            text-transform: uppercase;
-            cursor: pointer;
-            border-radius: 5px;
-            box-shadow: 0 0 20px rgba(212, 175, 55, 0.5);
-            transition: all 0.3s;
-        }
-
-        .start-btn:hover {
-            transform: scale(1.1);
-            box-shadow: 0 0 40px rgba(212, 175, 55, 0.8);
-        }
-
-        /* HUD */
-        #hud {
-            position: absolute;
-            top: 20px;
-            left: 0;
-            width: 100%;
-            padding: 0 40px;
-            box-sizing: border-box;
-            display: none;
-            justify-content: space-between;
-            pointer-events: none;
-        }
-
-        .player-hud {
-            width: 40%;
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-        }
-
-        .health-bar-container {
-            width: 100%;
-            height: 30px;
-            background: #333;
-            border: 2px solid #555;
-            transform: skewX(-20deg);
-            overflow: hidden;
-            position: relative;
-        }
-
-        .health-bar {
-            height: 100%;
-            background: linear-gradient(90deg, #ff0000, #ff4500);
-            width: 100%;
-            transition: width 0.2s;
-        }
-
-        .super-bar-container {
-            width: 60%;
-            height: 10px;
-            background: #222;
-            border: 1px solid #444;
-            transform: skewX(-20deg);
-            margin-top: 5px;
-        }
-
-        .super-bar {
-            height: 100%;
-            background: linear-gradient(90deg, #00ffff, #0088ff);
-            width: 0%;
-            transition: width 0.1s;
-        }
-
-        .player-name {
-            color: #fff;
-            font-size: 20px;
-            font-weight: bold;
-            text-shadow: 0 0 5px #000;
-            text-transform: uppercase;
-        }
-
-        #timer {
-            font-size: 60px;
-            color: #d4af37;
-            font-weight: bold;
-            text-shadow: 0 0 10px #d4af37;
-            background: rgba(0,0,0,0.5);
-            padding: 0 20px;
-            border-radius: 10px;
-            border: 2px solid #d4af37;
-        }
-
-        #message-overlay {
-            position: absolute;
-            top: 30%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 80px;
-            color: #fff;
-            font-weight: bold;
-            text-shadow: 0 0 20px #d4af37;
-            display: none;
-            text-transform: uppercase;
-            z-index: 50;
-            pointer-events: none;
-        }
-    </style>
-    <!-- Three.js CDN -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
-</head>
-<body>
-
-    <!-- UI Layer -->
-    <div id="ui-layer">
-        <div class="top-bar">
-            <div class="graph-controls">
-                <button class="btn-graph" onclick="toggleGraph()">📊 FPS</button>
-                <button class="btn-graph" onclick="toggleStats()">📈 Stats</button>
-            </div>
-            <div class="update-time" id="updateTime">Actualizado: --:--</div>
-        </div>
-    </div>
-
-    <!-- Graph Panel -->
-    <div id="graph-container">
-        <div class="graph-tabs">
-            <button class="tab-btn active" onclick="switchTab('performance')">⚡ PERFORMANCE</button>
-            <button class="tab-btn" onclick="switchTab('combat')">🎮 COMBAT</button>
-        </div>
-        <canvas id="fpsGraph"></canvas>
-        <canvas id="combatGraph" style="display:none;"></canvas>
-        <div class="stats-box" id="perfStats">
-            <div class="stat-item">FPS: <span id="val-fps">0</span></div>
-            <div class="stat-item">MIN: <span id="val-min">0</span></div>
-            <div class="stat-item">MAX: <span id="val-max">0</span></div>
-            <div class="stat-item">AVG: <span id="val-avg">0</span></div>
-        </div>
-    </div>
-
-    <!-- Stats Panel -->
-    <div id="stats-panel">
-        <h3>GAME STATISTICS</h3>
-        <div class="stat-row"><span>Total Wins:</span> <span class="stat-val" id="stat-wins">0</span></div>
-        <div class="stat-row"><span>Best Streak:</span> <span class="stat-val" id="stat-streak">0</span></div>
-        <div class="stat-row"><span>Fatalities:</span> <span class="stat-val" id="stat-fatal">0</span></div>
-        <hr style="border-color:#334; margin:10px 0;">
-        <div class="stat-row"><span>P1 HP:</span> <span class="stat-val" id="stat-p1-hp">100%</span></div>
-        <div class="stat-row"><span>P2 HP:</span> <span class="stat-val" id="stat-p2-hp">100%</span></div>
-        <div class="stat-row"><span>Active Combo:</span> <span class="stat-val" id="stat-combo">0 Hits</span></div>
-    </div>
-
-    <!-- Menu Screen -->
-    <div id="menu-screen">
-        <h1>Infame Fighting</h1>
-        <div class="char-select">
-            <div class="char-card selected" onclick="selectChar(0)">
-                <div class="char-name">Ronin</div>
-            </div>
-            <div class="char-card" onclick="selectChar(1)">
-                <div class="char-name">Bambú (Panda)</div>
-            </div>
-            <div class="char-card" onclick="selectChar(2)">
-                <div class="char-name">Cyber</div>
-            </div>
-        </div>
-        <button class="start-btn" onclick="startGame()">FIGHT!</button>
-    </div>
-
-    <!-- HUD -->
-    <div id="hud">
-        <div class="player-hud">
-            <div class="player-name" id="p1-name">Player 1</div>
-            <div class="health-bar-container">
-                <div class="health-bar" id="p1-health"></div>
-            </div>
-            <div class="super-bar-container">
-                <div class="super-bar" id="p1-super"></div>
-            </div>
-        </div>
-        <div id="timer">60</div>
-        <div class="player-hud" style="align-items: flex-end;">
-            <div class="player-name" id="p2-name">Player 2</div>
-            <div class="health-bar-container">
-                <div class="health-bar" id="p2-health"></div>
-            </div>
-            <div class="super-bar-container">
-                <div class="super-bar" id="p2-super"></div>
-            </div>
-        </div>
-    </div>
-
-    <div id="message-overlay"></div>
-
-    <script>
-        // --- CONFIG & STATE ---
-        let scene, camera, renderer, composer, controls;
-        let fighters = [], ground, particles = [];
-        let gameActive = false;
-        let lastTime = 0;
-        let selectedCharIndex = 0;
-        
-        // Graph State
-        let showGraph = false;
-        let showStatsPanel = false;
-        let fpsHistory = [];
-        let combatHistory = { p1: [], p2: [] };
-        const MAX_HISTORY = 200;
-        let graphTab = 'performance';
-        
-        // Game Stats
-        let stats = { wins: 0, streak: 0, maxStreak: 0, fatalities: 0 };
-        let comboCount = 0;
-
-        // Lights aliases for compatibility
-        let keyLight, fillLight, rimLight, hemiLight;
-        let sun; // Alias fix
-
-        // --- INIT ---
-        function init() {
-            // Scene
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x050510);
-            scene.fog = new THREE.FogExp2(0x050510, 0.02);
-
-            // Camera
-            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(0, 2, 8);
-
-            // Renderer
-            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-            renderer.shadowMap.enabled = true;
-            renderer.shadowMap.type = THREE.PCFSoftShadowMap; // High quality shadows
-            renderer.toneMapping = THREE.ACESFilmicToneMapping;
-            renderer.toneMappingExposure = 1.0;
-            document.body.appendChild(renderer.domElement);
-
-            // Lighting Setup (Cinematic 3-Point)
-            setupLighting();
-
-            // Ground with Texture
-            createGround();
-
-            // Particles
-            createParticles();
-
-            // Controls
-            controls = new THREE.OrbitControls(camera, renderer.domElement);
-            controls.enableDamping = true;
-            controls.dampingFactor = 0.05;
-            controls.maxPolarAngle = Math.PI / 2 - 0.05;
-            controls.minDistance = 3;
-            controls.maxDistance = 15;
-            controls.target.set(0, 1, 0);
-
-            // Post-Processing (Bloom only, removed broken SAO)
-            const renderScene = new THREE.RenderPass(scene, camera);
-            const bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
-            bloomPass.threshold = 0.8;
-            bloomPass.strength = 0.6;
-            bloomPass.radius = 0.5;
-
-            composer = new THREE.EffectComposer(renderer);
-            composer.addPass(renderScene);
-            composer.addPass(bloomPass);
-
-            // Event Listeners
-            window.addEventListener('resize', onWindowResize, false);
-            document.addEventListener('keydown', onKeyDown, false);
-            
-            // Initial Render
-            updateUpdateTime();
-            animate(0);
-        }
-
-        function setupLighting() {
-            // Key Light (Main Sun-like)
-            keyLight = new THREE.DirectionalLight(0xffaa77, 1.2);
-            keyLight.position.set(5, 8, 5);
-            keyLight.castShadow = true;
-            keyLight.shadow.mapSize.width = 2048;
-            keyLight.shadow.mapSize.height = 2048;
-            keyLight.shadow.camera.near = 0.5;
-            keyLight.shadow.camera.far = 50;
-            keyLight.shadow.bias = -0.0005;
-            keyLight.shadow.radius = 2;
-            scene.add(keyLight);
-            sun = keyLight; // Fix alias
-
-            // Fill Light (Cool blue)
-            fillLight = new THREE.DirectionalLight(0x8899ff, 0.5);
-            fillLight.position.set(-5, 4, -5);
-            scene.add(fillLight);
-
-            // Rim Light (Backlight for silhouette)
-            rimLight = new THREE.SpotLight(0xffffff, 0.8);
-            rimLight.position.set(0, 5, -8);
-            rimLight.lookAt(0, 1, 0);
-            scene.add(rimLight);
-
-            // Hemisphere Light (Ambient sky/ground)
-            hemiLight = new THREE.HemisphereLight(0xffffbb, 0x080820, 0.4);
-            scene.add(hemiLight);
-        }
-
-        function createGround() {
-            // Procedural Texture for Ground (Sand/Stone look)
-            const size = 60;
-            const geometry = new THREE.PlaneGeometry(size, size, 64, 64);
-            
-            // Create texture data manually
-            const canvas = document.createElement('canvas');
-            canvas.width = 1024;
-            canvas.height = 1024;
-            const ctx = canvas.getContext('2d');
-            
-            // Base color
-            ctx.fillStyle = '#1a1a1a';
-            ctx.fillRect(0, 0, 1024, 1024);
-            
-            // Noise
-            for(let i=0; i<50000; i++) {
-                ctx.fillStyle = Math.random() > 0.5 ? '#2a2a2a' : '#0f0f0f';
-                ctx.globalAlpha = 0.3;
-                ctx.beginPath();
-                ctx.arc(Math.random()*1024, Math.random()*1024, Math.random()*3, 0, Math.PI*2);
-                ctx.fill();
-            }
-            
-            // Cracks
-            ctx.strokeStyle = '#333';
-            ctx.lineWidth = 2;
-            for(let i=0; i<20; i++) {
-                ctx.beginPath();
-                ctx.moveTo(Math.random()*1024, Math.random()*1024);
-                ctx.lineTo(Math.random()*1024, Math.random()*1024);
-                ctx.stroke();
-            }
-
-            const texture = new THREE.CanvasTexture(canvas);
-            texture.wrapS = THREE.RepeatWrapping;
-            texture.wrapT = THREE.RepeatWrapping;
-            texture.repeat.set(4, 4);
-
-            const material = new THREE.MeshStandardMaterial({ 
-                map: texture,
-                roughness: 0.8,
-                metalness: 0.2,
-                receiveShadow: true
-            });
-
-            ground = new THREE.Mesh(geometry, material);
-            ground.rotation.x = -Math.PI / 2;
-            ground.receiveShadow = true;
-            scene.add(ground);
-        }
-
-        function createParticles() {
-            const geom = new THREE.BufferGeometry();
-            const vertices = [];
-            for(let i=0; i<200; i++) {
-                vertices.push((Math.random()-0.5)*10, (Math.random()-0.5)*5+2, (Math.random()-0.5)*10);
-            }
-            geom.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-            const mat = new THREE.PointsMaterial({color: 0xd4af37, size: 0.05, transparent: true, opacity: 0.6});
-            const pts = new THREE.Points(geom, mat);
-            scene.add(pts);
-            particles.push(pts);
-        }
-
-        // --- CHARACTER CREATION (HYPERREALISTIC) ---
-        function createFighter(type, x, color) {
-            const group = new THREE.Group();
-            group.position.set(x, 0, 0);
-
-            // Materials
-            const skinMat = new THREE.MeshStandardMaterial({
-                color: type === 'panda' ? 0xffffff : 0xffdbac,
-                roughness: 0.4,
-                metalness: 0.1,
-                bumpScale: 0.02
-            });
-            
-            const furMat = new THREE.MeshStandardMaterial({
-                color: 0x111111,
-                roughness: 0.9,
-                metalness: 0.0
-            });
-
-            const clothMat = new THREE.MeshStandardMaterial({
-                color: color,
-                roughness: 0.7,
-                metalness: 0.3
-            });
-
-            // Helper to create limbs with muscles
-            function createLimb(width, height, depth, mat, pos) {
-                const geo = new THREE.CapsuleGeometry(width, height, 4, 8);
-                const mesh = new THREE.Mesh(geo, mat);
-                mesh.position.copy(pos);
-                mesh.castShadow = true;
-                mesh.receiveShadow = true;
-                return mesh;
-            }
-
-            // Torso (Detailed)
-            const torsoGeo = new THREE.BoxGeometry(0.6, 0.7, 0.35);
-            // Modify vertices for muscle definition (simplified for code brevity, ideally use sculpted geo)
-            const torso = new THREE.Mesh(torsoGeo, type === 'panda' ? furMat : skinMat);
-            torso.position.y = 1.1;
-            torso.castShadow = true;
-            group.add(torso);
-
-            // Head Logic
-            if (type === 'panda') {
-                sculptPandaHead(group, skinMat, furMat);
-            } else {
-                const headGeo = new THREE.SphereGeometry(0.25, 32, 32);
-                const head = new THREE.Mesh(headGeo, skinMat);
-                head.position.y = 1.6;
-                head.castShadow = true;
-                group.add(head);
-                
-                // Simple Eyes
-                const eyeGeo = new THREE.SphereGeometry(0.04, 16, 16);
-                const eyeMat = new THREE.MeshBasicMaterial({color: 0x000000});
-                const lEye = new THREE.Mesh(eyeGeo, eyeMat);
-                lEye.position.set(-0.08, 1.62, 0.22);
-                const rEye = new THREE.Mesh(eyeGeo, eyeMat);
-                rEye.position.set(0.08, 1.62, 0.22);
-                group.add(lEye, rEye);
-            }
-
-            // Arms
-            const lArm = createLimb(0.08, 0.25, 0, skinMat, new THREE.Vector3(-0.45, 1.2, 0));
-            const rArm = createLimb(0.08, 0.25, 0, skinMat, new THREE.Vector3(0.45, 1.2, 0));
-            group.add(lArm, rArm);
-
-            // Legs
-            const lLeg = createLimb(0.1, 0.35, 0, clothMat, new THREE.Vector3(-0.2, 0.5, 0));
-            const rLeg = createLimb(0.1, 0.35, 0, clothMat, new THREE.Vector3(0.2, 0.5, 0));
-            group.add(lLeg, rLeg);
-
-            scene.add(group);
-            return { mesh: group, hp: 100, super: 0, state: 'idle' };
-        }
-
-        function sculptPandaHead(group, whiteMat, blackMat) {
-            const headGroup = new THREE.Group();
-            headGroup.position.y = 1.6;
-
-            // Base Head (White)
-            const headGeo = new THREE.SphereGeometry(0.26, 32, 32);
-            const head = new THREE.Mesh(headGeo, whiteMat);
-            head.castShadow = true;
-            headGroup.add(head);
-
-            // Ears (Black)
-            const earGeo = new THREE.SphereGeometry(0.08, 16, 16);
-            const lEar = new THREE.Mesh(earGeo, blackMat);
-            lEar.position.set(-0.2, 0.2, -0.1);
-            const rEar = new THREE.Mesh(earGeo, blackMat);
-            rEar.position.set(0.2, 0.2, -0.1);
-            headGroup.add(lEar, rEar);
-
-            // Eye Patches (Black Ovals) - CRITICAL FIX
-            const patchGeo = new THREE.SphereGeometry(0.07, 16, 16);
-            // Scale to make oval
-            const lPatch = new THREE.Mesh(patchGeo, blackMat);
-            lPatch.position.set(-0.08, 0.02, 0.23);
-            lPatch.scale.set(1, 1.2, 0.5);
-            lPatch.rotation.z = 0.2;
-            
-            const rPatch = new THREE.Mesh(patchGeo, blackMat);
-            rPatch.position.set(0.08, 0.02, 0.23);
-            rPatch.scale.set(1, 1.2, 0.5);
-            rPatch.rotation.z = -0.2;
-            
-            headGroup.add(lPatch, rPatch);
-
-            // Eyes (White sclera inside patches)
-            const eyeGeo = new THREE.SphereGeometry(0.035, 16, 16);
-            const eyeMat = new THREE.MeshBasicMaterial({color: 0xffffff});
-            const irisMat = new THREE.MeshBasicMaterial({color: 0x333333});
-            
-            const lEye = new THREE.Mesh(eyeGeo, eyeMat);
-            lEye.position.set(-0.08, 0.02, 0.29); // Slightly forward
-            const lIris = new THREE.Mesh(new THREE.SphereGeometry(0.015), irisMat);
-            lIris.position.z = 0.03;
-            lEye.add(lIris);
-
-            const rEye = new THREE.Mesh(eyeGeo, eyeMat);
-            rEye.position.set(0.08, 0.02, 0.29);
-            const rIris = new THREE.Mesh(new THREE.SphereGeometry(0.015), irisMat);
-            rIris.position.z = 0.03;
-            rEye.add(rIris);
-
-            headGroup.add(lEye, rEye);
-
-            // Nose
-            const noseGeo = new THREE.SphereGeometry(0.025, 16, 16);
-            const nose = new THREE.Mesh(noseGeo, blackMat);
-            nose.position.set(0, -0.05, 0.26);
-            nose.scale.set(1.2, 0.8, 1);
-            headGroup.add(nose);
-
-            group.add(headGroup);
-        }
-
-        // --- GAME LOGIC ---
-        function selectChar(idx) {
-            selectedCharIndex = idx;
-            document.querySelectorAll('.char-card').forEach((c, i) => {
-                c.classList.toggle('selected', i === idx);
-            });
-        }
-
-        function startGame() {
-            document.getElementById('menu-screen').style.display = 'none';
-            document.getElementById('hud').style.display = 'flex';
-            
-            // Clear old fighters
-            fighters.forEach(f => scene.remove(f.mesh));
-            fighters = [];
-
-            // Create Fighters
-            const types = ['human', 'panda', 'cyber'];
-            const colors = [0xff0000, 0x00ff00, 0x0000ff];
-            
-            // P1
-            fighters.push(createFighter(types[selectedCharIndex], -2, colors[selectedCharIndex]));
-            // P2 (Random)
-            const p2Type = types[Math.floor(Math.random()*types.length)];
-            fighters.push(createFighter(p2Type, 2, 0xaaaaaa));
-
-            gameActive = true;
-            resetHUD();
-            showMessage("FIGHT!");
-        }
-
-        function resetHUD() {
-            document.getElementById('p1-health').style.width = '100%';
-            document.getElementById('p2-health').style.width = '100%';
-            document.getElementById('p1-super').style.width = '0%';
-            document.getElementById('p2-super').style.width = '0%';
-            document.getElementById('timer').innerText = '60';
-            comboCount = 0;
-        }
-
-        function showMessage(text) {
-            const el = document.getElementById('message-overlay');
-            el.innerText = text;
-            el.style.display = 'block';
-            setTimeout(() => el.style.display = 'none', 2000);
-        }
-
-        function updatePhysics() {
-            if(!gameActive) return;
-            
-            // Simple AI Movement
-            fighters.forEach((f, i) => {
-                const target = i===0 ? fighters[1].mesh.position : fighters[0].mesh.position;
-                const dist = f.mesh.position.distanceTo(target);
-                
-                // Move towards opponent
-                if(dist > 1.5) {
-                    f.mesh.lookAt(target.x, f.mesh.position.y, target.z);
-                    f.mesh.translateZ(0.03);
-                    // Bobbing animation
-                    f.mesh.position.y = Math.abs(Math.sin(Date.now()*0.005 + i))*0.2;
-                } else {
-                    // Attack logic (random)
-                    if(Math.random() < 0.02) {
-                        // Punch animation simulation
-                        f.state = 'attack';
-                        setTimeout(()=> f.state='idle', 200);
-                        
-                        // Damage logic
-                        const victim = i===0 ? fighters[1] : fighters[0];
-                        victim.hp -= 2;
-                        victim.super = Math.min(100, victim.super + 5);
-                        comboCount++;
-                        
-                        updateHUD();
-                        
-                        if(victim.hp <= 0) endGame(i);
-                    }
-                }
-            });
-        }
-
-        function updateHUD() {
-            const p1 = fighters[0];
-            const p2 = fighters[1];
-            
-            document.getElementById('p1-health').style.width = p1.hp + '%';
-            document.getElementById('p2-health').style.width = p2.hp + '%';
-            document.getElementById('p1-super').style.width = p1.super + '%';
-            document.getElementById('p2-super').style.width = p2.super + '%';
-            
-            // Update Stats Panel
-            document.getElementById('stat-p1-hp').innerText = Math.max(0, p1.hp) + '%';
-            document.getElementById('stat-p2-hp').innerText = Math.max(0, p2.hp) + '%';
-            document.getElementById('stat-combo').innerText = comboCount + ' Hits';
-        }
-
-        function endGame(winnerIdx) {
-            gameActive = false;
-            stats.wins++;
-            stats.streak++;
-            if(stats.streak > stats.maxStreak) stats.maxStreak = stats.streak;
-            if(fighters[winnerIdx].hp <= 0 && fighters[1-winnerIdx].hp <= 0) stats.fatalities++;
-            
-            showMessage(winnerIdx === 0 ? "PLAYER 1 WINS" : "PLAYER 2 WINS");
-            setTimeout(() => {
-                document.getElementById('menu-screen').style.display = 'flex';
-                updateStatsPanel();
-            }, 3000);
-        }
-
-        function updateStatsPanel() {
-            document.getElementById('stat-wins').innerText = stats.wins;
-            document.getElementById('stat-streak').innerText = stats.maxStreak;
-            document.getElementById('stat-fatal').innerText = stats.fatalities;
-        }
-
-        // --- GRAPH SYSTEM ---
-        function toggleGraph() {
-            showGraph = !showGraph;
-            document.getElementById('graph-container').style.display = showGraph ? 'flex' : 'none';
-        }
-
-        function toggleStats() {
-            showStatsPanel = !showStatsPanel;
-            document.getElementById('stats-panel').style.display = showStatsPanel ? 'block' : 'none';
-        }
-
-        function switchTab(tab) {
-            graphTab = tab;
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            event.target.classList.add('active');
-            
-            if(tab === 'performance') {
-                document.getElementById('fpsGraph').style.display = 'block';
-                document.getElementById('combatGraph').style.display = 'none';
-                document.getElementById('perfStats').style.display = 'grid';
-            } else {
-                document.getElementById('fpsGraph').style.display = 'none';
-                document.getElementById('combatGraph').style.display = 'block';
-                document.getElementById('perfStats').style.display = 'none';
-            }
-        }
-
-        function updateGraphs(fps) {
-            if(!showGraph) return;
-
-            // FPS History
-            fpsHistory.push(fps);
-            if(fpsHistory.length > MAX_HISTORY) fpsHistory.shift();
-
-            if(graphTab === 'performance') {
-                drawFPSGraph();
-                // Update stats text
-                const min = Math.min(...fpsHistory);
-                const max = Math.max(...fpsHistory);
-                const avg = fpsHistory.reduce((a,b)=>a+b,0)/fpsHistory.length;
-                document.getElementById('val-fps').innerText = Math.round(fps);
-                document.getElementById('val-min').innerText = Math.round(min);
-                document.getElementById('val-max').innerText = Math.round(max);
-                document.getElementById('val-avg').innerText = Math.round(avg);
-            } else {
-                drawCombatGraph();
-            }
-        }
-
-        function drawFPSGraph() {
-            const cvs = document.getElementById('fpsGraph');
-            const ctx = cvs.getContext('2d');
-            const w = cvs.width = cvs.offsetWidth;
-            const h = cvs.height = cvs.offsetHeight;
-            
-            ctx.clearRect(0,0,w,h);
-            
-            // Gradient Background
-            const grad = ctx.createLinearGradient(0,0,0,h);
-            grad.addColorStop(0, 'rgba(212, 175, 55, 0.1)');
-            grad.addColorStop(1, 'rgba(0,0,0,0)');
-            ctx.fillStyle = grad;
-            ctx.fillRect(0,0,w,h);
-
-            // Line
-            ctx.beginPath();
-            ctx.strokeStyle = '#d4af37';
-            ctx.lineWidth = 2;
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = '#d4af37';
-            
-            const step = w / MAX_HISTORY;
-            fpsHistory.forEach((val, i) => {
-                const y = h - (val / 120) * h; // Cap at 120 FPS
-                if(i===0) ctx.moveTo(0, y);
-                else ctx.lineTo(i*step, y);
-            });
-            ctx.stroke();
-            
-            // 60 FPS Line
-            ctx.beginPath();
-            ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-            ctx.setLineDash([5,5]);
-            const y60 = h - (60/120)*h;
-            ctx.moveTo(0, y60);
-            ctx.lineTo(w, y60);
-            ctx.stroke();
-            ctx.setLineDash([]);
-        }
-
-        function drawCombatGraph() {
-            const cvs = document.getElementById('combatGraph');
-            const ctx = cvs.getContext('2d');
-            const w = cvs.width = cvs.offsetWidth;
-            const h = cvs.height = cvs.offsetHeight;
-            
-            ctx.clearRect(0,0,w,h);
-            
-            if(fighters.length < 2) return;
-
-            // Draw P1 Health (Red)
-            ctx.beginPath();
-            ctx.strokeStyle = '#ff4500';
-            ctx.lineWidth = 2;
-            const p1Y = h - (fighters[0].hp / 100) * h;
-            ctx.moveTo(0, h);
-            ctx.lineTo(w/2, p1Y);
-            ctx.lineTo(w, h); // Simplified for demo
-            ctx.stroke();
-
-            // Draw P2 Health (Blue)
-            ctx.beginPath();
-            ctx.strokeStyle = '#0088ff';
-            const p2Y = h - (fighters[1].hp / 100) * h;
-            ctx.moveTo(0, h);
-            ctx.lineTo(w/2, p2Y);
-            ctx.stroke();
-        }
-
-        function updateUpdateTime() {
-            const now = new Date();
-            const timeStr = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            document.getElementById('updateTime').innerText = "Actualizado: " + timeStr;
-        }
-
-        // --- MAIN LOOP ---
-        function animate(time) {
-            requestAnimationFrame(animate);
-            
-            const delta = time - lastTime;
-            lastTime = time;
-            const fps = 1000 / delta;
-
-            controls.update();
-            updatePhysics();
-            updateGraphs(fps);
-            updateUpdateTime();
-
-            // Animate Particles
-            particles.forEach(p => {
-                p.rotation.y += 0.001;
-                p.position.y = Math.sin(time*0.001)*0.5 + 2;
-            });
-
-            composer.render();
-        }
-
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            composer.setSize(window.innerWidth, window.innerHeight);
-        }
-
-        function onKeyDown(e) {
-            if(e.key.toLowerCase() === 'g') toggleGraph();
-            if(e.key.toLowerCase() === 's') toggleStats();
-        }
-
-        // Start
-        init();
-
-    </script>
-</body>
-</html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>INFAME FIGHTING — Torneo Mundial</title>
+<script>
+window.__fatal=function(m){try{
+  var d=document.getElementById('errbox');
+  if(!d){d=document.createElement('div');d.id='errbox';
+    d.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;z-index:9999;background:#2a0f14;color:#ffd0c8;border:2px solid #ff5a4a;border-radius:8px;padding:10px 12px;font:12px monospace;white-space:pre-wrap;';
+    if(document.body)document.body.appendChild(d);
+    else document.addEventListener('DOMContentLoaded',function(){document.body.appendChild(d);});}
+  d.textContent='⚠ ERROR: '+m+'\n(Copia este texto y pásamelo para arreglarlo)';
+}catch(_){}};
+/* Recursos OPCIONALES: si faltan, el juego funciona igual (retratos
+   procedurales / sin intro / cabeza-ring procedural / sin bloom). No deben
+   disparar el aviso de error. Cubre tanto archivos locales (src/...) como
+   los scripts de mejora que se cargan bajo demanda desde CDN (GLTFLoader,
+   el post-procesado de bloom): si esos fallan por red, el propio codigo que
+   los usa ya cae con gracia por dentro, y este filtro evita que ADEMAS
+   salte el aviso bloqueante. NO cubre three.min.js: si esa falla, el juego
+   no puede arrancar de verdad y el aviso debe seguir apareciendo. */
+window.__optRes=/(?:src\/Intro\.mp4|src\/luchador\d+[^\/]*\.png|src\/start\.mp3|src\/round\d\.mp3|src\/head-[\w-]+\.glb|src\/ring-[\w-]+\.(?:glb|mp4|jpg)|examples\/js\/loaders\/GLTFLoader\.js|examples\/js\/(?:shaders|postprocessing)\/[\w]+\.js)$/i;
+window.addEventListener('error',function(e){
+  if(e&&e.target&&e.target!==window&&e.target.tagName){
+    var u=e.target.src||e.target.href||'';
+    if(window.__optRes.test(String(u)))return;      // opcional: se ignora
+    window.__fatal('No se pudo cargar el recurso: '+(u||e.target.tagName));return;}
+  window.__fatal((e.message||'error')+(e.filename?'\n'+e.filename+':'+e.lineno:'')+
+    (e.error&&e.error.stack?'\n'+String(e.error.stack).split('\n').slice(0,3).join('\n'):''));
+},true);
+window.addEventListener('unhandledrejection',function(e){
+  window.__fatal('Promesa: '+((e.reason&&e.reason.message)||e.reason));});
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Russo+One&display=swap" rel="stylesheet">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0a0a12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;
     -webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
   input,textarea,select{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
@@ -1206,7 +236,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#0c0812">
   <meta name="description" content="Juego de lucha arcade 3D. 8 personajes, 4 escenarios, modos Torneo, Rey de Mesa y versus.">
-  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="PUÑO">
   <link rel="manifest" href="manifest.json">
@@ -1686,8 +716,8 @@
     <div id="org-slots"></div>
   </div>
 </div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script>if(typeof THREE==='undefined')document.write('<script src="https://unpkg.com/three@0.128.0/build/three.min.js"><\/script>');</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" crossorigin="anonymous"></script>
+<script>if(typeof THREE==='undefined')document.write('<script src="https://unpkg.com/three@0.128.0/build/three.min.js" crossorigin="anonymous"><\/script>');</script>
 <script>
 "use strict";
 /* ===========================================================
@@ -3056,14 +2086,13 @@ function buildCustom(cfg){
       const mus=B.arms||1, gap=B.armGap||1;
       R.gapZ=R.zA*gap*1.35;
       if(R.torsoBody)R.torsoBody.forEach(m=>m.visible=false);
-      
-      // PANDA: cabeza especializada con ojos dentro de las manchas negras
+      /* PANDA: cabeza propia. Con la cabeza generica los ojos caian FUERA
+         de las manchas negras, que es justo lo que las define. */
       if(this.id==='panda'){
         R.sculptPandaHead({r:12.5,rx:F.headDepth||1,ry:hv,rz:hd,skin:this._skin,iris:this._iris});
-      } else {
-        R.sculptHeadSimple({r:12.5,rx:F.headDepth||1,ry:hv,rz:hd,skin:this._skin,iris:this._iris,brow:this._hair,browAng:.05});
+      }else{
+      R.sculptHeadSimple({r:12.5,rx:F.headDepth||1,ry:hv,rz:hd,skin:this._skin,iris:this._iris,brow:this._hair,browAng:.05});
       }
-      
       R.hairCap(this._hair,{r:13.4*hd,clump:2.6*hd,n:20,minY:.22,faceOpen:.54,seed:7,baseY:.7,baseLift:.5});
       R.ears(R.mkMat(this._skin),{y:1,z:11*hd,r:2.7*hd,fwd:0,inner:this._skin,hex:this._skin});
       const tallR=(B.tall||1.6)/1.6, wideR=(B.wide||1.3)/1.3;
@@ -3199,66 +2228,36 @@ if('serviceWorker'in navigator&&location.protocol.indexOf('http')===0){
 }
 
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
-// Forzar renderizado inicial para evitar pantalla congelada
-renderer.setClearColor(0x05040a, 1);
-renderer.clear(true, true, true);
 const scene=new THREE.Scene();
 const cam=new THREE.PerspectiveCamera(46,W/H,.1,1400);
-
-// --- ILUMINACIÓN HIPERREALISTA PARA MÚSCULOS DEFINIDOS ---
-// Luz principal (Key Light) - Define la forma muscular
-const keyLight=new THREE.SpotLight(0xffffff, 1.8*GFX_LUZ);
-keyLight.position.set(8, 12, 8);
-keyLight.angle=Math.PI/5;
-keyLight.penumbra=0.4;
-keyLight.castShadow=true;
-keyLight.shadow.mapSize.set(2048,2048); // Calidad balanceada para mejor rendimiento
-keyLight.shadow.camera.near=0.5;
-keyLight.shadow.camera.far=50;
-keyLight.shadow.camera.left=-15;
-keyLight.shadow.camera.right=15;
-keyLight.shadow.camera.top=15;
-keyLight.shadow.camera.bottom=-15;
-keyLight.shadow.bias=-0.0003;
-keyLight.shadow.normalBias=0.04;
-scene.add(keyLight);
-scene.add(keyLight.target);
-const sun = keyLight; // Alias para compatibilidad con tickCam
-
-// Luz de relleno (Fill Light) - Suaviza sombras sin perder definición
-const fillLight=new THREE.DirectionalLight(0xaaccff, 0.5*GFX_LUZ);
-fillLight.position.set(-6, 8, 6);
-scene.add(fillLight);
-
-// Luz de borde (Rim Light) - Resalta contornos y músculos
-const rimLight=new THREE.SpotLight(0xffddaa, 1.2*GFX_LUZ);
-rimLight.position.set(0, 10, -12);
-rimLight.angle=Math.PI/4;
-rimLight.penumbra=0.6;
-rimLight.lookAt(0, 3, 0);
-scene.add(rimLight);
-const rim=rimLight; // Alias para compatibilidad
-
-// Luz ambiental cálida para piel realista
-scene.add(new THREE.HemisphereLight(0xffeedd, 0x2a2030, 0.35*GFX_LUZ));
-
-// Suelo receptor de sombras realistas - con fallback por si ShadowMaterial falla
-const floorGeo=new THREE.PlaneGeometry(300, 300);
-let floorMat;
-try {
-  floorMat = new THREE.ShadowMaterial({opacity:0.45});
-} catch(e) {
-  console.warn('ShadowMaterial no disponible, usando MeshBasicMaterial');
-  floorMat = new THREE.MeshBasicMaterial({color:0x000000, transparent:true, opacity:0.3});
+/* LUCES: menos relleno ambiental y mas luz direccional = sombras mas
+   marcadas y volumenes mas legibles. El contraluz sube bastante porque es
+   lo que recorta la silueta del luchador contra el fondo. */
+scene.add(new THREE.HemisphereLight(0xbfd8ff,0x30203a,.26*GFX_LUZ));
+const sun=new THREE.DirectionalLight(0xfff2d0,1.15*GFX_LUZ);
+sun.position.set(-7,14,10);sun.castShadow=true;
+sun.shadow.mapSize.set(2048,2048);
+sun.shadow.bias=-0.0004;sun.shadow.normalBias=0.03;
+sun.shadow.radius=1.4;
+/* La camara de sombra abarcaba mucho mas de lo que se ve: al repartir los
+   2048px en un area enorme, la sombra salia blanda y desvaida. Acotada a la
+   zona donde se pelea, cada pixel cubre menos terreno y el borde se define. */
+const sc=sun.shadow.camera;sc.left=-11;sc.right=11;sc.top=11;sc.bottom=-6;sc.near=1;sc.far=44;
+scene.add(sun);scene.add(sun.target);
+const rim=new THREE.DirectionalLight(0x88aaff,.62*GFX_LUZ);rim.position.set(9,6,-9);scene.add(rim);
+const hemi=new THREE.HemisphereLight(0xcfe0ff,0x3a2f28,.12*GFX_LUZ);scene.add(hemi);
+/* Relleno calido frontal: evita que la cara que no da al sol quede muerta. */
+const fill=new THREE.DirectionalLight(0xffd9b0,.28*GFX_LUZ);fill.position.set(6,4,12);scene.add(fill);
+/* LUZ DINAMICA: la escena respira y, sobre todo, destella con los impactos
+   fuertes (game.shake ya sube al golpear). */
+const _LUZ0={sun:sun.intensity,rim:rim.intensity,fill:fill.intensity};
+function tickLuces(t){
+  const golpe=Math.min(1,(game.shake||0)*7);
+  const resp=Math.sin(t*.0012)*.05;                 // vaiven lento, casi imperceptible
+  sun.intensity =_LUZ0.sun *(1+resp+golpe*.85);
+  fill.intensity=_LUZ0.fill*(1+golpe*1.5);
+  rim.intensity =_LUZ0.rim *(1+Math.sin(t*.0019)*.12+golpe*1.2);
 }
-const floor=new THREE.Mesh(floorGeo, floorMat);
-floor.rotation.x=-Math.PI/2;
-floor.position.y=-2.8;
-floor.receiveShadow=true;
-scene.add(floor);
-
-// Renderizado inicial inmediato para evitar pantalla congelada
-renderer.render(scene, cam);
 
 const stageEl=document.getElementById('stage');
 let PRCAP=1.75;
@@ -4865,6 +3864,9 @@ function crRefreshWigCells(){PGRIDS.forEach(g=>g._rf&&g._rf());}
 function openCreator(startPane,tallerOnly,returnMode){
   const pane=startPane||'id';
   game.mode='creator';crPanel.classList.add('on');crPanel._idx=null;
+  /* los botones tactiles quedaban por encima del panel: tapaban controles y
+     se comian el arrastre, impidiendo desplazar la lista de opciones */
+  {const tu=document.getElementById('touchUI');if(tu)tu.style.display='none';}
   crPanel._returnMode=returnMode||'config';
   crPanel.classList.toggle('taller-only',!!tallerOnly);
   crPanel.classList.remove('fold');CE('cr-fold').textContent='\u2039';
@@ -4903,6 +3905,9 @@ function closeCreator(){
   rebuildShowcase();
   setStage('arena');game.camX=0;game.camZ=11.5;game.camY=2.6;
   game.mode=crPanel._returnMode||'title';showcaseOn(true);
+  // devolver los botones tactiles al salir del creador
+  {const tu=document.getElementById('touchUI');
+   if(tu&&typeof IS_TOUCH!=='undefined'&&IS_TOUCH){buildTouch();tu.style.display='block';}}
 }
 function crLoadInto(cfg,idx){
   const set=(id,val)=>{if(val!=null)CE(id).value=val;};
@@ -5605,20 +4610,20 @@ let HEADSIMPLE_GEO=null;   // esfera unidad compartida para sculptHeadSimple
 function makeLimbGeo(ratio,bulgeC,bulgeW,bulgeAmt,segL,segR){
   const key=[ratio,bulgeC,bulgeW,bulgeAmt,segL,segR].join(',');
   if(LIMBGEOS[key])return LIMBGEOS[key];
-  segL=segL||14;segR=segR||16; // Más segmentos para mayor detalle muscular
-  const pos=[],normals=[],idx=[],gg=(x,c,w)=>Math.exp(-(((x-c)/w)**2));
+  segL=segL||12;segR=segR||14;   // algo mas de malla para que el relieve se lea
+  const pos=[],idx=[],gg=(x,c,w)=>Math.exp(-(((x-c)/w)**2));
   for(let j=0;j<=segL;j++){
     const v=j/segL;
-    // Perfil muscular complejo: múltiples bultos para bíceps/tríceps o cuádriceps/gemelo
-    const baseRad=1+(ratio-1)*v;
-    const bulge1=bulgeAmt*gg(v,bulgeC,bulgeW); // Bulto principal
-    const bulge2=(bulgeAmt*0.6)*gg(v,bulgeC+0.15,bulgeW*0.8); // Segundo bulto (tríceps/gemelo)
-    const r=baseRad*(1+bulge1+bulge2);
+    /* DOS bultos por miembro en vez de uno: el principal (biceps / cuadriceps)
+       y otro mas pequeno y desplazado (triceps / gemelo). Con uno solo el
+       miembro parecia un huso simetrico. */
+    const b1=bulgeAmt*gg(v,bulgeC,bulgeW), b2=bulgeAmt*.6*gg(v,bulgeC+.15,bulgeW*.8);
+    const r=(1+(ratio-1)*v)*(1+b1+b2);
     for(let i=0;i<=segR;i++){
       const th=i/segR*Math.PI*2;
-      // Variación angular para definición muscular (más pronunciada en laterales)
-      const muscleDef=Math.abs(Math.cos(th))*0.08*(bulgeAmt>0?bulgeAmt:0);
-      const rDef=r*(1+muscleDef*gg(v,0.5,0.3));
+      /* el radio se abre un poco en los costados: da la arista del musculo
+         en vez de una seccion perfectamente circular. */
+      const rDef=r*(1+Math.abs(Math.cos(th))*.08*(bulgeAmt>0?bulgeAmt:0)*gg(v,.5,.3));
       pos.push(Math.cos(th)*rDef,-v,Math.sin(th)*rDef);
     }
   }
@@ -5650,15 +4655,8 @@ function sculptLimb(R,group,bulgeC,bulgeW,bulgeAmt,keepRoot,flat){
     cap.scale.setScalar(1.06);   // un pelin mas prominente: lee como insercion muscular
   }
   const geo=makeLimbGeo(ratio,bulgeC,bulgeW,bulgeAmt,flat?7:10,flat?10:12);
-  // Material hiperrealista con sub-surface scattering simulado
-  const mat=new THREE.MeshStandardMaterial({
-    color:col,
-    roughness:0.35,
-    metalness:0.08,
-    normalScale:new THREE.Vector2(0.5,0.5),
-    flatShading:!!flat,
-    side:THREE.DoubleSide
-  });
+  const mat=new THREE.MeshPhongMaterial({color:col,specular:0x1a1512,shininess:6,
+    flatShading:!!flat,side:THREE.DoubleSide});
   R.M.push(mat);
   const mesh=new THREE.Mesh(geo,mat);
   mesh.scale.set(P.radiusTop,P.height,P.radiusTop);
@@ -5667,7 +4665,7 @@ function sculptLimb(R,group,bulgeC,bulgeW,bulgeAmt,keepRoot,flat){
 function makeTorsoGeo(B){
   B=B||{};const key=JSON.stringify(B);if(TORSOGEOS[key])return TORSOGEOS[key];
   const up=B.upper||1,lo=B.lower||1,mus=B.mus||1,wF=B.waist||1;
-  const Wc=32,Hh=36,pos=[],normals=[],idx=[]; // Mayor resolución para más detalle muscular
+  const Wc=28,Hh=32,pos=[],idx=[];
   const gg=(x,c,w)=>Math.exp(-(((x-c)/w)**2));
   for(let j=0;j<=Hh;j++){
     const v=j/Hh;
@@ -5676,40 +4674,25 @@ function makeTorsoGeo(B){
       const hips=gg(v,.12,.15),waist=gg(v,.45,.18),chest=gg(v,.78,.16),shoulder=gg(v,.95,.09);
       let rx=4.6*(1+.16*hips*lo-.10*waist+.22*chest*up+.42*(wF-1)*waist);
       let rz=7.4*(1+.24*hips*lo-.16*waist+.30*chest*up+.52*(wF-1)*waist);
-      
-      // Pectorales más definidos con separación esternal
-      rx+=fr*chest*up*mus*1.1*(gg(th,.55,.5)+gg(th,-.55,.5));
-      rx-=fr*chest*up*mus*0.3*gg(th,0,.15); // Surco interpectoral
-      
-      // Abdominales marcados (six-pack)
+      rx+=fr*chest*up*mus*1.1*(gg(th,.55,.5)+gg(th,-.55,.5));     // pectorales
+      rx-=fr*chest*up*mus*.3*gg(th,0,.15);                         // surco interpectoral
+      /* ABDOMINALES: tres bultos en vertical mas dos lineas tendinosas. Solo
+         aparecen con musculatura alta; en cuerpos normales queda el abdomen liso. */
       if(mus>1){
-        const absPos=[.38,.52,.62]; // Posiciones verticales de los abdominales
-        let absBulge=0;
-        for(const ap of absPos)absBulge+=gg(v,ap,.08);
-        rx+=fr*hips*lo*(.9+mus*0.4)*gg(th,0,1.1)*(1+absBulge*(mus-1)*0.6);
-        // Líneas tendinosas horizontales
-        rx-=fr*(mus-1)*0.4*gg(th,0,.22)*(gg(v,.42,.04)+gg(v,.52,.04));
-      }else{
-        rx+=fr*hips*lo*.8*gg(th,0,1.1);
-      }
-      
-      // Serratos anteriores (costados del torso)
-      if(mus>1&&cz>0.3){
-        const serratus=(mus-1)*0.4*gg(v,.55,.2);
-        rx+=serratus*Math.abs(cz)*gg(Math.abs(cz),.7,.2);
-      }
-      
-      // Hombros/deltoides más prominentes
-      rz+=shoulder*(2.6*up+1.4*mus)*Math.abs(cz);
-      
-      // Dorsales en la espalda
-      if(cx<0&&mus>1){
-        const lats=(mus-1)*0.5*gg(v,.6,.15);
+        let absB=0;for(const ap of[.38,.52,.62])absB+=gg(v,ap,.08);
+        rx+=fr*hips*lo*(.9+mus*.4)*gg(th,0,1.1)*(1+absB*(mus-1)*.6);
+        rx-=fr*(mus-1)*.4*gg(th,0,.22)*(gg(v,.42,.04)+gg(v,.52,.04));
+        if(cz>.3){                                                 // serrato anterior
+          const ser=(mus-1)*.4*gg(v,.55,.2);
+          rx+=ser*Math.abs(cz)*gg(Math.abs(cz),.7,.2);
+        }
+      }else rx+=fr*hips*lo*.8*gg(th,0,1.1);
+      rz+=shoulder*(2.6*up+1.4*mus)*Math.abs(cz);                  // hombros/deltoides
+      if(cx<0&&mus>1){                                             // dorsales (espalda)
+        const lats=(mus-1)*.5*gg(v,.6,.15);
         rz+=lats*Math.abs(cx)*gg(th,Math.PI,.4);
       }
-      
-      // Estrechamiento del cuello
-      if(v>.93){const f=1-(v-.93)/.07*.45;rx*=f;rz*=f;}
+      if(v>.93){const f=1-(v-.93)/.07*.45;rx*=f;rz*=f;}            // estrechamiento del cuello
       pos.push(cx*rx,(v-.5)*34,cz*rz);
     }
   }
@@ -5730,68 +4713,33 @@ function makeTorsoGeo(B){
 let SKINTEX=null;
 function skinTexture(){
   if(SKINTEX)return SKINTEX;
-  const c=document.createElement('canvas');c.width=c.height=512; // Mayor resolución para más detalle
-  const x=c.getContext('2d');
-  // Base de piel con gradiente suave y variación de tono
-  const grad=x.createRadialGradient(256,256,0,256,256,360);
-  grad.addColorStop(0,'rgba(255,230,210,1)');
-  grad.addColorStop(0.7,'rgba(235,195,165,1)');
-  grad.addColorStop(1,'rgba(210,170,140,1)');
-  x.fillStyle=grad;x.fillRect(0,0,512,512);
-  
-  // Capa de poros de la piel (alta densidad para realismo)
-  for(let i=0;i<15000;i++){
-    const a=Math.random()*6.28,r=Math.random()*2+0.3;
-    const alpha=Math.random()*0.06+0.02;
-    x.fillStyle='rgba(190,140,110,'+alpha+')';
-    x.beginPath();x.arc(Math.random()*512,Math.random()*512,r,0,6.28);x.fill();
+  /* Se genera UNA vez y se reutiliza, asi que compensa hacerla a 256: a 128 el
+     poro salia del tamano de un lunar al estirarse sobre el cuerpo. */
+  const c=document.createElement('canvas');c.width=c.height=256;
+  const x=c.getContext('2d');x.fillStyle='#ffffff';x.fillRect(0,0,256,256);
+  for(let i=0;i<6000;i++){                       // poros
+    x.fillStyle='rgba(120,70,50,'+(Math.random()*.05+.015)+')';
+    x.beginPath();x.arc(Math.random()*256,Math.random()*256,Math.random()*1.8+.4,0,6.28);x.fill();
   }
-  
-  // Pecas y variaciones de pigmentación
-  for(let i=0;i<800;i++){
-    const size=Math.random()*5+1;
-    x.fillStyle='rgba(170,110,80,'+(Math.random()*0.15)+')';
-    x.beginPath();x.arc(Math.random()*512,Math.random()*512,size,0,6.28);x.fill();
+  for(let i=0;i<300;i++){                        // pecas y pigmentacion
+    x.fillStyle='rgba(170,110,80,'+(Math.random()*.09)+')';
+    x.beginPath();x.arc(Math.random()*256,Math.random()*256,Math.random()*3+.8,0,6.28);x.fill();
   }
-  
-  // Líneas de tensión muscular y pliegues sutiles
-  for(let i=0;i<200;i++){
-    const cx=Math.random()*512,cy=Math.random()*512;
-    x.strokeStyle='rgba(150,100,70,'+(Math.random()*0.08)+')';
-    x.lineWidth=Math.random()*2+0.5;
-    x.beginPath();x.moveTo(cx,cy);
-    x.bezierCurveTo(
-      cx+(Math.random()-0.5)*40,cy+(Math.random()-0.5)*40,
-      cx+(Math.random()-0.5)*60,cy+(Math.random()-0.5)*60,
-      cx+(Math.random()-0.5)*80,cy+(Math.random()-0.5)*80
-    );
+  for(let i=0;i<90;i++){                         // pliegues y lineas de tension
+    const px=Math.random()*256,py=Math.random()*256;
+    x.strokeStyle='rgba(150,100,70,'+(Math.random()*.05)+')';
+    x.lineWidth=Math.random()*1.6+.4;x.beginPath();x.moveTo(px,py);
+    x.bezierCurveTo(px+(Math.random()-.5)*20,py+(Math.random()-.5)*20,
+                    px+(Math.random()-.5)*30,py+(Math.random()-.5)*30,
+                    px+(Math.random()-.5)*40,py+(Math.random()-.5)*40);
     x.stroke();
   }
-  
-  // Venas superficiales sutiles (más visibles en músculos definidos)
-  for(let i=0;i<50;i++){
-    const vx=Math.random()*512,vy=Math.random()*512;
-    x.strokeStyle='rgba(140,100,120,'+(Math.random()*0.05)+')';
-    x.lineWidth=Math.random()*1.5+0.3;
-    x.beginPath();x.moveTo(vx,vy);
-    let px=vx,py=vy;
-    for(let j=0;j<5;j++){
-      px+=(Math.random()-0.5)*30;
-      py+=(Math.random()-0.5)*30;
-      x.lineTo(px,py);
-    }
-    x.stroke();
+  for(let i=0;i<150;i++){
+    x.fillStyle='rgba(205,125,95,'+(Math.random()*.05)+')';
+    x.beginPath();x.arc(Math.random()*256,Math.random()*256,Math.random()*10+4,0,6.28);x.fill();
   }
-  
-  // Brillo sebáceo en zonas T (frente, nariz)
-  const sheenGrad=x.createRadialGradient(256,200,0,256,200,180);
-  sheenGrad.addColorStop(0,'rgba(255,255,255,0.03)');
-  sheenGrad.addColorStop(1,'rgba(255,255,255,0)');
-  x.fillStyle=sheenGrad;x.fillRect(0,0,512,512);
-  
   SKINTEX=new THREE.CanvasTexture(c);
-  SKINTEX.wrapS=SKINTEX.wrapT=THREE.RepeatWrapping;SKINTEX.repeat.set(4,4);
-  SKINTEX.anisotropy=renderer.capabilities.getMaxAnisotropy();
+  SKINTEX.wrapS=SKINTEX.wrapT=THREE.RepeatWrapping;SKINTEX.repeat.set(2,2);
   return SKINTEX;
 }
 /* ===========================================================
@@ -5811,7 +4759,7 @@ function loadGLTFLoader(){
   if(GLTFLoaderPromise)return GLTFLoaderPromise;
   GLTFLoaderPromise=new Promise((resolve,reject)=>{
     if(THREE.GLTFLoader){resolve(THREE.GLTFLoader);return;}
-    const sc=document.createElement('script');
+    const sc=document.createElement('script');sc.crossOrigin='anonymous';
     sc.src='https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js';
     sc.onload=()=>THREE.GLTFLoader?resolve(THREE.GLTFLoader):reject(new Error('GLTFLoader no disponible'));
     sc.onerror=()=>reject(new Error('no se pudo cargar GLTFLoader'));
@@ -5827,6 +4775,11 @@ function loadGLTFLoader(){
    Se usan las versiones CLASICAS (examples/js, no examples/jsm) de la
    misma r128 ya cargada: este juego no usa modulos ES. */
 function loadBloom(){
+  /* ORDEN OBLIGATORIO: ShaderPass y UnrealBloomPass hacen `extends Pass`, y
+     Pass lo define EffectComposer.js. Cargandolos con Promise.all se bajaban
+     en paralelo y se ejecutaban en el orden en que llegasen, asi que a veces
+     una clase heredaba de algo aun indefinido y saltaba
+     "Class extends value undefined". Por eso se cargan EN SECUENCIA. */
   const urls=[
     'https://unpkg.com/three@0.128.0/examples/js/shaders/CopyShader.js',
     'https://unpkg.com/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js',
@@ -5834,30 +4787,31 @@ function loadBloom(){
     'https://unpkg.com/three@0.128.0/examples/js/postprocessing/RenderPass.js',
     'https://unpkg.com/three@0.128.0/examples/js/postprocessing/ShaderPass.js',
     'https://unpkg.com/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js',
-    'https://unpkg.com/three@0.128.0/examples/js/postprocessing/SAOPass.js',
   ];
-  Promise.all(urls.map(u=>new Promise((res,rej)=>{
-    const sc=document.createElement('script');sc.src=u;
+  const uno=u=>new Promise((res,rej)=>{
+    const sc=document.createElement('script');sc.crossOrigin='anonymous';sc.src=u;
     sc.onload=res;sc.onerror=()=>rej(new Error('fallo cargando '+u));
     document.head.appendChild(sc);
-  }))).then(()=>{
-    if(!THREE.EffectComposer||!THREE.UnrealBloomPass)return;
+  });
+  urls.reduce((p,u)=>p.then(()=>uno(u)),Promise.resolve()).then(()=>{
+    if(!THREE.EffectComposer||!THREE.UnrealBloomPass)return;   // caida elegante
     const c=new THREE.EffectComposer(renderer);
     c.addPass(new THREE.RenderPass(scene,cam));
-    // Bloom mejorado para resaltar musculos y piel hiperrealista
-    const bloom=new THREE.UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),0.45,0.5,0.85);
-    bloom.threshold=0.72;bloom.strength=0.55;bloom.radius=0.9;
+    /* umbral alto a proposito: solo lo realmente brillante y sin sombrear
+       (glowMat) dispara el bloom; el resto del toon-shading, mas tenue por
+       la iluminacion, no se ve afectado. Fuerza baja: brillo sutil, no un
+       resplandor exagerado que rompa el look arcade. */
+    /* OJO con estos valores: hasta que se arreglo el orden de carga, el bloom
+       NUNCA llegaba a ejecutarse, asi que sus ajustes no se habian probado
+       nunca de verdad. Con la escena ya iluminada y con reflejos, el umbral
+       antiguo (.82) lo superaba medio escenario y todo salia resplandeciente
+       y borroso. Umbral alto = solo brilla lo realmente luminoso; radio bajo
+       = halo corto, sin emborronar la imagen. */
+    const bloom=new THREE.UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),.22,.28,.96);
     c.addPass(bloom);
-    // SSAO para oclusion ambiental y sombras mas profundas en musculatura
-    if(THREE.SAOPass){
-      const sao=new THREE.SAOPass(scene,cam,false,true);
-      sao.params.saoBias=0.025;sao.params.saoIntensity=0.18;sao.params.saoScale=18;
-      sao.params.saoKernelRadius=100;sao.params.saoMinResolution=0;
-      c.addPass(sao);
-    }
     c.setSize(renderer.domElement.width,renderer.domElement.height);
     composer=c;
-  }).catch(()=>{});
+  }).catch(()=>{});   // sin red o addon no disponible: el juego sigue sin bloom, tal cual
 }
 loadBloom();
 function headGLBFor(C,cb){
@@ -6847,7 +5801,7 @@ class Rig{
     if(C.glbBody)try{setupGLBBody(this,C);}catch(err){console.error('luchador GLB:',err);}
   }
   dark(c){const col=new THREE.Color(c);col.multiplyScalar(.72);return col.getHex();}
-  mkMat(c){const m=new THREE.MeshStandardMaterial({color:satCol(c),roughness:0.45,metalness:0.1});this.M.push(m);return m;}
+  mkMat(c){const m=new THREE.MeshToonMaterial({color:satCol(c)});this.M.push(m);return m;}
   glowMat(c){const m=new THREE.MeshBasicMaterial({color:c});this.M.push(m);return m;}
   bone(parent,len,rad,mat,taper){
     taper=taper===undefined?1:taper;
@@ -6864,8 +5818,8 @@ class Rig{
   ball(r,mat){const m=new THREE.Mesh(new THREE.SphereGeometry(r*this.s,18,14),mat);m.castShadow=true;return m;}
   hball(r,mat){const m=new THREE.Mesh(new THREE.SphereGeometry(r*this.s,72,54),mat);m.castShadow=true;return m;}
   fball(r,mat){const m=new THREE.Mesh(new THREE.SphereGeometry(r*this.s,36,28),mat);m.castShadow=true;return m;}
-  skinMat(c){const m=new THREE.MeshStandardMaterial({color:c,map:skinTexture(),roughness:0.42,metalness:0.08,normalScale:new THREE.Vector2(0.6,0.6)});
-    m.emissive.setHex(0x1a0f08);m.userData.em=0x1a0f08;this.M.push(m);return m;}
+  skinMat(c){const m=new THREE.MeshLambertMaterial({color:c,map:skinTexture()});
+    m.emissive.setHex(0x140a05);m.userData.em=0x140a05;this.M.push(m);return m;}
   cball(r,mat){const m=new THREE.Mesh(new THREE.SphereGeometry(r*this.s,16,12),mat);m.castShadow=true;return m;}
   ears(mat,o){
     o=o||{};if(o.hex!=null)mat=this.skinMat(o.hex);const y=o.y!=null?o.y:0, z=o.z!=null?o.z:1, r=o.r||3.2, fwd=o.fwd!=null?o.fwd:1;
@@ -6969,8 +5923,9 @@ class Rig{
     if(this.thumbB&&P.tB!=null)man(this.thumbB,P.tB,-1.2,-1.05);
   }
   sculptTorso(o){
-    /* sombreado suave: la malla ya es organica, materiales PBR para musculos realistas */
-    const m=new THREE.MeshStandardMaterial({color:o.color,roughness:0.38,metalness:0.12,normalScale:new THREE.Vector2(0.5,0.5),side:THREE.DoubleSide});
+    /* sombreado suave: la malla ya es organica, flatShading la facetaba de mas */
+    const m=new THREE.MeshPhongMaterial({color:o.color,specular:0x1a1512,shininess:6,
+      flatShading:false,side:THREE.DoubleSide});
     this.M.push(m);
     const geo=makeTorsoGeo({upper:o.upper,lower:o.lower,mus:o.mus,waist:o.waist});
     geo.computeVertexNormals();
@@ -6981,8 +5936,9 @@ class Rig{
     return mesh;
   }
   sculptHead(o){
-    const m=new THREE.MeshStandardMaterial({color:o.skin,map:skinTexture(),roughness:0.35,metalness:0.06,normalScale:new THREE.Vector2(0.4,0.4),side:THREE.DoubleSide});
-    m.emissive.setHex(0x1a0f08);m.userData.em=0x1a0f08;this.M.push(m);
+    const m=new THREE.MeshPhongMaterial({color:o.skin,map:skinTexture(),
+      specular:0x1a1512,shininess:6,flatShading:true,side:THREE.DoubleSide});
+    m.emissive.setHex(0x140a05);m.userData.em=0x140a05;this.M.push(m);
     const hg=makeHeadGeo(o.f);hg.computeVertexNormals();
     const mesh=new THREE.Mesh(hg,m);mesh.castShadow=true;
     mesh.scale.setScalar(o.r*this.s);this.head.add(mesh);
@@ -7036,101 +5992,6 @@ class Rig{
      Las orejas NO se incluyen aqui: buildReal ya llama a R.ears() aparte,
      igual que hacen los personajes del roster.
      =========================================================== */
-  sculptHeadSimple(o){
-    const rx=(o.rx||1)*o.r, ry=(o.ry||1)*o.r, rz=(o.rz||1)*o.r;
-    // Geometría de cabeza de alta resolución con más detalle facial
-    if(!HEADSIMPLE_GEO)HEADSIMPLE_GEO=new THREE.SphereGeometry(1,32,24); // Más segmentos para realismo
-    const m=new THREE.MeshStandardMaterial({
-      color:o.skin,
-      roughness:0.32,
-      metalness:0.05,
-      normalScale:new THREE.Vector2(0.55,0.55),
-      side:THREE.DoubleSide
-    });this.M.push(m);
-    const mesh=new THREE.Mesh(HEADSIMPLE_GEO,m);mesh.castShadow=true;
-    mesh.scale.set(rx*this.s,ry*this.s,rz*this.s);this.head.add(mesh);
-
-    /* Ojos/cejas/gafas: mismo sistema que sculptHead, pero la posicion en la
-       superficie se calcula EXACTA (punto de una esfera unidad escalado por
-       rx/ry/rz), sin los factores de ajuste que necesitaba la cabeza esculpida. */
-    const iris=this.mkMat(o.iris!=null?o.iris:0x4a3320),
-      pup=this.mkMat(0x140d10), scl=this.mkMat(0xf2efe6), shn=this.mkMat(0xffffff);
-    const th0=.36,ph0=.11;
-    const ux=Math.cos(th0)*Math.cos(ph0), uy=Math.sin(ph0), uz=Math.sin(th0)*Math.cos(ph0);
-    const skinM=this.skinMat(o.skin);
-    const eRbase=o.eyeR||rx*.145;
-    for(const sd of[-1,1]){
-      const eg=new THREE.Group();
-      eg.position.set(ux*rx*this.s,uy*ry*this.s,sd*uz*rz*this.s);
-      eg.rotation.y=-sd*.3;this.head.add(eg);
-      const eR=eRbase;
-      
-      // Globo ocular más realista con forma ligeramente asimétrica
-      const w=this.fball(eR,scl);w.scale.set(.78,.92,1.05);eg.add(w);
-      
-      // Iris con profundidad y borde limbal
-      const ir=this.fball(eR*.58,iris);ir.scale.set(.55,1,1);ir.position.x=eR*.62*this.s;eg.add(ir);
-      const limbalRing=this.fball(eR*.6,this.mkMat(0x2a1f18));limbalRing.scale.set(.52,1,1);limbalRing.position.x=eR*.58*this.s;eg.add(limbalRing);
-      
-      // Pupila con reflejo especular
-      const pu=this.fball(eR*.32,pup);pu.position.x=eR*.78*this.s;eg.add(pu);
-      
-      // Múltiples reflejos en el ojo para mayor realismo
-      const hl=this.fball(eR*.14,shn);hl.position.set(eR*.82*this.s,eR*.32*this.s,-sd*eR*.32*this.s);eg.add(hl);
-      const hl2=this.fball(eR*.06,shn);hl2.position.set(eR*.76*this.s,eR*.28*this.s,-sd*eR*.28*this.s);eg.add(hl2);
-      
-      // Párpados superiores e inferiores más definidos
-      const ul=this.fball(eR*1.2,skinM);ul.scale.set(.6,.55,1.2);
-      ul.position.set(-eR*.32*this.s,eR*.68*this.s,0);eg.add(ul);
-      const ll=this.fball(eR*1.1,skinM);ll.scale.set(.55,.4,1.15);
-      ll.position.set(-eR*.3*this.s,-eR*.7*this.s,0);eg.add(ll);
-      
-      // Pliegue del párpado superior
-      const lidFold=this.box(eR*.45,eR*.08,eR*1.6,this.mkMat(this.dark(o.skin)));
-      lidFold.position.set(-eR*.28*this.s,eR*.82*this.s,0);lidFold.rotation.x=sd*0.15;eg.add(lidFold);
-      
-      if(o.lash){const la=this.box(eR*.5,eR*.38,eR*1.8,this.mkMat(0x241418));
-        la.position.set(eR*.45*this.s,eR*.76*this.s,0);eg.add(la);}
-      
-      if(o.brow!==false){
-        const br=this.box(rx*.12,ry*(o.browTh||.13),eR*2.8,this.mkMat(o.brow!=null?o.brow:0x2a2018));
-        br.rotation.x=sd*(o.browAng||0);
-        const bx=Math.cos(th0)*Math.cos(ph0+.18), by=Math.sin(ph0+.18), bz=Math.sin(th0)*Math.cos(ph0+.18);
-        this.head.add(this.pos(br,bx*rx,by*ry,sd*bz*rz));
-      }
-      
-      // Nariz más definida (añadida a cada lado para simular puente nasal)
-      if(sd===1){
-        const noseBridge=this.box(rx*.08,ry*.15,rz*.4,this.mkMat(this.dark(o.skin)));
-        noseBridge.position.set(ux*rx*this.s*0.7,uy*ry*this.s-rz*.1,0);
-        noseBridge.rotation.x=0.2;
-        this.head.add(noseBridge);
-      }
-      
-      if(o.glasses){
-        const gm=this.mkMat(o.glasses.hex!=null?o.glasses.hex:0xdfe3ee);
-        const gr=this.ring(o.glasses.r||rx*.28,rx*.05,gm);gr.rotation.y=Math.PI/2;
-        this.head.add(this.pos(gr,ux*rx+rx*.14,uy*ry,sd*uz*rz));
-        if(o.glasses.lens){const ln=this.fball(o.glasses.r*.8||rx*.2,this.glowMat(o.glasses.lens));
-          ln.scale.set(.22,1,1);this.head.add(this.pos(ln,ux*rx+rx*.12,uy*ry,sd*uz*rz));}
-      }
-    }
-    if(o.glasses)this.head.add(this.pos(this.box(rx*.06,ry*.05,uz*rz*1.1,
-      this.mkMat(o.glasses.hex!=null?o.glasses.hex:0xdfe3ee)),ux*rx+rx*.15,uy*ry,0));
-
-    /* Cabeza importada por .glb: si hay archivo (por personaje o por
-       arquetipo), sustituye este elipsoide al llegar (async); si no, el
-       elipsoide se queda tal cual, sin más. */
-    {const rig=this, headMeshes=[mesh];
-     if(rig.C&&rig.C.headGLBHide)headMeshes.forEach(mm=>{if(mm)mm.visible=false;});
-     headGLBFor(rig.C,scene=>{
-       if(scene)swapHeadGLB(rig,scene,o.skin,headMeshes,
-         (rig.C&&rig.C.headGLBAxis)||'x',(rig.C&&rig.C.headGLBScale)||1,
-         rig.C&&rig.C.headGLBX,rig.C&&rig.C.headGLBY,rig.C&&rig.C.headGLBZ);
-     });}
-    return mesh;
-  }
-  
   /* ===========================================================
      CABEZA DE PANDA: ojos dentro de las manchas negras caracteristicas
      =========================================================== */
@@ -7207,6 +6068,74 @@ class Rig{
     this.head.add(mouth);
     
     return headMesh;
+  }
+  sculptHeadSimple(o){
+    const rx=(o.rx||1)*o.r, ry=(o.ry||1)*o.r, rz=(o.rz||1)*o.r;
+    if(!HEADSIMPLE_GEO)HEADSIMPLE_GEO=new THREE.SphereGeometry(1,20,16);
+    const m=new THREE.MeshPhongMaterial({color:o.skin,specular:0x1a1512,shininess:6,
+      flatShading:false,side:THREE.DoubleSide});this.M.push(m);
+    const mesh=new THREE.Mesh(HEADSIMPLE_GEO,m);mesh.castShadow=true;
+    mesh.scale.set(rx*this.s,ry*this.s,rz*this.s);this.head.add(mesh);
+
+    /* Ojos/cejas/gafas: mismo sistema que sculptHead, pero la posicion en la
+       superficie se calcula EXACTA (punto de una esfera unidad escalado por
+       rx/ry/rz), sin los factores de ajuste que necesitaba la cabeza esculpida. */
+    const iris=this.mkMat(o.iris!=null?o.iris:0x4a3320),
+      pup=this.mkMat(0x140d10), scl=this.mkMat(0xf2efe6), shn=this.mkMat(0xffffff);
+    const th0=.36,ph0=.11;
+    const ux=Math.cos(th0)*Math.cos(ph0), uy=Math.sin(ph0), uz=Math.sin(th0)*Math.cos(ph0);
+    const skinM=this.skinMat(o.skin);
+    const eRbase=o.eyeR||rx*.145;
+    for(const sd of[-1,1]){
+      const eg=new THREE.Group();
+      eg.position.set(ux*rx*this.s,uy*ry*this.s,sd*uz*rz*this.s);
+      eg.rotation.y=-sd*.3;this.head.add(eg);
+      const eR=eRbase;
+      const w=this.fball(eR,scl);w.scale.set(.72,.88,1);eg.add(w);
+      /* anillo limbal (borde oscuro del iris): sin el, el ojo parece pintado */
+      const lr=this.fball(eR*.6,this.mkMat(0x2a1f18));lr.scale.set(.52,1,1);
+      lr.position.x=eR*.58*this.s;eg.add(lr);
+      const ir=this.fball(eR*.58,iris);ir.scale.set(.55,1,1);ir.position.x=eR*.62*this.s;eg.add(ir);
+      const pu=this.fball(eR*.3,pup);pu.position.x=eR*.76*this.s;eg.add(pu);
+      const hl=this.fball(eR*.14,shn);hl.position.set(eR*.82*this.s,eR*.32*this.s,-sd*eR*.32*this.s);eg.add(hl);
+      const hl2=this.fball(eR*.06,shn);hl2.position.set(eR*.76*this.s,eR*.28*this.s,-sd*eR*.28*this.s);eg.add(hl2);
+      const ul=this.fball(eR*1.16,skinM);ul.scale.set(.55,.5,1.15);
+      ul.position.set(-eR*.3*this.s,eR*.66*this.s,0);eg.add(ul);
+      const ll=this.fball(eR*1.06,skinM);ll.scale.set(.5,.36,1.08);
+      ll.position.set(-eR*.28*this.s,-eR*.68*this.s,0);eg.add(ll);
+      /* pliegue del parpado superior: el rasgo que mas humaniza el ojo */
+      const lf=this.box(eR*.45,eR*.08,eR*1.6,this.mkMat(this.dark(o.skin)));
+      lf.position.set(-eR*.28*this.s,eR*.82*this.s,0);lf.rotation.x=sd*.15;eg.add(lf);
+      if(o.lash){const la=this.box(eR*.5,eR*.34,eR*1.7,this.mkMat(0x241418));
+        la.position.set(eR*.42*this.s,eR*.72*this.s,0);eg.add(la);}
+      if(o.brow!==false){
+        const br=this.box(rx*.1,ry*(o.browTh||.11),eR*2.5,this.mkMat(o.brow!=null?o.brow:0x2a2018));
+        br.rotation.x=sd*(o.browAng||0);
+        const bx=Math.cos(th0)*Math.cos(ph0+.15), by=Math.sin(ph0+.15), bz=Math.sin(th0)*Math.cos(ph0+.15);
+        this.head.add(this.pos(br,bx*rx,by*ry,sd*bz*rz));
+      }
+      if(o.glasses){
+        const gm=this.mkMat(o.glasses.hex!=null?o.glasses.hex:0xdfe3ee);
+        const gr=this.ring(o.glasses.r||rx*.28,rx*.05,gm);gr.rotation.y=Math.PI/2;
+        this.head.add(this.pos(gr,ux*rx+rx*.14,uy*ry,sd*uz*rz));
+        if(o.glasses.lens){const ln=this.fball(o.glasses.r*.8||rx*.2,this.glowMat(o.glasses.lens));
+          ln.scale.set(.22,1,1);this.head.add(this.pos(ln,ux*rx+rx*.12,uy*ry,sd*uz*rz));}
+      }
+    }
+    if(o.glasses)this.head.add(this.pos(this.box(rx*.06,ry*.05,uz*rz*1.1,
+      this.mkMat(o.glasses.hex!=null?o.glasses.hex:0xdfe3ee)),ux*rx+rx*.15,uy*ry,0));
+
+    /* Cabeza importada por .glb: si hay archivo (por personaje o por
+       arquetipo), sustituye este elipsoide al llegar (async); si no, el
+       elipsoide se queda tal cual, sin más. */
+    {const rig=this, headMeshes=[mesh];
+     if(rig.C&&rig.C.headGLBHide)headMeshes.forEach(mm=>{if(mm)mm.visible=false;});
+     headGLBFor(rig.C,scene=>{
+       if(scene)swapHeadGLB(rig,scene,o.skin,headMeshes,
+         (rig.C&&rig.C.headGLBAxis)||'x',(rig.C&&rig.C.headGLBScale)||1,
+         rig.C&&rig.C.headGLBX,rig.C&&rig.C.headGLBY,rig.C&&rig.C.headGLBZ);
+     });}
+    return mesh;
   }
   face2(o){
     const H=this.head, hr=o.headR, eR=o.eyeR||1.7, yaw=o.yaw||.46, up=o.up!=null?o.up:.14;
@@ -7437,26 +6366,167 @@ const w2px=v=>({x:v.x/K+480,y:GROUND-v.y/K});
 /* ===========================================================
    ESCENARIOS 3D
    =========================================================== */
+/* Arena pisada del coliseo: granos, rastrillado circular y manchas de uso.
+   Se genera una vez y se reutiliza. */
+let _arenaTex=null;
+function arenaTex(){
+  if(_arenaTex)return _arenaTex;
+  const c=document.createElement('canvas');c.width=c.height=512;
+  const x=c.getContext('2d');
+  x.fillStyle='#c9b28a';x.fillRect(0,0,512,512);
+  // manchas amplias: la arena nunca tiene un tono uniforme
+  for(let k=0;k<70;k++){
+    const px=Math.random()*512, py=Math.random()*512, r=30+Math.random()*90;
+    const g=x.createRadialGradient(px,py,1,px,py,r);
+    const osc=Math.random()<.5;
+    g.addColorStop(0,osc?'rgba(150,124,88,.20)':'rgba(226,208,176,.20)');
+    g.addColorStop(1,'rgba(0,0,0,0)');
+    x.fillStyle=g;x.fillRect(px-r,py-r,r*2,r*2);
+  }
+  // rastrillado: surcos suaves, como arena peinada
+  for(let k=0;k<150;k++){
+    x.strokeStyle='rgba(255,255,255,'+(.03+Math.random()*.05)+')';
+    x.lineWidth=1+Math.random()*2;
+    const y=Math.random()*512;x.beginPath();x.moveTo(0,y);
+    for(let s=0;s<=8;s++)x.lineTo(s*64,y+Math.sin(s*.9+k)*4);
+    x.stroke();
+  }
+  // grano fino
+  for(let k=0;k<9000;k++){
+    const v=Math.random()<.5?0:255;
+    x.fillStyle='rgba('+v+','+v+','+v+','+(.03+Math.random()*.06)+')';
+    x.fillRect(Math.random()*512,Math.random()*512,2,2);
+  }
+  // rozaduras de pisadas
+  for(let k=0;k<220;k++){
+    x.fillStyle='rgba(120,96,64,'+(.05+Math.random()*.10)+')';
+    const px=Math.random()*512,py=Math.random()*512;
+    x.beginPath();x.ellipse(px,py,3+Math.random()*9,2+Math.random()*4,Math.random()*3.14,0,6.283);x.fill();
+  }
+  _arenaTex=new THREE.CanvasTexture(c);
+  _arenaTex.wrapS=_arenaTex.wrapT=THREE.RepeatWrapping;
+  _arenaTex.repeat.set(5,5);
+  _arenaTex.encoding=THREE.sRGBEncoding;
+  _arenaTex.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+  return _arenaTex;
+}
+/* Piedra de la muralla y las gradas. */
+let _piedraTex=null;
+function piedraTex(){
+  if(_piedraTex)return _piedraTex;
+  const c=document.createElement('canvas');c.width=c.height=256;
+  const x=c.getContext('2d');
+  x.fillStyle='#cfc9b8';x.fillRect(0,0,256,256);
+  // sillares
+  const fh=32;
+  for(let f=0;f<256/fh;f++){
+    const off=(f%2)?32:0;
+    for(let s=0;s<5;s++){
+      const px=off+s*64-64, py=f*fh;
+      const v=200+Math.random()*40;
+      x.fillStyle='rgb('+v+','+(v-6)+','+(v-20)+')';
+      x.fillRect(px+1.5,py+1.5,64-3,fh-3);
+    }
+  }
+  for(let k=0;k<2600;k++){
+    x.fillStyle='rgba(90,80,64,'+(.03+Math.random()*.07)+')';
+    x.fillRect(Math.random()*256,Math.random()*256,2+Math.random()*4,1+Math.random()*3);
+  }
+  _piedraTex=new THREE.CanvasTexture(c);
+  _piedraTex.wrapS=_piedraTex.wrapT=THREE.RepeatWrapping;
+  _piedraTex.repeat.set(10,3);
+  _piedraTex.encoding=THREE.sRGBEncoding;
+  return _piedraTex;
+}
 const stages={};let tatami=null,ringStage=null;   // 'ringStage', no 'ring': el escenario ufo ya usa 'ring' como nombre local
+/* --- ENTORNO PARA REFLEJOS ---
+   Sin un mapa de entorno, un material metalico no tiene NADA que reflejar y
+   se ve plano o casi negro. Se genera uno procedural (cielo + horizonte +
+   focos) y se convierte con PMREM: a partir de ahi cualquier material
+   MeshStandard de la escena recibe reflejos y brillos especulares. */
+function envEquirect(){
+  const c=document.createElement('canvas');c.width=256;c.height=128;
+  const x=c.getContext('2d');
+  const g=x.createLinearGradient(0,0,0,128);
+  g.addColorStop(0,'#a9dcff');g.addColorStop(.46,'#eaf4ff');
+  g.addColorStop(.54,'#7a736a');g.addColorStop(1,'#25252c');
+  x.fillStyle=g;x.fillRect(0,0,256,128);
+  // focos de techo: son las manchas de luz que luego se ven correr por el suelo
+  for(let i=0;i<6;i++){
+    const px=(i+.5)/6*256, py=30, r=24;
+    const rg=x.createRadialGradient(px,py,1,px,py,r);
+    rg.addColorStop(0,'rgba(255,248,222,1)');rg.addColorStop(1,'rgba(255,248,222,0)');
+    x.fillStyle=rg;x.fillRect(px-r,py-r,r*2,r*2);
+  }
+  const t=new THREE.CanvasTexture(c);
+  t.mapping=THREE.EquirectangularReflectionMapping;
+  return t;
+}
+let ENVMAP=null;
+try{
+  const _pm=new THREE.PMREMGenerator(renderer);_pm.compileEquirectangularShader();
+  ENVMAP=_pm.fromEquirectangular(envEquirect()).texture;
+  scene.environment=ENVMAP;_pm.dispose();
+}catch(e){console.warn('sin mapa de entorno (se sigue sin reflejos):',e);}
+
 function tileTex(){
-  const c=document.createElement('canvas');c.width=c.height=128;
+  const c=document.createElement('canvas');c.width=c.height=256;
   const x=c.getContext('2d');
   for(let i=0;i<2;i++)for(let j=0;j<2;j++){
-    x.fillStyle=((i+j)%2)?'#cdc7bb':'#a3a8ad';
-    x.fillRect(i*64,j*64,64,64);
+    // cada baldosa con su tono: un suelo real nunca es de un solo color
+    const v=((i+j)%2)?1:0;
+    const g=x.createLinearGradient(i*128,j*128,i*128+128,j*128+128);
+    g.addColorStop(0,v?'#d6d0c3':'#a9aeb3');
+    g.addColorStop(1,v?'#c2bcae':'#969ba1');
+    x.fillStyle=g;x.fillRect(i*128,j*128,128,128);
+    // veta tipo marmol
+    x.strokeStyle=v?'rgba(255,255,255,.25)':'rgba(255,255,255,.16)';
+    for(let k=0;k<7;k++){
+      x.lineWidth=.6+Math.random()*1.4;x.beginPath();
+      let px=i*128+Math.random()*128, py=j*128;
+      x.moveTo(px,py);
+      for(let s=0;s<6;s++){px+=(Math.random()-.5)*34;py+=128/6;x.lineTo(px,py);}
+      x.stroke();
+    }
   }
-  x.strokeStyle='#6b6760';x.lineWidth=4;
-  x.strokeRect(0,0,64,64);x.strokeRect(64,0,64,64);
-  x.strokeRect(0,64,64,64);x.strokeRect(64,64,64,64);
-  for(let k=0;k<500;k++){x.fillStyle='rgba(0,0,0,.045)';
-    x.fillRect(Math.random()*128,Math.random()*128,2,2);}
-  for(let k=0;k<120;k++){x.fillStyle='rgba(255,255,255,.06)';
-    x.fillRect(Math.random()*128,Math.random()*128,3,1);}
+  x.strokeStyle='#5e5a53';x.lineWidth=7;
+  x.strokeRect(0,0,128,128);x.strokeRect(128,0,128,128);
+  x.strokeRect(0,128,128,128);x.strokeRect(128,128,128,128);
+  for(let k=0;k<900;k++){x.fillStyle='rgba(0,0,0,.04)';
+    x.fillRect(Math.random()*256,Math.random()*256,2,2);}
+  for(let k=0;k<260;k++){x.fillStyle='rgba(255,255,255,.07)';
+    x.fillRect(Math.random()*256,Math.random()*256,3,1);}
+  const t=new THREE.CanvasTexture(c);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(48,24);
+  t.encoding=THREE.sRGBEncoding;          // es un mapa de COLOR
+  t.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+  return t;
+}
+/* Mapa de RUGOSIDAD: donde es oscuro el suelo brilla (pulido) y donde es
+   claro queda mate. Al variar por baldosa, el reflejo de los focos se
+   rompe y el suelo deja de parecer una lamina plana de color. */
+function tileRoughTex(){
+  const c=document.createElement('canvas');c.width=c.height=256;
+  const x=c.getContext('2d');
+  for(let i=0;i<2;i++)for(let j=0;j<2;j++){
+    const base=((i+j)%2)?92:130;                 // pulido / algo mas mate
+    x.fillStyle='rgb('+base+','+base+','+base+')';
+    x.fillRect(i*128,j*128,128,128);
+  }
+  for(let k=0;k<1400;k++){                       // desgaste y rozaduras
+    const v=140+Math.random()*90;
+    x.fillStyle='rgba('+v+','+v+','+v+',.5)';
+    x.fillRect(Math.random()*256,Math.random()*256,2+Math.random()*6,1+Math.random()*2);
+  }
+  x.strokeStyle='#f0f0f0';x.lineWidth=7;         // juntas: siempre mate
+  x.strokeRect(0,0,128,128);x.strokeRect(128,0,128,128);
+  x.strokeRect(0,128,128,128);x.strokeRect(128,128,128,128);
   const t=new THREE.CanvasTexture(c);
   t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(48,24);
   return t;
 }
-const TILEMAT=new THREE.MeshLambertMaterial({map:tileTex(),
+const TILEMAT=new THREE.MeshStandardMaterial({map:tileTex(),roughnessMap:tileRoughTex(),
+  roughness:1,metalness:.16,envMapIntensity:.65,
   polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-3});
 const TILEFLOOR=new THREE.Mesh(new THREE.PlaneGeometry(96,48),TILEMAT);
 TILEFLOOR.rotation.x=-Math.PI/2;TILEFLOOR.position.y=0;TILEFLOOR.receiveShadow=true;
@@ -7479,15 +6549,41 @@ function tickMotes(t){
     m.rotation.y=t*.02+u.p;});
 }
 function mat(c,f){
-  try {
-    return new THREE.MeshToonMaterial({color:satCol(c),fog:f!==false});
-  } catch(e) {
-    console.warn('MeshToonMaterial fallback:', e);
-    return new THREE.MeshLambertMaterial({color:satCol(c)});
+  /* si un navegador no trae MeshToonMaterial, antes reventaba el escenario
+     entero; asi solo pierde el sombreado de comic. */
+  try{return new THREE.MeshToonMaterial({color:satCol(c),fog:f!==false});}
+  catch(e){return new THREE.MeshLambertMaterial({color:satCol(c),fog:f!==false});}
+}
+/* Ruido gris reutilizado por todos los suelos de escenario: multiplica al
+   color base, asi que rompe el tono plano sin cambiar el color elegido. */
+let _sueloTex=null;
+function sueloTex(){
+  if(_sueloTex)return _sueloTex;
+  const c=document.createElement('canvas');c.width=c.height=128;
+  const x=c.getContext('2d');
+  x.fillStyle='#b4b4b4';x.fillRect(0,0,128,128);
+  for(let k=0;k<2600;k++){
+    const v=140+Math.random()*115, a=.10+Math.random()*.22;
+    x.fillStyle='rgba('+v+','+v+','+v+','+a+')';
+    x.fillRect(Math.random()*128,Math.random()*128,1+Math.random()*3,1+Math.random()*3);
   }
+  for(let k=0;k<70;k++){                       // vetas largas: dan direccion
+    x.strokeStyle='rgba(255,255,255,.07)';x.lineWidth=.5+Math.random();
+    x.beginPath();const y=Math.random()*128;
+    x.moveTo(0,y);x.lineTo(128,y+(Math.random()-.5)*12);x.stroke();
+  }
+  _sueloTex=new THREE.CanvasTexture(c);
+  _sueloTex.wrapS=_sueloTex.wrapT=THREE.RepeatWrapping;
+  _sueloTex.repeat.set(14,10);
+  return _sueloTex;
 }
 function ground(color,size){
-  const m=mat(color);m.polygonOffset=true;m.polygonOffsetFactor=1;m.polygonOffsetUnits=1;
+  /* antes era MeshToonMaterial: color liso, sin brillo ni relieve. Con
+     MeshStandard + textura + el mapa de entorno el suelo capta la luz y
+     refleja algo, que es lo que le faltaba. */
+  const m=new THREE.MeshStandardMaterial({color:satCol(color),map:sueloTex(),
+    roughness:.78,metalness:.08,envMapIntensity:.5});
+  m.polygonOffset=true;m.polygonOffsetFactor=1;m.polygonOffsetUnits=1;
   const g=new THREE.Mesh(new THREE.PlaneGeometry(size||60,40),m);
   g.rotation.x=-Math.PI/2;g.receiveShadow=true;return g;
 }
@@ -7726,9 +6822,15 @@ function buildStages(){
    const G=new THREE.Group();
    const cAren=0xc9a978,cPied=0xd8d2c0,cPied2=0xbfb8a4,cGrad=0xa89f8a;
 
+   /* ARENA: antes era MeshBasicMaterial, es decir SIN iluminacion: no
+      recibia ni una sombra (de ahi que los luchadores flotasen sin peso) y
+      el color salia plano por definicion. Ahora es un material iluminado,
+      con textura de arena pisada y receiveShadow. */
    const disc=new THREE.Mesh(new THREE.CircleGeometry(R,96),
-     new THREE.MeshBasicMaterial({color:cAren}));
-   disc.rotation.x=-Math.PI/2;disc.position.y=.02;G.add(disc);G.disc=disc;
+     new THREE.MeshStandardMaterial({color:cAren,map:arenaTex(),
+       roughness:.94,metalness:.02,envMapIntensity:.35}));
+   disc.rotation.x=-Math.PI/2;disc.position.y=.02;disc.receiveShadow=true;
+   G.add(disc);G.disc=disc;
 
    // circulo de combate marcado en la arena
    const borde=new THREE.Mesh(new THREE.RingGeometry(RC-.4,RC,80),
@@ -7746,22 +6848,24 @@ function buildStages(){
 
    const HM=5.5*ESC;   // muralla algo mas alta en proporcion
    const muro=new THREE.Mesh(new THREE.CylinderGeometry(RM,RM,HM,96,1,true),
-     new THREE.MeshBasicMaterial({color:cPied,side:THREE.DoubleSide}));
-   muro.position.y=HM/2;G.add(muro);
+     new THREE.MeshStandardMaterial({color:cPied,map:piedraTex(),side:THREE.DoubleSide,
+       roughness:.88,metalness:.04,envMapIntensity:.4}));
+   muro.position.y=HM/2;muro.receiveShadow=true;G.add(muro);
    for(let b=0;b<5;b++){
      const fr=new THREE.Mesh(new THREE.TorusGeometry(RM-.03*ESC,.055*ESC,6,96),
        new THREE.MeshBasicMaterial({color:cPied2}));
      fr.rotation.x=Math.PI/2;fr.position.y=HM*(.16+b*.19);G.add(fr);}
    const corn=new THREE.Mesh(new THREE.CylinderGeometry(RM+.45*ESC,RM+.25*ESC,.45*ESC,96,1,true),
-     new THREE.MeshBasicMaterial({color:cPied2}));
+     new THREE.MeshStandardMaterial({color:cPied2,roughness:.85,metalness:.04,envMapIntensity:.4}));
    corn.position.y=HM+.2*ESC;G.add(corn);
 
    const NT=12, altG=1.6*ESC;
    for(let t=0;t<NT;t++){
      const r0=RM+.6*ESC+t*1.15*ESC, alt=altG;      // graderio pegado
      const g=new THREE.Mesh(new THREE.CylinderGeometry(r0+1.15*ESC,r0,alt,80,1,true),
-       new THREE.MeshBasicMaterial({color:t%2?cGrad:cPied2,side:THREE.DoubleSide}));
-     g.position.y=HM+.4*ESC+t*alt;G.add(g);}
+       new THREE.MeshStandardMaterial({color:t%2?cGrad:cPied2,side:THREE.DoubleSide,
+         roughness:.9,metalness:.03,envMapIntensity:.35}));
+     g.position.y=HM+.4*ESC+t*alt;g.receiveShadow=true;G.add(g);}
 
    /* COLUMNATA: se apoya justo donde termina la ultima grada (borde exterior
       y altura de su cara superior), a escala 0.7 de la original. */
@@ -7776,7 +6880,7 @@ function buildStages(){
        new THREE.MeshBasicMaterial({color:cPied2}));
      base.position.set(cx,yUlt+hBase/2,cz);G.add(base);
      const fuste=new THREE.Mesh(new THREE.CylinderGeometry(.26*CS,.31*CS,hFuste,14),
-       new THREE.MeshBasicMaterial({color:cPied}));
+       new THREE.MeshLambertMaterial({color:cPied}));
      fuste.position.set(cx,yUlt+hBase+hFuste/2,cz);fuste.castShadow=true;G.add(fuste);
      const cap=new THREE.Mesh(new THREE.BoxGeometry(.78*CS,hCap,.78*CS),
        new THREE.MeshBasicMaterial({color:cPied2}));
@@ -8315,7 +7419,7 @@ class Fighter{
       }
       this.rig.fist=.22;this.rig.curlHands();
       this.rig.apply(POSE.hurt,this.facing,(GROUND-this.y)*K+stageFloorY(),'none');
-      if(this.blob){this.blob.position.x=(this.x-480)*K;this.blob.position.y=.025+stageFloorY();this.blob.scale.setScalar(.7);}
+      if(this.blob){const w=axW((this.x-480)*K);this.blob.position.set(w.x,.025+stageFloorY(),w.z);this.blob.scale.setScalar(.7);}
       return;
     }
     if(this.state==='throw'){
@@ -8329,7 +7433,7 @@ class Fighter{
       if(this.thT>=26)this.state='idle';
       this.rig.fist+=(1-this.rig.fist)*.4;this.rig.curlHands();
       this.rig.apply(this.thT<12?POSE.charge:POSE.release,this.facing,stageFloorY(),'both');
-      if(this.blob){this.blob.position.x=(this.x-480)*K;this.blob.position.y=.025+stageFloorY();}
+      if(this.blob){const w=axW((this.x-480)*K);this.blob.position.set(w.x,.025+stageFloorY(),w.z);}
       return;
     }
     this.t++;if(this.cd>0)this.cd--;if(this.tapT>0)this.tapT--;
@@ -8501,25 +7605,57 @@ class Fighter{
       const gw=this.state==='gwalk';
       const s=gw?Math.sin(this.walkPh):0, c=gw?Math.cos(this.walkPh):0, ab=Math.abs(s);
       const swF=Math.max(0,-c), swB=Math.max(0,c);   // fase de vuelo de cada pierna
+      /* Igual que en la marcha normal pero contenido: en guardia el paso es
+         corto y arrastrado, aun asi el pie rueda (punta y talon) y la cadera
+         acompana, que es lo que evita el aspecto de bloque rigido. */
+      const sq=v=>v*v;
+      const pushF=gw?sq(Math.max(0,s)):0,  pushB=gw?sq(Math.max(0,-s)):0;
+      const heelF=gw?sq(Math.max(0,-s)):0, heelB=gw?sq(Math.max(0,s)):0;
       /* Mas agachado, torso inclinado hacia el rival y cabeza recta:
          'head' compensa la inclinacion del torso para que la mirada quede al frente. */
-      return P({py:-68+ab*2,torso:20,head:5,
+      return P({py:-68+ab*2,torso:20,abdo:12+s*1.4,head:5,
+        hip:s*4,twist:-s*5,tside:s*1.4,
         armUF:170-s*4,armLF:26-s*5,armUB:190+s*4,armLB:36+s*5,
-        legUF:146+s*12,legLF:200+s*12+swF*15,footAF:-swF*9,
-        legUB:154-s*12,legLB:206-s*12+swB*15,footAB:-swB*9});
+        wristF:-s*5,wristB:s*5,
+        legUF:146+s*12,legLF:200+s*12+swF*15,
+        footAF:-swF*9-heelF*7+pushF*10, toeF:pushF*14,
+        legUB:154-s*12,legLB:206-s*12+swB*15,
+        footAB:-swB*9-heelB*7+pushB*10, toeB:pushB*14});
     }
     if(this.state==='walk'){
-      const s=Math.sin(this.walkPh),c=Math.cos(this.walkPh),ab=Math.abs(s);
+      const ph=this.walkPh;
+      const s=Math.sin(ph),c=Math.cos(ph),ab=Math.abs(s);
       /* La rodilla se flexiona en la FASE DE VUELO (cuando la pierna avanza),
          no cuando esta atras: asi el pie despega y no se arrastra.
          rodilla = legL - legU ; el maximo cae al pasar el pie bajo el cuerpo. */
       const swF=Math.max(0,-c), swB=Math.max(0,c);
-      return P({py:-92+ab*3,torso:8,head:2,armUF:152-s*10,armLF:78-s*12,armUB:196+s*12,armLB:158+s*10,
-        legUF:180+s*22,legLF:180+s*22+8+swF*30,footAF:-swF*14,
-        legUB:180-s*22,legLB:180-s*22+8+swB*30,footAB:-swB*14});
+      /* CICLO DE MARCHA COMPLETO. El vuelo empieza donde cos cambia de signo:
+         justo ahi el pie EMPUJA con la punta (despegue) y, media vuelta
+         despues, ATERRIZA de talon con la punta levantada. Son los dos
+         detalles que separan un andar de verdad de dos palos oscilando. */
+      const sq=v=>v*v;
+      const pushF=sq(Math.max(0,s)),  pushB=sq(Math.max(0,-s));   // despegue de punta
+      const heelF=sq(Math.max(0,-s)), heelB=sq(Math.max(0,s));    // contacto de talon
+      return P({py:-92+ab*3,torso:8+s*1.2,abdo:6+s*2,head:2,headY:-s*3,
+        /* La pelvis gira con la zancada y los hombros giran AL REVES. Esa
+           contrarrotacion es la firma del andar humano; sin ella el tronco
+           va de una pieza y el personaje parece un maniqui. */
+        hip:s*7,twist:-s*9,tside:s*2.2,
+        armUF:152-s*10,armLF:78-s*12,armUB:196+s*12,armLB:158+s*10,
+        armAF:5,armAB:5,wristF:-s*10,wristB:s*10,
+        legUF:180+s*22,legLF:180+s*22+8+swF*30,
+        footAF:-swF*10-heelF*12+pushF*16, toeF:pushF*24,
+        legUB:180-s*22,legLB:180-s*22+8+swB*30,
+        footAB:-swB*10-heelB*12+pushB*16, toeB:pushB*24,
+        legAF:2,legAB:2});
     }
     const b=Math.sin(this.t*.06);
-    return P({py:-92+b*1.6,torso:6+b*1.2,head:2-b,armLF:78+b*4,armLB:158-b*3,armUF:152+b*2});
+    /* Reposo: respiracion repartida por varias articulaciones en vez de un
+       solo balanceo, para que no parezca una estatua con un muelle. */
+    const b2=Math.sin(this.t*.06-.7);
+    return P({py:-92+b*1.6,torso:6+b*1.2,abdo:6+b*.8,head:2-b,headY:b2*1.5,
+      armLF:78+b*4,armLB:158-b*3,armUF:152+b*2,armUB:196-b*1.5,
+      wristF:b2*4,wristB:-b2*3,tside:b2*.8});
   }
   plantMode(){
     if(this.state==='ko'||this.air)return 'none';
@@ -8562,7 +7698,7 @@ class Fighter{
     this.rig.root.rotation.y-=AX.A;    // el rig se alinea con el eje giratorio
     if(this.flashT>0){this.flashT--;
       for(const m of this.rig.M)if(m.emissive)m.emissive.setHex(this.flashT>0?0x9a9a9a:(m.userData.em||0x000000));}
-    if(this.blob){this.blob.position.x=(this.x-480)*K;this.blob.position.y=.025+stageFloorY();
+    if(this.blob){const w=axW((this.x-480)*K);this.blob.position.set(w.x,.025+stageFloorY(),w.z);
       const hg=(GROUND-this.y)*K,sc=Math.max(.35,1-hg*.22);
       this.blob.scale.setScalar(sc);this.blob.material.opacity=.26*sc;}
     this.rig.tick(this.t);
@@ -9634,13 +8770,7 @@ function hudButtons(){
   if(pauseBtnEl)pauseBtnEl.style.display=(!oculto&&INFIGHT(game.mode)&&!game.attract)?'flex':'none';
   if(perfBtnEl)perfBtnEl.style.display=(!oculto&&(game.mode==='fight'||game.mode==='intro'||game.mode==='title'))?'flex':'none';
   if(statsBtnEl)statsBtnEl.style.display=(!oculto&&(game.mode==='fight'||game.mode==='intro'||game.mode==='title'))?'flex':'none';
-  
-  // Update hyper-realistic graph visibility
-  if(graphContainer && graphVisible) {
-    graphContainer.style.display = 'block';
-  } else if(graphContainer) {
-    graphContainer.style.display = 'none';
-  }
+  if(graphContainer)graphContainer.style.display=graphVisible?'block':'none';
 }
 function drawHUD(){
   hx.clearRect(0,0,W,H);
@@ -9863,13 +8993,6 @@ function drawTitle(){
   g.addColorStop(0,'rgba(5,4,12,.86)');g.addColorStop(.55,'rgba(5,4,12,.25)');g.addColorStop(1,'rgba(5,4,12,.6)');
   hx.fillStyle=g;hx.fillRect(0,0,W,H);
   const tp=performance.now();
-  
-  // Fecha y hora de última actualización en la esquina superior derecha
-  const now=new Date();
-  const dateStr=now.toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'});
-  const timeStr=now.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
-  txt('Última act.: '+dateStr+' '+timeStr, W-15, 25, 10, '#6a7a9a', 'right');
-  
   txt('INFAME FIGHTING',W/2,110,52,'hsl('+(45+Math.sin(tp*.0018)*7)+',100%,'+(62+Math.sin(tp*.0027)*7)+'%)');
   txt('★ ARCADE EDITION ★',W/2,146,15,'hsl('+((tp*.12)%360)+',85%,66%)');
   txt('T O R N E O   M U N D I A L',W/2,142,17,'#ff8c1a');
@@ -10714,22 +9837,19 @@ function updateHyperStatsPanel(){
   html += '</div>';
   statsContent.innerHTML = html;
 }
-/* --- TECLAS PARA GRÁFICAS Y ESTADÍSTICAS --- */
-const origKeyDown=window.addEventListener;
+/* TECLAS: G abre la grafica de FPS, S el panel de estadisticas. Se ignoran
+   mientras se escribe en un campo, o no se podria teclear una 's'. */
 document.addEventListener('keydown',function(e){
+  const t=e.target&&e.target.tagName;
+  if(t==='INPUT'||t==='TEXTAREA'||t==='SELECT')return;
   if(e.key==='g'||e.key==='G')togglePerfGraph();
   if(e.key==='s'||e.key==='S')toggleStats();
 });
-
 function loop(){
   const _t=performance.now();
   fpsAcc+=_t-fpsLast;fpsLast=_t;fpsN++;
-  let currentFPS=60;
-  if(fpsN>=30){
+  if(fpsN>=90){
     const ms=fpsAcc/fpsN;fpsAcc=0;fpsN=0;
-    currentFPS=1000/ms;
-    drawHyperRealisticGraph(currentFPS);
-    if(statsVisible)updateHyperStatsPanel();
     if(!qualityDropped&&ms>23){qualityDropped=true;PRCAP=1;fit();
       renderer.shadowMap.enabled=false;renderer.shadowMap.needsUpdate=true;
       console.log('calidad reducida para mantener la fluidez');}
@@ -10737,7 +9857,7 @@ function loop(){
   T0=performance.now()*.06;
   try{
     update();
-    tickStage(T0);tickShowcase(T0);tickMotes(T0);tickCam(T0);
+    tickStage(T0);tickShowcase(T0);tickMotes(T0);tickCam(T0);tickLuces(T0);
     if(composer)composer.render();else renderer.render(scene,cam);
     drawHUD();
   }catch(err){

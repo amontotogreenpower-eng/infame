@@ -248,6 +248,11 @@ window.addEventListener('unhandledrejection',function(e){
 <div id="wrap"><div id="stage">
   <canvas id="gl"></canvas>
   <canvas id="hud" width="960" height="540"></canvas>
+  <canvas id="perfGraph" style="position:absolute;top:60px;left:8px;z-index:7;width:180px;height:100px;background:rgba(0,0,0,.6);border-radius:6px;border:1px solid rgba(255,215,90,.3);display:none;"></canvas>
+  <div id="statsPanel" style="position:absolute;top:60px;right:8px;z-index:7;background:rgba(8,6,18,.92);border:1px solid rgba(255,215,90,.4);border-radius:8px;padding:8px 10px;color:#e8e2ff;font:11px 'Courier New';display:none;min-width:140px;">
+    <div style="color:#ffd75a;font:bold 12px 'Bungee';margin-bottom:4px;text-align:center">ESTADÍSTICAS</div>
+    <div id="statsContent"></div>
+  </div>
   <button id="fs" title="Pantalla completa" aria-label="Pantalla completa">
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
       stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
@@ -258,6 +263,8 @@ window.addEventListener('unhandledrejection',function(e){
 <div id="touchUI"></div>
 <div id="camBtn" title="Cambiar cámara (C)">🎥</div>
 <div id="pauseBtn" title="Pausa / abandonar (Esc)">⏸</div>
+<div id="perfBtn" title="Gráfica FPS (G)" style="position:fixed;top:10px;left:118px;z-index:25;display:none;width:46px;height:46px;align-items:center;justify-content:center;background:rgba(10,8,20,.78);border:2px solid rgba(255,215,90,.55);border-radius:10px;font-size:18px;cursor:pointer;user-select:none;color:#ffd75a;">📊</div>
+<div id="statsBtn" title="Estadísticas (S)" style="position:fixed;top:10px;left:172px;z-index:25;display:none;width:46px;height:46px;align-items:center;justify-content:center;background:rgba(10,8,20,.78);border:2px solid rgba(255,215,90,.55);border-radius:10px;font-size:18px;cursor:pointer;user-select:none;color:#ffd75a;">📈</div>
 <div id="crt" class="off"></div>
 <div id="extraUI"></div>
 <video id="introVid" playsinline preload="auto" src="src/Intro.mp4"></video>
@@ -7391,7 +7398,7 @@ class Fighter{
       game.freeze=Math.min(9,2+Math.round(src.dmg*.4));this.flashT=4;
       burst(chest,src.dmg>=14?14:8,src.dmg>=14?0xffffff:0xffd75a,src.dmg>=14?.11:.08);
       (src.dmg>=12?sfx.heavy:sfx.hit)();
-      game.comboN=(game.comboT>0)?game.comboN+1:1;game.comboT=55;
+      game.comboN=(game.comboT>0)?game.comboN+1:1;game.comboT=55;game.comboSrc=src.owner||src;
       if(game.comboN>=2)tone(240+Math.min(game.comboN,9)*70,.1,'square',.045);
     }
     if(this.hp<=0){this.hp=0;this.state='ko';this.mv=null;this.vx=dir*4.5;this.vy=-9;
@@ -7796,6 +7803,8 @@ function extraUIUpd(){
 }
 const camBtnEl=CE('camBtn');camBtnEl.onclick=()=>{if(game.mode==='fight'||game.mode==='intro')cycleCam();};
 const pauseBtnEl=CE('pauseBtn');pauseBtnEl.onclick=()=>{if(INFIGHT(game.mode)&&!game.attract)uiKey('escape');};
+const perfBtnEl=CE('perfBtn');perfBtnEl.onclick=()=>{togglePerfGraph();};
+const statsBtnEl=CE('statsBtn');statsBtnEl.onclick=()=>{toggleStats();};
 function quitFight(){
   game.tour=null;game.king=null;game.orgElim=null;game.orgKing=null;
   game.kingChamp=false;game.attract=false;game.freeze=0;game.camYaw=0;
@@ -8163,7 +8172,7 @@ function update(){
   if(game.mode!=='fight')return;
 
   game.tf++;if(game.tf>=60){game.tf=0;game.timer--;}
-  if(game.comboT>0){game.comboT--;if(!game.comboT)game.comboN=0;}
+  if(game.comboT>0){game.comboT--;if(!game.comboT){game.comboN=0;game.comboSrc=null;}}
   if(game.tf%42===0&&((p1.hp>0&&p1.hp<p1.c.hpMax*.22)||(p2.hp>0&&p2.hp<p2.c.hpMax*.22))){tone(56,.14,'sine',.06);tone(44,.14,'sine',.04);}
   p1.update();p2.update();
   const dx=p2.x-p1.x;
@@ -8383,6 +8392,8 @@ function hudButtons(){
                 ||game.mode==='creator'||game.mode==='organizer');
   if(camBtnEl)camBtnEl.style.display=(!oculto&&(game.mode==='fight'||game.mode==='intro'))?'flex':'none';
   if(pauseBtnEl)pauseBtnEl.style.display=(!oculto&&INFIGHT(game.mode)&&!game.attract)?'flex':'none';
+  if(perfBtnEl)perfBtnEl.style.display=(!oculto&&(game.mode==='fight'||game.mode==='intro'||game.mode==='title'))?'flex':'none';
+  if(statsBtnEl)statsBtnEl.style.display=(!oculto&&(game.mode==='fight'||game.mode==='intro'||game.mode==='title'))?'flex':'none';
 }
 function drawHUD(){
   hx.clearRect(0,0,W,H);
@@ -8769,11 +8780,104 @@ buildStages();buildShowcase();setStage('arena');showcaseOn(true);
 document.getElementById('load').style.display='none';
 let T0=0;
 let fpsAcc=0,fpsN=0,fpsLast=performance.now(),qualityDropped=false;
+/* --- GRÁFICAS Y ESTADÍSTICAS DINÁMICAS --- */
+let perfData=[],statsVisible=false,graphVisible=false;
+const perfCanvas=document.getElementById('perfGraph'),perfCtx=perfCanvas.getContext('2d');
+const statsPanel=document.getElementById('statsPanel'),statsContent=document.getElementById('statsContent');
+perfCanvas.width=180;perfCanvas.height=100;
+
+function togglePerfGraph(){
+  graphVisible=!graphVisible;
+  perfCanvas.style.display=graphVisible?'block':'none';
+}
+function toggleStats(){
+  statsVisible=!statsVisible;
+  statsPanel.style.display=statsVisible?'block':'none';
+  if(statsVisible)updateStatsPanel();
+}
+function updatePerfGraph(fps){
+  if(!graphVisible)return;
+  perfData.push(fps);
+  if(perfData.length>60)perfData.shift();
+  perfCtx.clearRect(0,0,perfCanvas.width,perfCanvas.height);
+  perfCtx.fillStyle='rgba(0,0,0,.7)';
+  perfCtx.fillRect(0,0,perfCanvas.width,perfCanvas.height);
+  const maxF=Math.max(60,...perfData),minF=Math.min(10,...perfData);
+  const range=maxF-minF||1;
+  perfCtx.strokeStyle='rgba(255,215,90,.8)';
+  perfCtx.lineWidth=2;
+  perfCtx.beginPath();
+  for(let i=0;i<perfData.length;i++){
+    const x=(i/(perfData.length-1))*perfCanvas.width;
+    const y=perfCanvas.height-((perfData[i]-minF)/range)*(perfCanvas.height-10)-5;
+    if(i===0)perfCtx.moveTo(x,y);else perfCtx.lineTo(x,y);
+  }
+  perfCtx.stroke();
+  perfCtx.fillStyle='#ffd75a';
+  perfCtx.font='bold 10px "Courier New"';
+  perfCtx.textAlign='left';
+  perfCtx.fillText('FPS: '+fps.toFixed(1),6,14);
+  perfCtx.fillStyle='#8a9ac0';
+  perfCtx.fillText('Min: '+minF.toFixed(0),6,30);
+  perfCtx.fillText('Max: '+maxF.toFixed(0),6,46);
+  perfCtx.strokeStyle='rgba(255,215,90,.3)';
+  perfCtx.setLineDash([3,3]);
+  perfCtx.beginPath();
+  const y60=perfCanvas.height-((60-minF)/range)*(perfCanvas.height-10)-5;
+  perfCtx.moveTo(0,y60);perfCtx.lineTo(perfCanvas.width,y60);
+  perfCtx.stroke();
+  perfCtx.setLineDash([]);
+  perfCtx.fillStyle='#6aff8a';
+  perfCtx.fillText('60 FPS',perfCanvas.width-48,y60-4);
+}
+function updateStatsPanel(){
+  if(!statsVisible)return;
+  const ST=game.stats;
+  let html='<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">';
+  html+='<div style="background:rgba(20,16,40,.6);padding:6px;border-radius:4px;text-align:center">';
+  html+='<div style="color:#8a9ac0;font-size:9px">VICTORIAS</div>';
+  html+='<div style="color:#6aff8a;font:bold 18px \'Bungee\'">'+ST.wins+'</div></div>';
+  html+='<div style="background:rgba(20,16,40,.6);padding:6px;border-radius:4px;text-align:center">';
+  html+='<div style="color:#8a9ac0;font-size:9px">MEJOR RACHA</div>';
+  html+='<div style="color:#ffd75a;font:bold 18px \'Bungee\'">'+ST.best+'</div></div></div>';
+  html+='<div style="background:rgba(20,16,40,.6);padding:6px;border-radius:4px;text-align:center;margin-bottom:6px">';
+  html+='<div style="color:#8a9ac0;font-size:9px">FATALITIES</div>';
+  html+='<div style="color:#ff4b3e;font:bold 18px \'Bungee\'">'+ST.fat+'</div></div>';
+  if(game.p1){
+    html+='<div style="border-top:1px solid rgba(255,215,90,.3);padding-top:6px">';
+    html+='<div style="color:#ffd75a;font-size:10px;margin-bottom:4px">JUGADOR 1</div>';
+    html+='<div style="font-size:9px;color:#c9bde8">HP: <span style="color:#ff8c1a;font-weight:bold">'+Math.floor(game.p1.hp)+' / '+game.p1.c.hpMax+'</span></div>';
+    html+='<div style="font-size:9px;color:#c9bde8">SUPER: <span style="color:'+(game.p1.meter>=100?'#fff':game.p1.hud)+';font-weight:bold">'+Math.floor(game.p1.meter)+'%</span></div>';
+    if(game.comboN&&game.p1===game.comboSrc){
+      html+='<div style="font-size:9px;color:#c9bde8">COMBO: <span style="color:#ff8c6a;font-weight:bold">'+game.comboN+' HIT</span></div>';}
+    html+='</div>';}
+  if(game.p2&&!game.spectate){
+    html+='<div style="border-top:1px solid rgba(255,215,90,.3);padding-top:6px;margin-top:4px">';
+    html+='<div style="color:#ffd75a;font-size:10px;margin-bottom:4px">JUGADOR 2 / CPU</div>';
+    html+='<div style="font-size:9px;color:#c9bde8">HP: <span style="color:#ff8c1a;font-weight:bold">'+Math.floor(game.p2.hp)+' / '+game.p2.c.hpMax+'</span></div>';
+    html+='<div style="font-size:9px;color:#c9bde8">SUPER: <span style="color:'+(game.p2.meter>=100?'#fff':game.p2.hud)+';font-weight:bold">'+Math.floor(game.p2.meter)+'%</span></div>';
+    html+='</div>';}
+  html+='<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,215,90,.3)">';
+  html+='<div style="font-size:9px;color:#8a9ac0">ESC / Pausa: Menú</div>';
+  html+='<div style="font-size:9px;color:#8a9ac0">G: Gráfica FPS | S: Stats</div></div>';
+  statsContent.innerHTML=html;
+}
+/* --- TECLAS PARA GRÁFICAS Y ESTADÍSTICAS --- */
+const origKeyDown=window.addEventListener;
+document.addEventListener('keydown',function(e){
+  if(e.key==='g'||e.key==='G')togglePerfGraph();
+  if(e.key==='s'||e.key==='S')toggleStats();
+});
+
 function loop(){
   const _t=performance.now();
   fpsAcc+=_t-fpsLast;fpsLast=_t;fpsN++;
-  if(fpsN>=90){
+  let currentFPS=60;
+  if(fpsN>=30){
     const ms=fpsAcc/fpsN;fpsAcc=0;fpsN=0;
+    currentFPS=1000/ms;
+    updatePerfGraph(currentFPS);
+    if(statsVisible)updateStatsPanel();
     if(!qualityDropped&&ms>23){qualityDropped=true;PRCAP=1;fit();
       renderer.shadowMap.enabled=false;renderer.shadowMap.needsUpdate=true;
       console.log('calidad reducida para mantener la fluidez');}

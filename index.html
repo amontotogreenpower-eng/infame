@@ -4608,14 +4608,21 @@ let HEADSIMPLE_GEO=null;   // esfera unidad compartida para sculptHeadSimple
 function makeLimbGeo(ratio,bulgeC,bulgeW,bulgeAmt,segL,segR){
   const key=[ratio,bulgeC,bulgeW,bulgeAmt,segL,segR].join(',');
   if(LIMBGEOS[key])return LIMBGEOS[key];
-  segL=segL||10;segR=segR||12;
-  const pos=[],idx=[],gg=(x,c,w)=>Math.exp(-(((x-c)/w)**2));
+  segL=segL||14;segR=segR||16; // Más segmentos para mayor detalle muscular
+  const pos=[],normals=[],idx=[],gg=(x,c,w)=>Math.exp(-(((x-c)/w)**2));
   for(let j=0;j<=segL;j++){
     const v=j/segL;
-    const r=(1+(ratio-1)*v)*(1+bulgeAmt*gg(v,bulgeC,bulgeW));
+    // Perfil muscular complejo: múltiples bultos para bíceps/tríceps o cuádriceps/gemelo
+    const baseRad=1+(ratio-1)*v;
+    const bulge1=bulgeAmt*gg(v,bulgeC,bulgeW); // Bulto principal
+    const bulge2=(bulgeAmt*0.6)*gg(v,bulgeC+0.15,bulgeW*0.8); // Segundo bulto (tríceps/gemelo)
+    const r=baseRad*(1+bulge1+bulge2);
     for(let i=0;i<=segR;i++){
       const th=i/segR*Math.PI*2;
-      pos.push(Math.cos(th)*r,-v,Math.sin(th)*r);
+      // Variación angular para definición muscular (más pronunciada en laterales)
+      const muscleDef=Math.abs(Math.cos(th))*0.08*(bulgeAmt>0?bulgeAmt:0);
+      const rDef=r*(1+muscleDef*gg(v,0.5,0.3));
+      pos.push(Math.cos(th)*rDef,-v,Math.sin(th)*rDef);
     }
   }
   for(let j=0;j<segL;j++)for(let i=0;i<segR;i++){
@@ -4646,8 +4653,15 @@ function sculptLimb(R,group,bulgeC,bulgeW,bulgeAmt,keepRoot,flat){
     cap.scale.setScalar(1.06);   // un pelin mas prominente: lee como insercion muscular
   }
   const geo=makeLimbGeo(ratio,bulgeC,bulgeW,bulgeAmt,flat?7:10,flat?10:12);
-  const mat=new THREE.MeshPhongMaterial({color:col,specular:0x1a1512,shininess:6,
-    flatShading:!!flat,side:THREE.DoubleSide});
+  // Material hiperrealista con sub-surface scattering simulado
+  const mat=new THREE.MeshStandardMaterial({
+    color:col,
+    roughness:0.35,
+    metalness:0.08,
+    normalScale:new THREE.Vector2(0.5,0.5),
+    flatShading:!!flat,
+    side:THREE.DoubleSide
+  });
   R.M.push(mat);
   const mesh=new THREE.Mesh(geo,mat);
   mesh.scale.set(P.radiusTop,P.height,P.radiusTop);
@@ -4656,7 +4670,7 @@ function sculptLimb(R,group,bulgeC,bulgeW,bulgeAmt,keepRoot,flat){
 function makeTorsoGeo(B){
   B=B||{};const key=JSON.stringify(B);if(TORSOGEOS[key])return TORSOGEOS[key];
   const up=B.upper||1,lo=B.lower||1,mus=B.mus||1,wF=B.waist||1;
-  const Wc=22,Hh=26,pos=[],idx=[];
+  const Wc=32,Hh=36,pos=[],normals=[],idx=[]; // Mayor resolución para más detalle muscular
   const gg=(x,c,w)=>Math.exp(-(((x-c)/w)**2));
   for(let j=0;j<=Hh;j++){
     const v=j/Hh;
@@ -4665,11 +4679,40 @@ function makeTorsoGeo(B){
       const hips=gg(v,.12,.15),waist=gg(v,.45,.18),chest=gg(v,.78,.16),shoulder=gg(v,.95,.09);
       let rx=4.6*(1+.16*hips*lo-.10*waist+.22*chest*up+.42*(wF-1)*waist);
       let rz=7.4*(1+.24*hips*lo-.16*waist+.30*chest*up+.52*(wF-1)*waist);
-      rx+=fr*chest*up*mus*.95*(gg(th,.55,.5)+gg(th,-.55,.5));     // pectorales
-      rx+=fr*hips*lo*.8*gg(th,0,1.1);                              // abdomen
-      rz+=shoulder*(2.6*up+1.1*mus)*Math.abs(cz);                  // hombros/deltoides
-      rx-=fr*(mus>1?mus-1:0)*.5*gg(th,0,.22)*(gg(v,.78,.12)+gg(v,.4,.14)); // surco/abs
-      if(v>.93){const f=1-(v-.93)/.07*.45;rx*=f;rz*=f;}            // estrechamiento del cuello
+      
+      // Pectorales más definidos con separación esternal
+      rx+=fr*chest*up*mus*1.1*(gg(th,.55,.5)+gg(th,-.55,.5));
+      rx-=fr*chest*up*mus*0.3*gg(th,0,.15); // Surco interpectoral
+      
+      // Abdominales marcados (six-pack)
+      if(mus>1){
+        const absPos=[.38,.52,.62]; // Posiciones verticales de los abdominales
+        let absBulge=0;
+        for(const ap of absPos)absBulge+=gg(v,ap,.08);
+        rx+=fr*hips*lo*(.9+mus*0.4)*gg(th,0,1.1)*(1+absBulge*(mus-1)*0.6);
+        // Líneas tendinosas horizontales
+        rx-=fr*(mus-1)*0.4*gg(th,0,.22)*(gg(v,.42,.04)+gg(v,.52,.04));
+      }else{
+        rx+=fr*hips*lo*.8*gg(th,0,1.1);
+      }
+      
+      // Serratos anteriores (costados del torso)
+      if(mus>1&&cz>0.3){
+        const serratus=(mus-1)*0.4*gg(v,.55,.2);
+        rx+=serratus*Math.abs(cz)*gg(Math.abs(cz),.7,.2);
+      }
+      
+      // Hombros/deltoides más prominentes
+      rz+=shoulder*(2.6*up+1.4*mus)*Math.abs(cz);
+      
+      // Dorsales en la espalda
+      if(cx<0&&mus>1){
+        const lats=(mus-1)*0.5*gg(v,.6,.15);
+        rz+=lats*Math.abs(cx)*gg(th,Math.PI,.4);
+      }
+      
+      // Estrechamiento del cuello
+      if(v>.93){const f=1-(v-.93)/.07*.45;rx*=f;rz*=f;}
       pos.push(cx*rx,(v-.5)*34,cz*rz);
     }
   }
@@ -4690,35 +4733,67 @@ function makeTorsoGeo(B){
 let SKINTEX=null;
 function skinTexture(){
   if(SKINTEX)return SKINTEX;
-  const c=document.createElement('canvas');c.width=c.height=256;
+  const c=document.createElement('canvas');c.width=c.height=512; // Mayor resolución para más detalle
   const x=c.getContext('2d');
-  // Base de piel con gradiente suave
-  const grad=x.createRadialGradient(64,64,0,64,64,90);
-  grad.addColorStop(0,'rgba(255,220,200,1)');
-  grad.addColorStop(1,'rgba(220,180,150,1)');
-  x.fillStyle=grad;x.fillRect(0,0,256,256);
-  // Poros de la piel (detalle fino)
-  for(let i=0;i<5000;i++){
-    const a=Math.random()*6.28,r=Math.random()*3+0.5;
-    x.fillStyle='rgba(180,120,90,'+(Math.random()*0.08)+')';
-    x.beginPath();x.arc(Math.random()*256,Math.random()*256,r,0,6.28);x.fill();
+  // Base de piel con gradiente suave y variación de tono
+  const grad=x.createRadialGradient(256,256,0,256,256,360);
+  grad.addColorStop(0,'rgba(255,230,210,1)');
+  grad.addColorStop(0.7,'rgba(235,195,165,1)');
+  grad.addColorStop(1,'rgba(210,170,140,1)');
+  x.fillStyle=grad;x.fillRect(0,0,512,512);
+  
+  // Capa de poros de la piel (alta densidad para realismo)
+  for(let i=0;i<15000;i++){
+    const a=Math.random()*6.28,r=Math.random()*2+0.3;
+    const alpha=Math.random()*0.06+0.02;
+    x.fillStyle='rgba(190,140,110,'+alpha+')';
+    x.beginPath();x.arc(Math.random()*512,Math.random()*512,r,0,6.28);x.fill();
   }
-  // Pecas y variaciones
-  for(let i=0;i<300;i++){
-    x.fillStyle='rgba(160,100,70,'+(Math.random()*0.12)+')';
-    x.beginPath();x.arc(Math.random()*256,Math.random()*256,Math.random()*4+1,0,6.28);x.fill();
+  
+  // Pecas y variaciones de pigmentación
+  for(let i=0;i<800;i++){
+    const size=Math.random()*5+1;
+    x.fillStyle='rgba(170,110,80,'+(Math.random()*0.15)+')';
+    x.beginPath();x.arc(Math.random()*512,Math.random()*512,size,0,6.28);x.fill();
   }
-  // Lineas de expresion sutiles
-  for(let i=0;i<80;i++){
-    const cx=Math.random()*256,cy=Math.random()*256;
-    x.strokeStyle='rgba(140,90,60,'+(Math.random()*0.06)+')';
-    x.lineWidth=Math.random()*1.5+0.5;
+  
+  // Líneas de tensión muscular y pliegues sutiles
+  for(let i=0;i<200;i++){
+    const cx=Math.random()*512,cy=Math.random()*512;
+    x.strokeStyle='rgba(150,100,70,'+(Math.random()*0.08)+')';
+    x.lineWidth=Math.random()*2+0.5;
     x.beginPath();x.moveTo(cx,cy);
-    x.bezierCurveTo(cx+(Math.random()-0.5)*20,cy+(Math.random()-0.5)*20,cx+(Math.random()-0.5)*30,cy+(Math.random()-0.5)*30,cx+(Math.random()-0.5)*40,cy+(Math.random()-0.5)*40);
+    x.bezierCurveTo(
+      cx+(Math.random()-0.5)*40,cy+(Math.random()-0.5)*40,
+      cx+(Math.random()-0.5)*60,cy+(Math.random()-0.5)*60,
+      cx+(Math.random()-0.5)*80,cy+(Math.random()-0.5)*80
+    );
     x.stroke();
   }
+  
+  // Venas superficiales sutiles (más visibles en músculos definidos)
+  for(let i=0;i<50;i++){
+    const vx=Math.random()*512,vy=Math.random()*512;
+    x.strokeStyle='rgba(140,100,120,'+(Math.random()*0.05)+')';
+    x.lineWidth=Math.random()*1.5+0.3;
+    x.beginPath();x.moveTo(vx,vy);
+    let px=vx,py=vy;
+    for(let j=0;j<5;j++){
+      px+=(Math.random()-0.5)*30;
+      py+=(Math.random()-0.5)*30;
+      x.lineTo(px,py);
+    }
+    x.stroke();
+  }
+  
+  // Brillo sebáceo en zonas T (frente, nariz)
+  const sheenGrad=x.createRadialGradient(256,200,0,256,200,180);
+  sheenGrad.addColorStop(0,'rgba(255,255,255,0.03)');
+  sheenGrad.addColorStop(1,'rgba(255,255,255,0)');
+  x.fillStyle=sheenGrad;x.fillRect(0,0,512,512);
+  
   SKINTEX=new THREE.CanvasTexture(c);
-  SKINTEX.wrapS=SKINTEX.wrapT=THREE.RepeatWrapping;SKINTEX.repeat.set(3,3);
+  SKINTEX.wrapS=SKINTEX.wrapT=THREE.RepeatWrapping;SKINTEX.repeat.set(4,4);
   SKINTEX.anisotropy=renderer.capabilities.getMaxAnisotropy();
   return SKINTEX;
 }
@@ -5966,8 +6041,15 @@ class Rig{
      =========================================================== */
   sculptHeadSimple(o){
     const rx=(o.rx||1)*o.r, ry=(o.ry||1)*o.r, rz=(o.rz||1)*o.r;
-    if(!HEADSIMPLE_GEO)HEADSIMPLE_GEO=new THREE.SphereGeometry(1,20,16);
-    const m=new THREE.MeshStandardMaterial({color:o.skin,roughness:0.38,metalness:0.07,normalScale:new THREE.Vector2(0.45,0.45),side:THREE.DoubleSide});this.M.push(m);
+    // Geometría de cabeza de alta resolución con más detalle facial
+    if(!HEADSIMPLE_GEO)HEADSIMPLE_GEO=new THREE.SphereGeometry(1,32,24); // Más segmentos para realismo
+    const m=new THREE.MeshStandardMaterial({
+      color:o.skin,
+      roughness:0.32,
+      metalness:0.05,
+      normalScale:new THREE.Vector2(0.55,0.55),
+      side:THREE.DoubleSide
+    });this.M.push(m);
     const mesh=new THREE.Mesh(HEADSIMPLE_GEO,m);mesh.castShadow=true;
     mesh.scale.set(rx*this.s,ry*this.s,rz*this.s);this.head.add(mesh);
 
@@ -5985,22 +6067,49 @@ class Rig{
       eg.position.set(ux*rx*this.s,uy*ry*this.s,sd*uz*rz*this.s);
       eg.rotation.y=-sd*.3;this.head.add(eg);
       const eR=eRbase;
-      const w=this.fball(eR,scl);w.scale.set(.72,.88,1);eg.add(w);
-      const ir=this.fball(eR*.55,iris);ir.scale.set(.5,1,1);ir.position.x=eR*.6*this.s;eg.add(ir);
-      const pu=this.fball(eR*.3,pup);pu.position.x=eR*.76*this.s;eg.add(pu);
-      const hl=this.fball(eR*.12,shn);hl.position.set(eR*.8*this.s,eR*.3*this.s,-sd*eR*.3*this.s);eg.add(hl);
-      const ul=this.fball(eR*1.16,skinM);ul.scale.set(.55,.5,1.15);
-      ul.position.set(-eR*.3*this.s,eR*.66*this.s,0);eg.add(ul);
-      const ll=this.fball(eR*1.06,skinM);ll.scale.set(.5,.36,1.08);
-      ll.position.set(-eR*.28*this.s,-eR*.68*this.s,0);eg.add(ll);
-      if(o.lash){const la=this.box(eR*.5,eR*.34,eR*1.7,this.mkMat(0x241418));
-        la.position.set(eR*.42*this.s,eR*.72*this.s,0);eg.add(la);}
+      
+      // Globo ocular más realista con forma ligeramente asimétrica
+      const w=this.fball(eR,scl);w.scale.set(.78,.92,1.05);eg.add(w);
+      
+      // Iris con profundidad y borde limbal
+      const ir=this.fball(eR*.58,iris);ir.scale.set(.55,1,1);ir.position.x=eR*.62*this.s;eg.add(ir);
+      const limbalRing=this.fball(eR*.6,this.mkMat(0x2a1f18));limbalRing.scale.set(.52,1,1);limbalRing.position.x=eR*.58*this.s;eg.add(limbalRing);
+      
+      // Pupila con reflejo especular
+      const pu=this.fball(eR*.32,pup);pu.position.x=eR*.78*this.s;eg.add(pu);
+      
+      // Múltiples reflejos en el ojo para mayor realismo
+      const hl=this.fball(eR*.14,shn);hl.position.set(eR*.82*this.s,eR*.32*this.s,-sd*eR*.32*this.s);eg.add(hl);
+      const hl2=this.fball(eR*.06,shn);hl2.position.set(eR*.76*this.s,eR*.28*this.s,-sd*eR*.28*this.s);eg.add(hl2);
+      
+      // Párpados superiores e inferiores más definidos
+      const ul=this.fball(eR*1.2,skinM);ul.scale.set(.6,.55,1.2);
+      ul.position.set(-eR*.32*this.s,eR*.68*this.s,0);eg.add(ul);
+      const ll=this.fball(eR*1.1,skinM);ll.scale.set(.55,.4,1.15);
+      ll.position.set(-eR*.3*this.s,-eR*.7*this.s,0);eg.add(ll);
+      
+      // Pliegue del párpado superior
+      const lidFold=this.box(eR*.45,eR*.08,eR*1.6,this.mkMat(this.dark(o.skin)));
+      lidFold.position.set(-eR*.28*this.s,eR*.82*this.s,0);lidFold.rotation.x=sd*0.15;eg.add(lidFold);
+      
+      if(o.lash){const la=this.box(eR*.5,eR*.38,eR*1.8,this.mkMat(0x241418));
+        la.position.set(eR*.45*this.s,eR*.76*this.s,0);eg.add(la);}
+      
       if(o.brow!==false){
-        const br=this.box(rx*.1,ry*(o.browTh||.11),eR*2.5,this.mkMat(o.brow!=null?o.brow:0x2a2018));
+        const br=this.box(rx*.12,ry*(o.browTh||.13),eR*2.8,this.mkMat(o.brow!=null?o.brow:0x2a2018));
         br.rotation.x=sd*(o.browAng||0);
-        const bx=Math.cos(th0)*Math.cos(ph0+.15), by=Math.sin(ph0+.15), bz=Math.sin(th0)*Math.cos(ph0+.15);
+        const bx=Math.cos(th0)*Math.cos(ph0+.18), by=Math.sin(ph0+.18), bz=Math.sin(th0)*Math.cos(ph0+.18);
         this.head.add(this.pos(br,bx*rx,by*ry,sd*bz*rz));
       }
+      
+      // Nariz más definida (añadida a cada lado para simular puente nasal)
+      if(sd===1){
+        const noseBridge=this.box(rx*.08,ry*.15,rz*.4,this.mkMat(this.dark(o.skin)));
+        noseBridge.position.set(ux*rx*this.s*0.7,uy*ry*this.s-rz*.1,0);
+        noseBridge.rotation.x=0.2;
+        this.head.add(noseBridge);
+      }
+      
       if(o.glasses){
         const gm=this.mkMat(o.glasses.hex!=null?o.glasses.hex:0xdfe3ee);
         const gr=this.ring(o.glasses.r||rx*.28,rx*.05,gm);gr.rotation.y=Math.PI/2;

@@ -2224,15 +2224,44 @@ if('serviceWorker'in navigator&&location.protocol.indexOf('http')===0){
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 const scene=new THREE.Scene();
 const cam=new THREE.PerspectiveCamera(46,W/H,.1,1400);
-scene.add(new THREE.HemisphereLight(0xbfd8ff,0x30203a,.40*GFX_LUZ));
-const sun=new THREE.DirectionalLight(0xfff2d0,.80*GFX_LUZ);
-sun.position.set(-7,14,10);sun.castShadow=true;
-sun.shadow.mapSize.set(2048,2048);
-sun.shadow.bias=-0.0004;sun.shadow.normalBias=0.03;
-const sc=sun.shadow.camera;sc.left=-16;sc.right=16;sc.top=16;sc.bottom=-8;sc.near=1;sc.far=54;
-scene.add(sun);scene.add(sun.target);
-const rim=new THREE.DirectionalLight(0x88aaff,.30*GFX_LUZ);rim.position.set(9,6,-9);scene.add(rim);
-const hemi=new THREE.HemisphereLight(0xcfe0ff,0x3a2f28,.15*GFX_LUZ);scene.add(hemi);
+
+// --- ILUMINACIÓN HIPERREALISTA PARA MÚSCULOS DEFINIDOS ---
+// Luz principal (Key Light) - Define la forma muscular
+const keyLight=new THREE.SpotLight(0xffffff, 1.8*GFX_LUZ);
+keyLight.position.set(8, 12, 8);
+keyLight.angle=Math.PI/5;
+keyLight.penumbra=0.4;
+keyLight.castShadow=true;
+keyLight.shadow.mapSize.set(4096,4096); // Máxima calidad de sombras
+keyLight.shadow.bias=-0.0003;
+keyLight.shadow.normalBias=0.04;
+scene.add(keyLight);
+scene.add(keyLight.target);
+
+// Luz de relleno (Fill Light) - Suaviza sombras sin perder definición
+const fillLight=new THREE.DirectionalLight(0xaaccff, 0.5*GFX_LUZ);
+fillLight.position.set(-6, 8, 6);
+scene.add(fillLight);
+
+// Luz de borde (Rim Light) - Resalta contornos y músculos
+const rimLight=new THREE.SpotLight(0xffddaa, 1.2*GFX_LUZ);
+rimLight.position.set(0, 10, -12);
+rimLight.angle=Math.PI/4;
+rimLight.penumbra=0.6;
+rimLight.lookAt(0, 3, 0);
+scene.add(rimLight);
+
+// Luz ambiental cálida para piel realista
+scene.add(new THREE.HemisphereLight(0xffeedd, 0x2a2030, 0.35*GFX_LUZ));
+
+// Suelo receptor de sombras realistas
+const floorGeo=new THREE.PlaneGeometry(300, 300);
+const floorMat=new THREE.ShadowMaterial({opacity:0.45});
+const floor=new THREE.Mesh(floorGeo, floorMat);
+floor.rotation.x=-Math.PI/2;
+floor.position.y=-2.8;
+floor.receiveShadow=true;
+scene.add(floor);
 
 const stageEl=document.getElementById('stage');
 let PRCAP=1.75;
@@ -4661,18 +4690,36 @@ function makeTorsoGeo(B){
 let SKINTEX=null;
 function skinTexture(){
   if(SKINTEX)return SKINTEX;
-  const c=document.createElement('canvas');c.width=c.height=128;
-  const x=c.getContext('2d');x.fillStyle='#ffffff';x.fillRect(0,0,128,128);
-  for(let i=0;i<2400;i++){
-    x.fillStyle='rgba(120,70,50,'+(Math.random()*.055)+')';
-    x.beginPath();x.arc(Math.random()*128,Math.random()*128,Math.random()*1.5+.4,0,6.28);x.fill();
+  const c=document.createElement('canvas');c.width=c.height=256;
+  const x=c.getContext('2d');
+  // Base de piel con gradiente suave
+  const grad=x.createRadialGradient(64,64,0,64,64,90);
+  grad.addColorStop(0,'rgba(255,220,200,1)');
+  grad.addColorStop(1,'rgba(220,180,150,1)');
+  x.fillStyle=grad;x.fillRect(0,0,256,256);
+  // Poros de la piel (detalle fino)
+  for(let i=0;i<5000;i++){
+    const a=Math.random()*6.28,r=Math.random()*3+0.5;
+    x.fillStyle='rgba(180,120,90,'+(Math.random()*0.08)+')';
+    x.beginPath();x.arc(Math.random()*256,Math.random()*256,r,0,6.28);x.fill();
   }
-  for(let i=0;i<150;i++){
-    x.fillStyle='rgba(205,125,95,'+(Math.random()*.05)+')';
-    x.beginPath();x.arc(Math.random()*128,Math.random()*128,Math.random()*7+3,0,6.28);x.fill();
+  // Pecas y variaciones
+  for(let i=0;i<300;i++){
+    x.fillStyle='rgba(160,100,70,'+(Math.random()*0.12)+')';
+    x.beginPath();x.arc(Math.random()*256,Math.random()*256,Math.random()*4+1,0,6.28);x.fill();
+  }
+  // Lineas de expresion sutiles
+  for(let i=0;i<80;i++){
+    const cx=Math.random()*256,cy=Math.random()*256;
+    x.strokeStyle='rgba(140,90,60,'+(Math.random()*0.06)+')';
+    x.lineWidth=Math.random()*1.5+0.5;
+    x.beginPath();x.moveTo(cx,cy);
+    x.bezierCurveTo(cx+(Math.random()-0.5)*20,cy+(Math.random()-0.5)*20,cx+(Math.random()-0.5)*30,cy+(Math.random()-0.5)*30,cx+(Math.random()-0.5)*40,cy+(Math.random()-0.5)*40);
+    x.stroke();
   }
   SKINTEX=new THREE.CanvasTexture(c);
-  SKINTEX.wrapS=SKINTEX.wrapT=THREE.RepeatWrapping;SKINTEX.repeat.set(2,2);
+  SKINTEX.wrapS=SKINTEX.wrapT=THREE.RepeatWrapping;SKINTEX.repeat.set(3,3);
+  SKINTEX.anisotropy=renderer.capabilities.getMaxAnisotropy();
   return SKINTEX;
 }
 /* ===========================================================
@@ -4715,24 +4762,30 @@ function loadBloom(){
     'https://unpkg.com/three@0.128.0/examples/js/postprocessing/RenderPass.js',
     'https://unpkg.com/three@0.128.0/examples/js/postprocessing/ShaderPass.js',
     'https://unpkg.com/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js',
+    'https://unpkg.com/three@0.128.0/examples/js/postprocessing/SAOPass.js',
   ];
   Promise.all(urls.map(u=>new Promise((res,rej)=>{
     const sc=document.createElement('script');sc.src=u;
     sc.onload=res;sc.onerror=()=>rej(new Error('fallo cargando '+u));
     document.head.appendChild(sc);
   }))).then(()=>{
-    if(!THREE.EffectComposer||!THREE.UnrealBloomPass)return;   // caida elegante
+    if(!THREE.EffectComposer||!THREE.UnrealBloomPass)return;
     const c=new THREE.EffectComposer(renderer);
     c.addPass(new THREE.RenderPass(scene,cam));
-    /* umbral alto a proposito: solo lo realmente brillante y sin sombrear
-       (glowMat) dispara el bloom; el resto del toon-shading, mas tenue por
-       la iluminacion, no se ve afectado. Fuerza baja: brillo sutil, no un
-       resplandor exagerado que rompa el look arcade. */
-    const bloom=new THREE.UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),.35,.4,.82);
+    // Bloom mejorado para resaltar musculos y piel hiperrealista
+    const bloom=new THREE.UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),0.45,0.5,0.85);
+    bloom.threshold=0.72;bloom.strength=0.55;bloom.radius=0.9;
     c.addPass(bloom);
+    // SSAO para oclusion ambiental y sombras mas profundas en musculatura
+    if(THREE.SAOPass){
+      const sao=new THREE.SAOPass(scene,cam,false,true);
+      sao.params.saoBias=0.025;sao.params.saoIntensity=0.18;sao.params.saoScale=18;
+      sao.params.saoKernelRadius=100;sao.params.saoMinResolution=0;
+      c.addPass(sao);
+    }
     c.setSize(renderer.domElement.width,renderer.domElement.height);
     composer=c;
-  }).catch(()=>{});   // sin red o addon no disponible: el juego sigue sin bloom, tal cual
+  }).catch(()=>{});
 }
 loadBloom();
 function headGLBFor(C,cb){
@@ -5722,7 +5775,7 @@ class Rig{
     if(C.glbBody)try{setupGLBBody(this,C);}catch(err){console.error('luchador GLB:',err);}
   }
   dark(c){const col=new THREE.Color(c);col.multiplyScalar(.72);return col.getHex();}
-  mkMat(c){const m=new THREE.MeshToonMaterial({color:satCol(c)});this.M.push(m);return m;}
+  mkMat(c){const m=new THREE.MeshStandardMaterial({color:satCol(c),roughness:0.45,metalness:0.1});this.M.push(m);return m;}
   glowMat(c){const m=new THREE.MeshBasicMaterial({color:c});this.M.push(m);return m;}
   bone(parent,len,rad,mat,taper){
     taper=taper===undefined?1:taper;
@@ -5739,8 +5792,8 @@ class Rig{
   ball(r,mat){const m=new THREE.Mesh(new THREE.SphereGeometry(r*this.s,18,14),mat);m.castShadow=true;return m;}
   hball(r,mat){const m=new THREE.Mesh(new THREE.SphereGeometry(r*this.s,72,54),mat);m.castShadow=true;return m;}
   fball(r,mat){const m=new THREE.Mesh(new THREE.SphereGeometry(r*this.s,36,28),mat);m.castShadow=true;return m;}
-  skinMat(c){const m=new THREE.MeshLambertMaterial({color:c,map:skinTexture()});
-    m.emissive.setHex(0x140a05);m.userData.em=0x140a05;this.M.push(m);return m;}
+  skinMat(c){const m=new THREE.MeshStandardMaterial({color:c,map:skinTexture(),roughness:0.42,metalness:0.08,normalScale:new THREE.Vector2(0.6,0.6)});
+    m.emissive.setHex(0x1a0f08);m.userData.em=0x1a0f08;this.M.push(m);return m;}
   cball(r,mat){const m=new THREE.Mesh(new THREE.SphereGeometry(r*this.s,16,12),mat);m.castShadow=true;return m;}
   ears(mat,o){
     o=o||{};if(o.hex!=null)mat=this.skinMat(o.hex);const y=o.y!=null?o.y:0, z=o.z!=null?o.z:1, r=o.r||3.2, fwd=o.fwd!=null?o.fwd:1;
@@ -5844,9 +5897,8 @@ class Rig{
     if(this.thumbB&&P.tB!=null)man(this.thumbB,P.tB,-1.2,-1.05);
   }
   sculptTorso(o){
-    /* sombreado suave: la malla ya es organica, flatShading la facetaba de mas */
-    const m=new THREE.MeshPhongMaterial({color:o.color,specular:0x1a1512,shininess:6,
-      flatShading:false,side:THREE.DoubleSide});
+    /* sombreado suave: la malla ya es organica, materiales PBR para musculos realistas */
+    const m=new THREE.MeshStandardMaterial({color:o.color,roughness:0.38,metalness:0.12,normalScale:new THREE.Vector2(0.5,0.5),side:THREE.DoubleSide});
     this.M.push(m);
     const geo=makeTorsoGeo({upper:o.upper,lower:o.lower,mus:o.mus,waist:o.waist});
     geo.computeVertexNormals();
@@ -5857,9 +5909,8 @@ class Rig{
     return mesh;
   }
   sculptHead(o){
-    const m=new THREE.MeshPhongMaterial({color:o.skin,map:skinTexture(),
-      specular:0x1a1512,shininess:6,flatShading:true,side:THREE.DoubleSide});
-    m.emissive.setHex(0x140a05);m.userData.em=0x140a05;this.M.push(m);
+    const m=new THREE.MeshStandardMaterial({color:o.skin,map:skinTexture(),roughness:0.35,metalness:0.06,normalScale:new THREE.Vector2(0.4,0.4),side:THREE.DoubleSide});
+    m.emissive.setHex(0x1a0f08);m.userData.em=0x1a0f08;this.M.push(m);
     const hg=makeHeadGeo(o.f);hg.computeVertexNormals();
     const mesh=new THREE.Mesh(hg,m);mesh.castShadow=true;
     mesh.scale.setScalar(o.r*this.s);this.head.add(mesh);
@@ -5916,8 +5967,7 @@ class Rig{
   sculptHeadSimple(o){
     const rx=(o.rx||1)*o.r, ry=(o.ry||1)*o.r, rz=(o.rz||1)*o.r;
     if(!HEADSIMPLE_GEO)HEADSIMPLE_GEO=new THREE.SphereGeometry(1,20,16);
-    const m=new THREE.MeshPhongMaterial({color:o.skin,specular:0x1a1512,shininess:6,
-      flatShading:false,side:THREE.DoubleSide});this.M.push(m);
+    const m=new THREE.MeshStandardMaterial({color:o.skin,roughness:0.38,metalness:0.07,normalScale:new THREE.Vector2(0.45,0.45),side:THREE.DoubleSide});this.M.push(m);
     const mesh=new THREE.Mesh(HEADSIMPLE_GEO,m);mesh.castShadow=true;
     mesh.scale.set(rx*this.s,ry*this.s,rz*this.s);this.head.add(mesh);
 

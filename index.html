@@ -38,7 +38,7 @@ window.addEventListener('unhandledrejection',function(e){
 <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Russo+One&display=swap" rel="stylesheet">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0a0a12">
-<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link rel="apple-touch-icon" href="icon-192.png">
 <style>
@@ -236,7 +236,7 @@ window.addEventListener('unhandledrejection',function(e){
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#0c0812">
   <meta name="description" content="Juego de lucha arcade 3D. 8 personajes, 4 escenarios, modos Torneo, Rey de Mesa y versus.">
-  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="PUÑO">
   <link rel="manifest" href="manifest.json">
@@ -2246,6 +2246,7 @@ keyLight.shadow.bias=-0.0003;
 keyLight.shadow.normalBias=0.04;
 scene.add(keyLight);
 scene.add(keyLight.target);
+const sun = keyLight; // Alias para compatibilidad con tickCam
 
 // Luz de relleno (Fill Light) - Suaviza sombras sin perder definición
 const fillLight=new THREE.DirectionalLight(0xaaccff, 0.5*GFX_LUZ);

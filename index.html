@@ -867,9 +867,10 @@ addEventListener('pointerdown',()=>{try{if(game.mode==='splash'){audio();uiKey('
 /* ===========================================================
    POSES (ángulos absolutos, grados; 0=arriba, 90=adelante, 180=abajo)
    =========================================================== */
-const IDLE={py:-92,px:0,torso:6,head:2,headY:0,rot:0,hip:0,twist:0,abdo:null,abdoT:null,toeF:0,toeB:0,footRF:0,footRB:0,armTF:0,armTB:0,tside:0,aside:null,wristF:0,wristB:0,wristRF:0,wristRB:0,fingF:null,fingB:null,thumbF:null,thumbB:null,footAF:0,footAB:0,legAF:0,legAB:0,legTF:0,legTB:0,armAF:0,armAB:0,
-  armUB:196,armLB:158,armUF:152,armLF:78,
-  legUB:192,legLB:200,legUF:172,legLF:180};
+// Pose IDLE agresiva: guardia alta, brazos en posicion de ataque, cuerpo inclinado
+const IDLE={py:-92,px:0,torso:8,head:4,headY:0,rot:0,hip:0,twist:0,abdo:null,abdoT:null,toeF:0,toeB:0,footRF:0,footRB:0,armTF:0,armTB:0,tside:0,aside:null,wristF:0,wristB:0,wristRF:0,wristRB:0,fingF:null,fingB:null,thumbF:null,thumbB:null,footAF:0,footAB:0,legAF:0,legAB:0,legTF:0,legTB:0,armAF:0,armAB:0,
+  armUB:210,armLB:165,armUF:140,armLF:85,
+  legUB:188,legLB:204,legUF:176,legLF:176};
 const PK=Object.keys(IDLE);
 // P() completa con la pose de reposo; 'd' (direcciones de captura) se conserva
 const P=o=>{const r=Object.assign({},IDLE,o);if(o&&o.d)r.d=o.d;return r;};
@@ -913,27 +914,27 @@ function poseCatmull(pm,p0,p1,pn,t){
   return o;
 }
 const POSE={idle:IDLE,
-  crouch:P({py:-52,torso:24,head:-10,legUF:128,legLF:228,legUB:136,legLB:222,armUF:158,armLF:86,armUB:206,armLB:150}),
-  jump:P({py:-96,torso:12,head:6,legUF:140,legLF:206,legUB:196,legLB:238,armUF:138,armLF:58,armUB:214,armLB:176}),
-  fall:P({py:-96,torso:2,head:-4,legUF:156,legLF:178,legUB:198,legLB:216,armUF:126,armLF:52,armUB:224,armLB:196}),
-  block:P({py:-90,torso:-6,head:-4,armUF:172,armLF:16,armLB:120,armUB:190,legUF:172,legLF:196,legUB:200,legLB:212}),
-  blockLow:P({py:-54,torso:16,head:-8,armUF:168,armLF:22,armUB:200,armLB:130,legUF:128,legLF:228,legUB:136,legLB:222}),
+  crouch:P({py:-52,torso:24,head:-10,legUF:128,legLF:228,legUB:136,legLB:222,armUF:145,armLF:75,armUB:215,armLB:155}),
+  jump:P({py:-96,torso:12,head:6,legUF:140,legLF:206,legUB:196,legLB:238,armUF:130,armLF:50,armUB:220,armLB:170}),
+  fall:P({py:-96,torso:2,head:-4,legUF:156,legLF:178,legUB:198,legLB:216,armUF:120,armLF:45,armUB:228,armLB:190}),
+  block:P({py:-90,torso:-6,head:-4,armUF:165,armLF:10,armLB:115,armUB:200,legUF:172,legLF:196,legUB:200,legLB:212}),
+  blockLow:P({py:-54,torso:16,head:-8,armUF:160,armLF:15,armUB:210,armLB:125,legUF:128,legLF:228,legUB:136,legLB:222}),
   hurt:P({py:-90,torso:-18,head:-30,armUF:206,armLF:250,armUB:224,armLB:262,legUF:150,legLF:196,legUB:210,legLB:224}),
   ko:P({py:-42,rot:-82,torso:8,head:24,armUF:118,armLF:104,armUB:150,armLB:138,legUF:166,legLF:168,legUB:196,legLB:198}),
   defeat:P({py:-38,rot:-96,torso:-6,head:44,armUF:252,armLF:238,armUB:250,armLB:244,legUF:150,legLF:158,legUB:212,legLB:216}),
-  dash:P({py:-84,torso:26,head:-10,armUF:206,armLF:246,armUB:150,armLB:110,legUF:132,legLF:170,legUB:220,legLB:240}),
-  win:P({py:-94,torso:-2,head:-2,armUF:150,armLF:10,armUB:30,armLB:8,legUF:172,legLF:186,legUB:196,legLB:208}),
-  punchWind:P({torso:-6,armUF:190,armLF:262,armUB:170,armLB:110}),
+  dash:P({py:-84,torso:26,head:-10,armUF:195,armLF:235,armUB:155,armLB:115,legUF:132,legLF:170,legUB:220,legLB:240}),
+  win:P({py:-94,torso:-2,head:-2,armUF:140,armLF:5,armUB:35,armLB:12,legUF:172,legLF:186,legUB:196,legLB:208}),
+  punchWind:P({torso:-6,armUF:185,armLF:255,armUB:175,armLB:115}),
   punchHit:P({torso:16,armUF:90,armLF:90,armUB:232,armLB:268,legUF:158,legLF:194}),
-  kickWind:P({py:-94,torso:-8,legUF:128,legLF:216,armUF:198,armLF:236,armUB:158,armLB:118}),
-  kickHit:P({py:-100,torso:-18,head:-8,legUF:92,legLF:98,legUB:186,legLB:198,armUF:236,armLF:262,armUB:146,armLB:112}),
+  kickWind:P({py:-94,torso:-8,legUF:128,legLF:216,armUF:190,armLF:230,armUB:165,armLB:122}),
+  kickHit:P({py:-100,torso:-18,head:-8,legUF:92,legLF:98,legUB:186,legLB:198,armUF:230,armLF:255,armUB:150,armLB:118}),
   cPunchHit:P({py:-52,torso:22,head:-4,armUF:96,armLF:94,armUB:214,armLB:250,legUF:128,legLF:228,legUB:136,legLB:222}),
-  sweepWind:P({py:-52,torso:18,legUF:134,legLF:214,legUB:220,legLB:232,armUF:170,armLF:120}),
-  sweepHit:P({py:-44,torso:-6,head:-14,legUF:112,legLF:116,legUB:230,legLB:244,armUF:210,armLF:250,armUB:120,armLB:90}),
+  sweepWind:P({py:-52,torso:18,legUF:134,legLF:214,legUB:220,legLB:232,armUF:165,armLF:115}),
+  sweepHit:P({py:-44,torso:-6,head:-14,legUF:112,legLF:116,legUB:230,legLB:244,armUF:205,armLF:245,armUB:125,armLB:95}),
   jPunchHit:P({py:-96,torso:22,head:10,armUF:118,armLF:122,armUB:216,armLB:250,legUF:144,legLF:204,legUB:200,legLB:238}),
-  jKickHit:P({py:-96,torso:18,head:6,legUF:118,legLF:126,legUB:202,legLB:238,armUF:214,armLF:246,armUB:150,armLB:118}),
-  charge:P({py:-86,torso:14,head:6,armUF:150,armLF:96,armUB:170,armLB:112,legUF:150,legLF:206,legUB:208,legLB:224}),
-  release:P({py:-92,torso:10,head:2,armUF:104,armLF:88,armUB:118,armLB:96,legUF:158,legLF:198,legUB:202,legLB:216}),
+  jKickHit:P({py:-96,torso:18,head:6,legUF:118,legLF:126,legUB:202,legLB:238,armUF:210,armLF:240,armUB:155,armLB:122}),
+  charge:P({py:-86,torso:14,head:6,armUF:145,armLF:90,armUB:175,armLB:118,legUF:150,legLF:206,legUB:208,legLB:224}),
+  release:P({py:-92,torso:10,head:2,armUF:100,armLF:82,armUB:122,armLB:100,legUF:158,legLF:198,legUB:202,legLB:216}),
   ball:P({py:-58,torso:66,head:96,armUF:120,armLF:180,armUB:130,armLB:190,legUF:118,legLF:214,legUB:126,legLB:222}),
   spin:P({py:-96,torso:6,head:2,armUF:80,armLF:78,armUB:262,armLB:264,legUF:172,legLF:184,legUB:190,legLB:202})};
 

@@ -2219,7 +2219,7 @@ let composer=null;   // compositor de bloom (opcional, se carga bajo demanda mas
    outputEncoding sRGB es imprescindible: sin el, r128 saca todo apagado.
    Sin tone mapping filmico los colores salen vivos (look arcade).
    Si algo queda quemado, baja GFX_LUZ; si quieres mas contraste, sube GFX_EXP. */
-const GFX_LUZ=1.0, GFX_EXP=1.0;
+const GFX_LUZ=0.85, GFX_EXP=1.15;
 /* Empujon de saturacion: 1.0 = sin cambios. Subelo para mas viveza. */
 const GFX_SAT=1.45;   // subido de 1.14: los colores se veian apagados
 const GFX_CONT=1.12;  // contraste sobre la luminosidad (1 = sin cambio)
@@ -2231,13 +2231,15 @@ function satCol(c){
   return col;
 }
 renderer.outputEncoding=THREE.sRGBEncoding;
-renderer.toneMapping=THREE.NoToneMapping;renderer.toneMappingExposure=GFX_EXP;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=GFX_EXP;
+renderer.physicallyCorrectLights=true;
 if('serviceWorker'in navigator&&location.protocol.indexOf('http')===0){
   navigator.serviceWorker.register('sw.js').catch(()=>{});
 }
 
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 const scene=new THREE.Scene();
+scene.fog=new THREE.FogExp2(0x05040a,0.018);
 const cam=new THREE.PerspectiveCamera(46,W/H,.1,1400);
 /* ILUMINACION DE TRES PUNTOS (esquema de retrato: principal, relleno,
    contraluz). Con los cuerpos ya en PBR, es lo que hace que el relieve
@@ -2247,27 +2249,27 @@ const cam=new THREE.PerspectiveCamera(46,W/H,.1,1400);
    fuera de la sombra a quien se saliera del cono, y aqui la pelea recorre
    un eje ancho. */
 scene.add(new THREE.HemisphereLight(0xffeedd,0x2a2030,.30*GFX_LUZ));
-const sun=new THREE.DirectionalLight(0xfff4de,1.25*GFX_LUZ);
+const sun=new THREE.DirectionalLight(0xfff4de,1.65*GFX_LUZ);
 sun.position.set(8,13,8);sun.castShadow=true;
-sun.shadow.mapSize.set(2048,2048);
-sun.shadow.bias=-0.0004;sun.shadow.normalBias=0.03;
-sun.shadow.radius=1.4;
+sun.shadow.mapSize.set(4096,4096);
+sun.shadow.bias=-0.0002;sun.shadow.normalBias=0.05;
+sun.shadow.radius=2.2;
 /* La camara de sombra abarcaba mucho mas de lo que se ve: al repartir los
-   2048px en un area enorme, la sombra salia blanda y desvaida. Acotada a la
+   4096px en un area enorme, la sombra salia blanda y desvaida. Acotada a la
    zona donde se pelea, cada pixel cubre menos terreno y el borde se define. */
 const sc=sun.shadow.camera;sc.left=-11;sc.right=11;sc.top=11;sc.bottom=-6;sc.near=1;sc.far=44;
 scene.add(sun);scene.add(sun.target);
 /* RELLENO frio y opuesto a la principal: rebaja el contraste sin borrar
    el modelado, y el tono azulado separa la sombra del color de la piel. */
-const fill=new THREE.DirectionalLight(0xaaccff,.45*GFX_LUZ);
+const fill=new THREE.DirectionalLight(0xaaccff,.65*GFX_LUZ);
 fill.position.set(-6,8,7);scene.add(fill);
 /* CONTRALUZ calido desde detras: es el que dibuja el borde brillante de
    hombros y brazos y despega al luchador del fondo. Foco, no direccional,
    porque interesa que caiga sobre la zona de combate y no sobre el decorado. */
-const rim=new THREE.SpotLight(0xffddaa,1.15*GFX_LUZ,0,Math.PI/4,.6,1);
+const rim=new THREE.SpotLight(0xffddaa,1.45*GFX_LUZ,0,Math.PI/4,.6,1);
 rim.position.set(0,11,-13);rim.target.position.set(0,3,0);
 scene.add(rim);scene.add(rim.target);
-const hemi=new THREE.HemisphereLight(0xcfe0ff,0x3a2f28,.10*GFX_LUZ);scene.add(hemi);
+const hemi=new THREE.HemisphereLight(0xcfe0ff,0x3a2f28,.15*GFX_LUZ);scene.add(hemi);
 /* LUZ DINAMICA: la escena respira y, sobre todo, destella con los impactos
    fuertes (game.shake ya sube al golpear). */
 const _LUZ0={sun:sun.intensity,rim:rim.intensity,fill:fill.intensity};
@@ -4833,7 +4835,7 @@ function loadBloom(){
        antiguo (.82) lo superaba medio escenario y todo salia resplandeciente
        y borroso. Umbral alto = solo brilla lo realmente luminoso; radio bajo
        = halo corto, sin emborronar la imagen. */
-    const bloom=new THREE.UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),.22,.28,.96);
+    const bloom=new THREE.UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),0.35,0.42,0.88);
     c.addPass(bloom);
     c.setSize(renderer.domElement.width,renderer.domElement.height);
     composer=c;
@@ -7355,7 +7357,7 @@ class Fighter{
     if(this.mv){const ct=this.cancelTier();if(ct<0)return;minT=ct;}
     if(minT<=2&&i.sup&&this.meter>=100&&!this.air){this.meter=0;
       this.start(i.alt&&M.asuper?M.asuper:M.super,2);
-      if(minT>0){game.freeze=Math.max(game.freeze,7);game.shake=Math.max(game.shake,.12);}
+      if(minT>0){game.freeze=Math.max(game.freeze,14);game.shake=Math.max(game.shake,.18);}
       return;}
     // --- golpes extra (medallas 1/2/3) ---
     if(minT<=1&&this.ctrl&&this.cd<=0&&!this.air&&this.state!=='hurt'&&this.state!=='ko'&&
@@ -7785,21 +7787,21 @@ class Fighter{
       if(this.dizN>=STUN_HITS&&this.dizzy<=0&&this.hp>0){
         this.dizzy=STUN_TIME;this.dizN=0;
         game.moveName='\u00a1ATURDIDO!';game.moveNameT=90;game.moveOwner=this.opp;
-        game.freeze=Math.max(game.freeze,8);sfx.heavy&&sfx.heavy();
+        game.freeze=Math.max(game.freeze,12);sfx.heavy&&sfx.heavy();
       }
       this.vx=dir*src.push/this.c.weight;
       if(src.knockdown||this.air)this.vy=-7.5;
       this.stun=Math.max(this.stun,src.hitstun||14);
       this.meter=Math.min(100,this.meter+6);
       game.shake=Math.min(.16,.05+src.dmg*.007);
-      game.freeze=Math.min(9,2+Math.round(src.dmg*.4));this.flashT=4;
+      game.freeze=Math.min(14,3+Math.round(src.dmg*.5));this.flashT=4;
       burst(chest,src.dmg>=14?14:8,src.dmg>=14?0xffffff:0xffd75a,src.dmg>=14?.11:.08);
       (src.dmg>=12?sfx.heavy:sfx.hit)();
       game.comboN=(game.comboT>0)?game.comboN+1:1;game.comboT=55;game.comboSrc=src.owner||src;
       if(game.comboN>=2)tone(240+Math.min(game.comboN,9)*70,.1,'square',.045);
     }
     if(this.hp<=0){this.hp=0;this.state='ko';this.mv=null;this.vx=dir*4.5;this.vy=-9;
-      sfx.ko();game.shake=.22;}
+      sfx.ko();game.shake=.28;}
   }
   kill(){scene.remove(this.rig.root);this.rig.dispose();if(this.blob){scene.remove(this.blob);this.blob.material.dispose();}}
 }
@@ -8597,7 +8599,7 @@ function update(){
     else if(p2.hp>p1.hp){p2.wins++;msg='TIEMPO — '+p2.name;}
     else msg='TIEMPO — EMPATE';
     if((p1.state==='ko'&&p2.hp===p2.c.hpMax)||(p2.state==='ko'&&p1.hp===p1.c.hpMax))msg='¡PERFECTO!';
-    game.banner=msg;game.mode='roundend';game.bt=0;game.freeze=8;
+    game.banner=msg;game.mode='roundend';game.bt=0;game.freeze=14;
   }
 }
 /* --- cámara --- */

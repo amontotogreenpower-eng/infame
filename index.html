@@ -2250,6 +2250,7 @@ rimLight.angle=Math.PI/4;
 rimLight.penumbra=0.6;
 rimLight.lookAt(0, 3, 0);
 scene.add(rimLight);
+const rim=rimLight; // Alias para compatibilidad
 
 // Luz ambiental cálida para piel realista
 scene.add(new THREE.HemisphereLight(0xffeedd, 0x2a2030, 0.35*GFX_LUZ));
@@ -8781,6 +8782,13 @@ function drawTitle(){
   g.addColorStop(0,'rgba(5,4,12,.86)');g.addColorStop(.55,'rgba(5,4,12,.25)');g.addColorStop(1,'rgba(5,4,12,.6)');
   hx.fillStyle=g;hx.fillRect(0,0,W,H);
   const tp=performance.now();
+  
+  // Fecha y hora de última actualización en la esquina superior derecha
+  const now=new Date();
+  const dateStr=now.toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'});
+  const timeStr=now.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+  txt('Última act.: '+dateStr+' '+timeStr, W-15, 25, 10, '#6a7a9a', 'right');
+  
   txt('INFAME FIGHTING',W/2,110,52,'hsl('+(45+Math.sin(tp*.0018)*7)+',100%,'+(62+Math.sin(tp*.0027)*7)+'%)');
   txt('★ ARCADE EDITION ★',W/2,146,15,'hsl('+((tp*.12)%360)+',85%,66%)');
   txt('T O R N E O   M U N D I A L',W/2,142,17,'#ff8c1a');

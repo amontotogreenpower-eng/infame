@@ -2222,6 +2222,9 @@ if('serviceWorker'in navigator&&location.protocol.indexOf('http')===0){
 }
 
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+// Forzar renderizado inicial para evitar pantalla congelada
+renderer.setClearColor(0x05040a, 1);
+renderer.clear(true, true, true);
 const scene=new THREE.Scene();
 const cam=new THREE.PerspectiveCamera(46,W/H,.1,1400);
 
@@ -2232,7 +2235,13 @@ keyLight.position.set(8, 12, 8);
 keyLight.angle=Math.PI/5;
 keyLight.penumbra=0.4;
 keyLight.castShadow=true;
-keyLight.shadow.mapSize.set(4096,4096); // Máxima calidad de sombras
+keyLight.shadow.mapSize.set(2048,2048); // Calidad balanceada para mejor rendimiento
+keyLight.shadow.camera.near=0.5;
+keyLight.shadow.camera.far=50;
+keyLight.shadow.camera.left=-15;
+keyLight.shadow.camera.right=15;
+keyLight.shadow.camera.top=15;
+keyLight.shadow.camera.bottom=-15;
 keyLight.shadow.bias=-0.0003;
 keyLight.shadow.normalBias=0.04;
 scene.add(keyLight);
@@ -2255,14 +2264,23 @@ const rim=rimLight; // Alias para compatibilidad
 // Luz ambiental cálida para piel realista
 scene.add(new THREE.HemisphereLight(0xffeedd, 0x2a2030, 0.35*GFX_LUZ));
 
-// Suelo receptor de sombras realistas
+// Suelo receptor de sombras realistas - con fallback por si ShadowMaterial falla
 const floorGeo=new THREE.PlaneGeometry(300, 300);
-const floorMat=new THREE.ShadowMaterial({opacity:0.45});
+let floorMat;
+try {
+  floorMat = new THREE.ShadowMaterial({opacity:0.45});
+} catch(e) {
+  console.warn('ShadowMaterial no disponible, usando MeshBasicMaterial');
+  floorMat = new THREE.MeshBasicMaterial({color:0x000000, transparent:true, opacity:0.3});
+}
 const floor=new THREE.Mesh(floorGeo, floorMat);
 floor.rotation.x=-Math.PI/2;
 floor.position.y=-2.8;
 floor.receiveShadow=true;
 scene.add(floor);
+
+// Renderizado inicial inmediato para evitar pantalla congelada
+renderer.render(scene, cam);
 
 const stageEl=document.getElementById('stage');
 let PRCAP=1.75;
@@ -6404,7 +6422,14 @@ function tickMotes(t){
     m.position.set(u.x+Math.sin(t*.01+u.p)*u.r,u.y+Math.sin(t*.014+u.p*2)*.5,u.z+Math.cos(t*.009+u.p)*u.r);
     m.rotation.y=t*.02+u.p;});
 }
-function mat(c,f){return new THREE.MeshToonMaterial({color:satCol(c),fog:f!==false});}
+function mat(c,f){
+  try {
+    return new THREE.MeshToonMaterial({color:satCol(c),fog:f!==false});
+  } catch(e) {
+    console.warn('MeshToonMaterial fallback:', e);
+    return new THREE.MeshLambertMaterial({color:satCol(c)});
+  }
+}
 function ground(color,size){
   const m=mat(color);m.polygonOffset=true;m.polygonOffsetFactor=1;m.polygonOffsetUnits=1;
   const g=new THREE.Mesh(new THREE.PlaneGeometry(size||60,40),m);

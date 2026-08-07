@@ -1002,10 +1002,18 @@ panda:{id:'panda',name:'BAMBÚ',tag:'El Peso Pesado del Bosque',
     const black=R.mkMat(0x1b1b22), white=R.mkMat(0xf4f0e6);
     R.head.add(R.hball(19,white));
     for(const s of[-1,1])R.head.add(R.pos(R.ball(8,black),-3,14,s*13));
-    for(const s of[-1,1]){const p=R.ball(7.5,black);p.scale.set(.7,1.1,.9);R.head.add(R.pos(p,11,3,s*7));}
-    for(const s of[-1,1]){R.head.add(R.pos(R.ball(2.4,R.mkMat(0xffffff)),16,4,s*7));
-      R.head.add(R.pos(R.ball(1.3,black),17.4,4.4,s*7));
-      R.head.add(R.pos(R.ball(.5,R.mkMat(0xffffff)),18,5.2,s*6.4));}
+    /* MANCHAS: antes se quedaban en x=11..16.25 mientras el ojo llegaba a
+       18.4, o sea que el ojo asomaba POR DELANTE de la mancha en vez de ir
+       dentro. Adelantadas y agrandadas para que envuelvan el ojo (llegan a
+       x=19.9, por fuera del craneo, que en ese punto esta en x=17.2), y con
+       una inclinacion en lagrima como las del animal. */
+    for(const s of[-1,1]){
+      const p=R.ball(8.6,black);p.scale.set(.76,1.06,.92);
+      const pg=R.pos(p,13.6,3.4,s*7.2);
+      pg.rotation.x=s*.42;R.head.add(pg);}
+    for(const s of[-1,1]){R.head.add(R.pos(R.ball(2.4,R.mkMat(0xffffff)),15.6,4,s*7));
+      R.head.add(R.pos(R.ball(1.3,black),17,4.4,s*7));
+      R.head.add(R.pos(R.ball(.5,R.mkMat(0xffffff)),17.7,5.2,s*6.4));}
     const mz=R.ball(7,R.mkMat(0xe8dfcf));mz.scale.set(.9,.7,1);R.head.add(R.pos(mz,14,-6,0));
     R.head.add(R.pos(R.ball(3,black),19,-4,0));
     for(const s of[-1,1]){const m=R.box(.8,1,2.6,black);m.rotation.x=s*.5;R.head.add(R.pos(m,15,-9.5,s*1.6));}
@@ -2230,12 +2238,16 @@ if('serviceWorker'in navigator&&location.protocol.indexOf('http')===0){
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 const scene=new THREE.Scene();
 const cam=new THREE.PerspectiveCamera(46,W/H,.1,1400);
-/* LUCES: menos relleno ambiental y mas luz direccional = sombras mas
-   marcadas y volumenes mas legibles. El contraluz sube bastante porque es
-   lo que recorta la silueta del luchador contra el fondo. */
-scene.add(new THREE.HemisphereLight(0xbfd8ff,0x30203a,.26*GFX_LUZ));
-const sun=new THREE.DirectionalLight(0xfff2d0,1.15*GFX_LUZ);
-sun.position.set(-7,14,10);sun.castShadow=true;
+/* ILUMINACION DE TRES PUNTOS (esquema de retrato: principal, relleno,
+   contraluz). Con los cuerpos ya en PBR, es lo que hace que el relieve
+   muscular se lea: la principal talla la forma, el relleno impide que la
+   mitad en sombra se apague, y el contraluz calido recorta la silueta.
+   La PRINCIPAL sigue siendo direccional a proposito: un foco conico dejaba
+   fuera de la sombra a quien se saliera del cono, y aqui la pelea recorre
+   un eje ancho. */
+scene.add(new THREE.HemisphereLight(0xffeedd,0x2a2030,.30*GFX_LUZ));
+const sun=new THREE.DirectionalLight(0xfff4de,1.25*GFX_LUZ);
+sun.position.set(8,13,8);sun.castShadow=true;
 sun.shadow.mapSize.set(2048,2048);
 sun.shadow.bias=-0.0004;sun.shadow.normalBias=0.03;
 sun.shadow.radius=1.4;
@@ -2244,14 +2256,26 @@ sun.shadow.radius=1.4;
    zona donde se pelea, cada pixel cubre menos terreno y el borde se define. */
 const sc=sun.shadow.camera;sc.left=-11;sc.right=11;sc.top=11;sc.bottom=-6;sc.near=1;sc.far=44;
 scene.add(sun);scene.add(sun.target);
-const rim=new THREE.DirectionalLight(0x88aaff,.62*GFX_LUZ);rim.position.set(9,6,-9);scene.add(rim);
-const hemi=new THREE.HemisphereLight(0xcfe0ff,0x3a2f28,.12*GFX_LUZ);scene.add(hemi);
-/* Relleno calido frontal: evita que la cara que no da al sol quede muerta. */
-const fill=new THREE.DirectionalLight(0xffd9b0,.28*GFX_LUZ);fill.position.set(6,4,12);scene.add(fill);
+/* RELLENO frio y opuesto a la principal: rebaja el contraste sin borrar
+   el modelado, y el tono azulado separa la sombra del color de la piel. */
+const fill=new THREE.DirectionalLight(0xaaccff,.45*GFX_LUZ);
+fill.position.set(-6,8,7);scene.add(fill);
+/* CONTRALUZ calido desde detras: es el que dibuja el borde brillante de
+   hombros y brazos y despega al luchador del fondo. Foco, no direccional,
+   porque interesa que caiga sobre la zona de combate y no sobre el decorado. */
+const rim=new THREE.SpotLight(0xffddaa,1.15*GFX_LUZ,0,Math.PI/4,.6,1);
+rim.position.set(0,11,-13);rim.target.position.set(0,3,0);
+scene.add(rim);scene.add(rim.target);
+const hemi=new THREE.HemisphereLight(0xcfe0ff,0x3a2f28,.10*GFX_LUZ);scene.add(hemi);
 /* LUZ DINAMICA: la escena respira y, sobre todo, destella con los impactos
    fuertes (game.shake ya sube al golpear). */
 const _LUZ0={sun:sun.intensity,rim:rim.intensity,fill:fill.intensity};
 function tickLuces(t){
+  /* el contraluz SIGUE a la accion: tickCam ya mueve sun.target con la pelea,
+     y si el foco se quedaba fijo en el centro, al alejarse los luchadores
+     perdian el borde brillante justo cuando mas se separan. */
+  rim.target.position.set(sun.target.position.x,3,sun.target.position.z);
+  rim.position.set(sun.target.position.x,11,sun.target.position.z-13);
   const golpe=Math.min(1,(game.shake||0)*7);
   const resp=Math.sin(t*.0012)*.05;                 // vaiven lento, casi imperceptible
   sun.intensity =_LUZ0.sun *(1+resp+golpe*.85);
@@ -4610,7 +4634,7 @@ let HEADSIMPLE_GEO=null;   // esfera unidad compartida para sculptHeadSimple
 function makeLimbGeo(ratio,bulgeC,bulgeW,bulgeAmt,segL,segR){
   const key=[ratio,bulgeC,bulgeW,bulgeAmt,segL,segR].join(',');
   if(LIMBGEOS[key])return LIMBGEOS[key];
-  segL=segL||12;segR=segR||14;   // algo mas de malla para que el relieve se lea
+  segL=segL||14;segR=segR||16;   // malla densa: el relieve muscular se lee limpio
   const pos=[],idx=[],gg=(x,c,w)=>Math.exp(-(((x-c)/w)**2));
   for(let j=0;j<=segL;j++){
     const v=j/segL;
@@ -4655,7 +4679,7 @@ function sculptLimb(R,group,bulgeC,bulgeW,bulgeAmt,keepRoot,flat){
     cap.scale.setScalar(1.06);   // un pelin mas prominente: lee como insercion muscular
   }
   const geo=makeLimbGeo(ratio,bulgeC,bulgeW,bulgeAmt,flat?7:10,flat?10:12);
-  const mat=new THREE.MeshPhongMaterial({color:col,specular:0x1a1512,shininess:6,
+  const mat=new THREE.MeshStandardMaterial({color:col,roughness:.35,metalness:.08,
     flatShading:!!flat,side:THREE.DoubleSide});
   R.M.push(mat);
   const mesh=new THREE.Mesh(geo,mat);
@@ -4665,7 +4689,7 @@ function sculptLimb(R,group,bulgeC,bulgeW,bulgeAmt,keepRoot,flat){
 function makeTorsoGeo(B){
   B=B||{};const key=JSON.stringify(B);if(TORSOGEOS[key])return TORSOGEOS[key];
   const up=B.upper||1,lo=B.lower||1,mus=B.mus||1,wF=B.waist||1;
-  const Wc=28,Hh=32,pos=[],idx=[];
+  const Wc=32,Hh=36,pos=[],idx=[];
   const gg=(x,c,w)=>Math.exp(-(((x-c)/w)**2));
   for(let j=0;j<=Hh;j++){
     const v=j/Hh;
@@ -4713,20 +4737,20 @@ function makeTorsoGeo(B){
 let SKINTEX=null;
 function skinTexture(){
   if(SKINTEX)return SKINTEX;
-  /* Se genera UNA vez y se reutiliza, asi que compensa hacerla a 256: a 128 el
+  /* Se genera UNA vez y se reutiliza, asi que compensa hacerla a 512: a 128 el
      poro salia del tamano de un lunar al estirarse sobre el cuerpo. */
-  const c=document.createElement('canvas');c.width=c.height=256;
-  const x=c.getContext('2d');x.fillStyle='#ffffff';x.fillRect(0,0,256,256);
-  for(let i=0;i<6000;i++){                       // poros
+  const c=document.createElement('canvas');c.width=c.height=512;
+  const x=c.getContext('2d');x.fillStyle='#ffffff';x.fillRect(0,0,512,512);
+  for(let i=0;i<15000;i++){                      // poros
     x.fillStyle='rgba(120,70,50,'+(Math.random()*.05+.015)+')';
-    x.beginPath();x.arc(Math.random()*256,Math.random()*256,Math.random()*1.8+.4,0,6.28);x.fill();
+    x.beginPath();x.arc(Math.random()*512,Math.random()*512,Math.random()*1.8+.4,0,6.28);x.fill();
   }
-  for(let i=0;i<300;i++){                        // pecas y pigmentacion
+  for(let i=0;i<800;i++){                        // pecas y pigmentacion
     x.fillStyle='rgba(170,110,80,'+(Math.random()*.09)+')';
-    x.beginPath();x.arc(Math.random()*256,Math.random()*256,Math.random()*3+.8,0,6.28);x.fill();
+    x.beginPath();x.arc(Math.random()*512,Math.random()*512,Math.random()*3+.8,0,6.28);x.fill();
   }
-  for(let i=0;i<90;i++){                         // pliegues y lineas de tension
-    const px=Math.random()*256,py=Math.random()*256;
+  for(let i=0;i<200;i++){                        // pliegues y lineas de tension
+    const px=Math.random()*512,py=Math.random()*512;
     x.strokeStyle='rgba(150,100,70,'+(Math.random()*.05)+')';
     x.lineWidth=Math.random()*1.6+.4;x.beginPath();x.moveTo(px,py);
     x.bezierCurveTo(px+(Math.random()-.5)*20,py+(Math.random()-.5)*20,
@@ -4736,10 +4760,11 @@ function skinTexture(){
   }
   for(let i=0;i<150;i++){
     x.fillStyle='rgba(205,125,95,'+(Math.random()*.05)+')';
-    x.beginPath();x.arc(Math.random()*256,Math.random()*256,Math.random()*10+4,0,6.28);x.fill();
+    x.beginPath();x.arc(Math.random()*512,Math.random()*512,Math.random()*10+4,0,6.28);x.fill();
   }
   SKINTEX=new THREE.CanvasTexture(c);
-  SKINTEX.wrapS=SKINTEX.wrapT=THREE.RepeatWrapping;SKINTEX.repeat.set(2,2);
+  SKINTEX.wrapS=SKINTEX.wrapT=THREE.RepeatWrapping;SKINTEX.repeat.set(4,4);
+  SKINTEX.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
   return SKINTEX;
 }
 /* ===========================================================
@@ -5801,7 +5826,9 @@ class Rig{
     if(C.glbBody)try{setupGLBBody(this,C);}catch(err){console.error('luchador GLB:',err);}
   }
   dark(c){const col=new THREE.Color(c);col.multiplyScalar(.72);return col.getHex();}
-  mkMat(c){const m=new THREE.MeshToonMaterial({color:satCol(c)});this.M.push(m);return m;}
+  /* PBR en vez de toon: con el mapa de entorno ya activo, estos materiales
+     captan reflejo y brillo especular, que es lo que da el relieve. */
+  mkMat(c){const m=new THREE.MeshStandardMaterial({color:satCol(c),roughness:.45,metalness:.1});this.M.push(m);return m;}
   glowMat(c){const m=new THREE.MeshBasicMaterial({color:c});this.M.push(m);return m;}
   bone(parent,len,rad,mat,taper){
     taper=taper===undefined?1:taper;
@@ -5818,8 +5845,9 @@ class Rig{
   ball(r,mat){const m=new THREE.Mesh(new THREE.SphereGeometry(r*this.s,18,14),mat);m.castShadow=true;return m;}
   hball(r,mat){const m=new THREE.Mesh(new THREE.SphereGeometry(r*this.s,72,54),mat);m.castShadow=true;return m;}
   fball(r,mat){const m=new THREE.Mesh(new THREE.SphereGeometry(r*this.s,36,28),mat);m.castShadow=true;return m;}
-  skinMat(c){const m=new THREE.MeshLambertMaterial({color:c,map:skinTexture()});
-    m.emissive.setHex(0x140a05);m.userData.em=0x140a05;this.M.push(m);return m;}
+  skinMat(c){const m=new THREE.MeshStandardMaterial({color:c,map:skinTexture(),
+    roughness:.42,metalness:.08});
+    m.emissive.setHex(0x1a0f08);m.userData.em=0x1a0f08;this.M.push(m);return m;}
   cball(r,mat){const m=new THREE.Mesh(new THREE.SphereGeometry(r*this.s,16,12),mat);m.castShadow=true;return m;}
   ears(mat,o){
     o=o||{};if(o.hex!=null)mat=this.skinMat(o.hex);const y=o.y!=null?o.y:0, z=o.z!=null?o.z:1, r=o.r||3.2, fwd=o.fwd!=null?o.fwd:1;
@@ -5924,8 +5952,8 @@ class Rig{
   }
   sculptTorso(o){
     /* sombreado suave: la malla ya es organica, flatShading la facetaba de mas */
-    const m=new THREE.MeshPhongMaterial({color:o.color,specular:0x1a1512,shininess:6,
-      flatShading:false,side:THREE.DoubleSide});
+    const m=new THREE.MeshStandardMaterial({color:o.color,roughness:.38,metalness:.12,
+      side:THREE.DoubleSide});
     this.M.push(m);
     const geo=makeTorsoGeo({upper:o.upper,lower:o.lower,mus:o.mus,waist:o.waist});
     geo.computeVertexNormals();
@@ -5936,9 +5964,9 @@ class Rig{
     return mesh;
   }
   sculptHead(o){
-    const m=new THREE.MeshPhongMaterial({color:o.skin,map:skinTexture(),
-      specular:0x1a1512,shininess:6,flatShading:true,side:THREE.DoubleSide});
-    m.emissive.setHex(0x140a05);m.userData.em=0x140a05;this.M.push(m);
+    const m=new THREE.MeshStandardMaterial({color:o.skin,map:skinTexture(),
+      roughness:.35,metalness:.06,side:THREE.DoubleSide});
+    m.emissive.setHex(0x1a0f08);m.userData.em=0x1a0f08;this.M.push(m);
     const hg=makeHeadGeo(o.f);hg.computeVertexNormals();
     const mesh=new THREE.Mesh(hg,m);mesh.castShadow=true;
     mesh.scale.setScalar(o.r*this.s);this.head.add(mesh);
@@ -5996,84 +6024,76 @@ class Rig{
      CABEZA DE PANDA: ojos dentro de las manchas negras caracteristicas
      =========================================================== */
   sculptPandaHead(o){
-    const rx=(o.rx||1)*o.r, ry=(o.ry||1)*o.r, rz=(o.rz||1)*o.r;
-    const s=this.s;
-    
-    // Cabeza base blanca
+    /* El fallo de la version anterior: colocaba ojos y manchas con
+       coordenadas cartesianas escritas a mano, mientras el resto del juego
+       situa los ojos sobre una DIRECCION de la esfera unidad. Al no coincidir
+       los dos sistemas, los ojos caian fuera de la mancha (o dentro del
+       craneo). Aqui mancha y ojo comparten exactamente la misma direccion:
+       la mancha va un pelo mas afuera y es mayor, asi que el ojo cae dentro
+       por construccion, sea cual sea la forma de la cabeza. */
+    const rx=(o.rx||1)*o.r, ry=(o.ry||1)*o.r, rz=(o.rz||1)*o.r, S=this.s;
     if(!HEADSIMPLE_GEO)HEADSIMPLE_GEO=new THREE.SphereGeometry(1,32,24);
-    const skinM=new THREE.MeshStandardMaterial({color:o.skin,roughness:0.35,metalness:0.05});this.M.push(skinM);
-    const headMesh=new THREE.Mesh(HEADSIMPLE_GEO,skinM);headMesh.castShadow=true;headMesh.receiveShadow=true;
-    headMesh.scale.set(rx*s,ry*s,rz*s);this.head.add(headMesh);
-    
-    // Orejas negras
-    const blackM=this.mkMat(0x111111);
+    const skinM=this.skinMat(o.skin);
+    const mesh=new THREE.Mesh(HEADSIMPLE_GEO,skinM);
+    mesh.castShadow=true;mesh.receiveShadow=true;
+    mesh.scale.set(rx*S,ry*S,rz*S);this.head.add(mesh);
+
+    const negro=this.mkMat(0x141414);
+    const iris=this.mkMat(o.iris!=null?o.iris:0x4a3320),
+          pup=this.mkMat(0x0d0d0d), scl=this.mkMat(0xf2efe6), shn=this.mkMat(0xffffff);
+
+    // MISMA direccion que usa sculptHeadSimple para los ojos
+    const th0=.36, ph0=.11;
+    const ux=Math.cos(th0)*Math.cos(ph0), uy=Math.sin(ph0), uz=Math.sin(th0)*Math.cos(ph0);
+    const eR=o.eyeR||rx*.145;
+
     for(const sd of[-1,1]){
-      const ear=this.ball(rx*.28,blackM);ear.scale.set(1,.9,1);
-      this.head.add(this.pos(ear,-rx*.15,ry*.85,sd*rz*.9));
+      /* MANCHA: mismo eje, radio 1.06 (justo por fuera de la piel) y en forma
+         de lagrima inclinada hacia el hocico, como la del animal. */
+      const mg=new THREE.Group();
+      mg.position.set(ux*rx*S*1.06, uy*ry*S*1.06, sd*uz*rz*S*1.06);
+      mg.rotation.y=-sd*.3; mg.rotation.x=sd*.5;
+      this.head.add(mg);
+      const p=this.fball(eR*2.25,negro);
+      p.scale.set(.42,1.15,.95);        // aplastada contra el craneo y alargada
+      mg.add(p);
+
+      // OJO: identico eje, radio 1.0 -> siempre dentro de la mancha
+      const eg=new THREE.Group();
+      eg.position.set(ux*rx*S, uy*ry*S, sd*uz*rz*S);
+      eg.rotation.y=-sd*.3;this.head.add(eg);
+      const w=this.fball(eR*.62,scl);w.scale.set(.72,.88,1);eg.add(w);
+      const ir=this.fball(eR*.38,iris);ir.scale.set(.55,1,1);ir.position.x=eR*.34*S;eg.add(ir);
+      const pu=this.fball(eR*.2,pup);pu.position.x=eR*.42*S;eg.add(pu);
+      const hl=this.fball(eR*.09,shn);
+      hl.position.set(eR*.46*S,eR*.2*S,-sd*eR*.2*S);eg.add(hl);
+
+      // OREJAS: redondas, altas y algo hacia atras
+      const or_=this.fball(rx*.3,negro);or_.scale.set(.55,1,1);
+      const og=new THREE.Group();
+      og.position.set(-rx*.18*S, ry*.86*S, sd*rz*.62*S);
+      og.rotation.y=-sd*1.1;og.rotation.z=-.3;
+      og.add(or_);this.head.add(og);
     }
-    
-    // Manchas negras alrededor de los ojos (posicionadas para que los ojos queden DENTRO)
-    const patchGeo=new THREE.SphereGeometry(1,16,16);
+
+    // HOCICO claro y nariz negra, sobre el eje frontal (+X)
+    const hoc=this.fball(rx*.34,skinM);hoc.scale.set(.5,.72,.9);
+    this.head.add(this.pos(hoc, rx*.86*S, -ry*.24*S, 0));
+    const nz=this.fball(rx*.13,negro);nz.scale.set(.6,.8,1.1);
+    this.head.add(this.pos(nz, rx*.99*S, -ry*.16*S, 0));
+    // boca: dos trazos bajo la nariz
     for(const sd of[-1,1]){
-      const patch=new THREE.Mesh(patchGeo,blackM);
-      patch.position.set(rx*.18*s,ry*.15*s,sd*rz*.85*s);
-      patch.scale.set(rx*.22,ry*.18,rz*.16);
-      patch.rotation.z=sd*0.25;
-      patch.castShadow=true;
-      this.head.add(patch);
+      const b=this.box(rx*.05,ry*.03,rz*.16,negro);
+      b.rotation.x=sd*.55;
+      this.head.add(this.pos(b, rx*.9*S, -ry*.38*S, sd*rz*.1*S));
     }
-    
-    // Ojos blancos (DENTRO de las manchas negras)
-    const sclM=this.mkMat(0xffffff);
-    for(const sd of[-1,1]){
-      const eyeWhite=this.fball(rx*.12,sclM);
-      eyeWhite.position.set(rx*.22*s,ry*.18*s,sd*rz*.88*s);
-      this.head.add(eyeWhite);
-      
-      // Iris marron/verde
-      const irisM=this.mkMat(o.iris||0x4a3320);
-      const iris=this.fball(rx*.06,irisM);
-      iris.position.set(rx*.28*s,ry*.18*s,sd*rz*.9*s);
-      this.head.add(iris);
-      
-      // Pupila negra
-      const pupM=this.mkMat(0x000000);
-      const pupil=this.fball(rx*.03,pupM);
-      pupil.position.set(rx*.31*s,ry*.18*s,sd*rz*.91*s);
-      this.head.add(pupil);
-      
-      // Brillo en los ojos
-      const shineM=this.mkMat(0xffffff);
-      const shine=this.fball(rx*.015,shineM);
-      shine.position.set(rx*.32*s,ry*.22*s,sd*rz*.89*s);
-      this.head.add(shine);
-    }
-    
-    // Nariz negra
-    const noseM=this.mkMat(0x111111);
-    const nose=this.box(rx*.08,ry*.06,rz*.12,noseM);
-    nose.position.set(rx*.35*s,ry*.05*s,0);
-    nose.rotation.x=0.3;
-    this.head.add(nose);
-    
-    // Boca sonriente
-    const mouthShape=new THREE.Shape();
-    mouthShape.moveTo(-rx*.12,ry*-0.08);
-    mouthShape.quadraticCurveTo(0,ry*-0.16,rx*.12,ry*-0.08);
-    const mouthGeo=new THREE.ShapeGeometry(mouthShape);
-    const mouthM=new THREE.MeshBasicMaterial({color:0x111111,side:THREE.DoubleSide});
-    const mouth=new THREE.Mesh(mouthGeo,mouthM);
-    mouth.position.set(rx*.32*s,ry*-0.02*s,0);
-    mouth.scale.set(1,1,1);
-    this.head.add(mouth);
-    
-    return headMesh;
+    return mesh;
   }
   sculptHeadSimple(o){
     const rx=(o.rx||1)*o.r, ry=(o.ry||1)*o.r, rz=(o.rz||1)*o.r;
-    if(!HEADSIMPLE_GEO)HEADSIMPLE_GEO=new THREE.SphereGeometry(1,20,16);
-    const m=new THREE.MeshPhongMaterial({color:o.skin,specular:0x1a1512,shininess:6,
-      flatShading:false,side:THREE.DoubleSide});this.M.push(m);
+    if(!HEADSIMPLE_GEO)HEADSIMPLE_GEO=new THREE.SphereGeometry(1,32,24);
+    const m=new THREE.MeshStandardMaterial({color:o.skin,roughness:.32,metalness:.05,
+      side:THREE.DoubleSide});this.M.push(m);
     const mesh=new THREE.Mesh(HEADSIMPLE_GEO,m);mesh.castShadow=true;
     mesh.scale.set(rx*this.s,ry*this.s,rz*this.s);this.head.add(mesh);
 
@@ -6430,7 +6450,7 @@ function piedraTex(){
   }
   for(let k=0;k<2600;k++){
     x.fillStyle='rgba(90,80,64,'+(.03+Math.random()*.07)+')';
-    x.fillRect(Math.random()*256,Math.random()*256,2+Math.random()*4,1+Math.random()*3);
+    x.fillRect(Math.random()*512,Math.random()*512,2+Math.random()*4,1+Math.random()*3);
   }
   _piedraTex=new THREE.CanvasTexture(c);
   _piedraTex.wrapS=_piedraTex.wrapT=THREE.RepeatWrapping;
@@ -6493,9 +6513,9 @@ function tileTex(){
   x.strokeRect(0,0,128,128);x.strokeRect(128,0,128,128);
   x.strokeRect(0,128,128,128);x.strokeRect(128,128,128,128);
   for(let k=0;k<900;k++){x.fillStyle='rgba(0,0,0,.04)';
-    x.fillRect(Math.random()*256,Math.random()*256,2,2);}
+    x.fillRect(Math.random()*512,Math.random()*512,2,2);}
   for(let k=0;k<260;k++){x.fillStyle='rgba(255,255,255,.07)';
-    x.fillRect(Math.random()*256,Math.random()*256,3,1);}
+    x.fillRect(Math.random()*512,Math.random()*512,3,1);}
   const t=new THREE.CanvasTexture(c);
   t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(48,24);
   t.encoding=THREE.sRGBEncoding;          // es un mapa de COLOR
@@ -6516,7 +6536,7 @@ function tileRoughTex(){
   for(let k=0;k<1400;k++){                       // desgaste y rozaduras
     const v=140+Math.random()*90;
     x.fillStyle='rgba('+v+','+v+','+v+',.5)';
-    x.fillRect(Math.random()*256,Math.random()*256,2+Math.random()*6,1+Math.random()*2);
+    x.fillRect(Math.random()*512,Math.random()*512,2+Math.random()*6,1+Math.random()*2);
   }
   x.strokeStyle='#f0f0f0';x.lineWidth=7;         // juntas: siempre mate
   x.strokeRect(0,0,128,128);x.strokeRect(128,0,128,128);

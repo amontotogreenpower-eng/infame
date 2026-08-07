@@ -867,9 +867,9 @@ addEventListener('pointerdown',()=>{try{if(game.mode==='splash'){audio();uiKey('
 /* ===========================================================
    POSES (ángulos absolutos, grados; 0=arriba, 90=adelante, 180=abajo)
    =========================================================== */
-// Pose IDLE agresiva: guardia alta, brazos en posicion de ataque, cuerpo inclinado
-const IDLE={py:-92,px:0,torso:8,head:4,headY:0,rot:0,hip:0,twist:0,abdo:null,abdoT:null,toeF:0,toeB:0,footRF:0,footRB:0,armTF:0,armTB:0,tside:0,aside:null,wristF:0,wristB:0,wristRF:0,wristRB:0,fingF:null,fingB:null,thumbF:null,thumbB:null,footAF:0,footAB:0,legAF:0,legAB:0,legTF:0,legTB:0,armAF:0,armAB:0,
-  armUB:210,armLB:165,armUF:140,armLF:85,
+// Pose IDLE agresiva: guardia alta, brazos MUY ABIERTOS y separados, cuerpo inclinado, postura dinamica
+const IDLE={py:-92,px:0,torso:8,head:4,headY:0,rot:0,hip:0,twist:0,abdo:null,abdoT:null,toeF:0,toeB:0,footRF:0,footRB:0,armTF:0,armTB:0,tside:0,aside:null,wristF:0,wristB:0,wristRF:0,wristRB:0,fingF:null,fingB:null,thumbF:null,thumbB:null,footAF:0,footAB:0,legAF:0,legAB:0,legTF:0,legTB:0,armAF:-35,armAB:35,
+  armUB:215,armLB:165,armUF:115,armLF:65,
   legUB:188,legLB:204,legUF:176,legLF:176};
 const PK=Object.keys(IDLE);
 // P() completa con la pose de reposo; 'd' (direcciones de captura) se conserva
@@ -914,29 +914,29 @@ function poseCatmull(pm,p0,p1,pn,t){
   return o;
 }
 const POSE={idle:IDLE,
-  crouch:P({py:-52,torso:24,head:-10,legUF:128,legLF:228,legUB:136,legLB:222,armUF:145,armLF:75,armUB:215,armLB:155}),
-  jump:P({py:-96,torso:12,head:6,legUF:140,legLF:206,legUB:196,legLB:238,armUF:130,armLF:50,armUB:220,armLB:170}),
-  fall:P({py:-96,torso:2,head:-4,legUF:156,legLF:178,legUB:198,legLB:216,armUF:120,armLF:45,armUB:228,armLB:190}),
-  block:P({py:-90,torso:-6,head:-4,armUF:165,armLF:10,armLB:115,armUB:200,legUF:172,legLF:196,legUB:200,legLB:212}),
-  blockLow:P({py:-54,torso:16,head:-8,armUF:160,armLF:15,armUB:210,armLB:125,legUF:128,legLF:228,legUB:136,legLB:222}),
-  hurt:P({py:-90,torso:-18,head:-30,armUF:206,armLF:250,armUB:224,armLB:262,legUF:150,legLF:196,legUB:210,legLB:224}),
-  ko:P({py:-42,rot:-82,torso:8,head:24,armUF:118,armLF:104,armUB:150,armLB:138,legUF:166,legLF:168,legUB:196,legLB:198}),
-  defeat:P({py:-38,rot:-96,torso:-6,head:44,armUF:252,armLF:238,armUB:250,armLB:244,legUF:150,legLF:158,legUB:212,legLB:216}),
-  dash:P({py:-84,torso:26,head:-10,armUF:195,armLF:235,armUB:155,armLB:115,legUF:132,legLF:170,legUB:220,legLB:240}),
-  win:P({py:-94,torso:-2,head:-2,armUF:140,armLF:5,armUB:35,armLB:12,legUF:172,legLF:186,legUB:196,legLB:208}),
-  punchWind:P({torso:-6,armUF:185,armLF:255,armUB:175,armLB:115}),
-  punchHit:P({torso:16,armUF:90,armLF:90,armUB:232,armLB:268,legUF:158,legLF:194}),
-  kickWind:P({py:-94,torso:-8,legUF:128,legLF:216,armUF:190,armLF:230,armUB:165,armLB:122}),
-  kickHit:P({py:-100,torso:-18,head:-8,legUF:92,legLF:98,legUB:186,legLB:198,armUF:230,armLF:255,armUB:150,armLB:118}),
-  cPunchHit:P({py:-52,torso:22,head:-4,armUF:96,armLF:94,armUB:214,armLB:250,legUF:128,legLF:228,legUB:136,legLB:222}),
+  crouch:P({py:-52,torso:24,head:-10,legUF:128,legLF:228,legUB:136,legLB:222,armUF:125,armLF:55,armUB:215,armLB:155}),
+  jump:P({py:-96,torso:12,head:6,legUF:140,legLF:206,legUB:196,legLB:238,armUF:110,armLF:30,armUB:220,armLB:170}),
+  fall:P({py:-96,torso:2,head:-4,legUF:156,legLF:178,legUB:198,legLB:216,armUF:100,armLF:25,armUB:228,armLB:190}),
+  block:P({py:-90,torso:-6,head:-4,armUF:165,armLF:-5,armLB:115,armUB:200,legUF:172,legLF:196,legUB:200,legLB:212}),
+  blockLow:P({py:-54,torso:16,head:-8,armUF:160,armLF:0,armUB:210,armLB:125,legUF:128,legLF:228,legUB:136,legLB:222}),
+  hurt:P({py:-90,torso:-18,head:-30,armUF:216,armLF:260,armUB:234,armLB:272,legUF:150,legLF:196,legUB:210,legLB:224}),
+  ko:P({py:-42,rot:-82,torso:8,head:24,armUF:108,armLF:94,armUB:140,armLB:128,legUF:166,legLF:168,legUB:196,legLB:198}),
+  defeat:P({py:-38,rot:-96,torso:-6,head:44,armUF:262,armLF:248,armUB:260,armLB:254,legUF:150,legLF:158,legUB:212,legLB:216}),
+  dash:P({py:-84,torso:26,head:-10,armUF:195,armLF:235,armUB:135,armLB:95,legUF:132,legLF:170,legUB:220,legLB:240}),
+  win:P({py:-94,torso:-2,head:-2,armUF:120,armLF:-15,armUB:15,armLB:-8,legUF:172,legLF:186,legUB:196,legLB:208}),
+  punchWind:P({torso:-6,armUF:185,armLF:255,armUB:155,armLB:95}),
+  punchHit:P({torso:16,armUF:70,armLF:70,armUB:232,armLB:268,legUF:158,legLF:194}),
+  kickWind:P({py:-94,torso:-8,legUF:128,legLF:216,armUF:190,armLF:230,armUB:145,armLB:102}),
+  kickHit:P({py:-100,torso:-18,head:-8,legUF:92,legLF:98,legUB:186,legLB:198,armUF:230,armLF:255,armUB:130,armLB:98}),
+  cPunchHit:P({py:-52,torso:22,head:-4,armUF:76,armLF:74,armUB:214,armLB:250,legUF:128,legLF:228,legUB:136,legLB:222}),
   sweepWind:P({py:-52,torso:18,legUF:134,legLF:214,legUB:220,legLB:232,armUF:165,armLF:115}),
-  sweepHit:P({py:-44,torso:-6,head:-14,legUF:112,legLF:116,legUB:230,legLB:244,armUF:205,armLF:245,armUB:125,armLB:95}),
-  jPunchHit:P({py:-96,torso:22,head:10,armUF:118,armLF:122,armUB:216,armLB:250,legUF:144,legLF:204,legUB:200,legLB:238}),
-  jKickHit:P({py:-96,torso:18,head:6,legUF:118,legLF:126,legUB:202,legLB:238,armUF:210,armLF:240,armUB:155,armLB:122}),
-  charge:P({py:-86,torso:14,head:6,armUF:145,armLF:90,armUB:175,armLB:118,legUF:150,legLF:206,legUB:208,legLB:224}),
-  release:P({py:-92,torso:10,head:2,armUF:100,armLF:82,armUB:122,armLB:100,legUF:158,legLF:198,legUB:202,legLB:216}),
-  ball:P({py:-58,torso:66,head:96,armUF:120,armLF:180,armUB:130,armLB:190,legUF:118,legLF:214,legUB:126,legLB:222}),
-  spin:P({py:-96,torso:6,head:2,armUF:80,armLF:78,armUB:262,armLB:264,legUF:172,legLF:184,legUB:190,legLB:202})};
+  sweepHit:P({py:-44,torso:-6,head:-14,legUF:112,legLF:116,legUB:230,legLB:244,armUF:205,armLF:245,armUB:105,armLB:75}),
+  jPunchHit:P({py:-96,torso:22,head:10,armUF:98,armLF:102,armUB:216,armLB:250,legUF:144,legLF:204,legUB:200,legLB:238}),
+  jKickHit:P({py:-96,torso:18,head:6,legUF:118,legLF:126,legUB:202,legLB:238,armUF:210,armLF:240,armUB:135,armLB:102}),
+  charge:P({py:-86,torso:14,head:6,armUF:135,armLF:80,armUB:185,armLB:128,legUF:150,legLF:206,legUB:208,legLB:224}),
+  release:P({py:-92,torso:10,head:2,armUF:90,armLF:72,armUB:132,armLB:110,legUF:158,legLF:198,legUB:202,legLB:216}),
+  ball:P({py:-58,torso:66,head:96,armUF:110,armLF:170,armUB:140,armLB:200,legUF:118,legLF:214,legUB:126,legLB:222}),
+  spin:P({py:-96,torso:6,head:2,armUF:70,armLF:68,armUB:272,armLB:274,legUF:172,legLF:184,legUB:190,legLB:202})};
 
 /* ===========================================================
    MOVIMIENTOS
@@ -955,15 +955,15 @@ function baseMoves(){return{
   jkick:{startup:5,active:11,recover:6,dmg:11,limb:'footF',r:17,guard:'high',push:6,hitstun:18,plant:'none',air:true,
     tr:[[0,POSE.jump],[5,POSE.jKickHit],[16,POSE.jKickHit],[22,POSE.fall]]},
   apunch:{name:'GANCHO ASCENDENTE',startup:8,active:6,recover:16,dmg:12,limb:'handF',r:15,guard:'high',push:7,hitstun:22,plant:'both',
-    tr:[[0,POSE.idle],[4,P({py:-84,torso:18,twist:-20,armUF:186,armLF:150,armUB:150,armLB:120})],
-        [8,P({py:-96,torso:-10,twist:14,armUF:34,armLF:30,armUB:170,armLB:130,legUF:158,legLF:190})],
-        [16,P({py:-94,torso:-4,armUF:52,armLF:44,armUB:180,armLB:140})],
+    tr:[[0,POSE.idle],[4,P({py:-84,torso:18,twist:-20,armUF:196,armLF:160,armUB:140,armLB:110})],
+        [8,P({py:-96,torso:-10,twist:14,armUF:24,armLF:20,armUB:180,armLB:140,legUF:158,legLF:190})],
+        [16,P({py:-94,torso:-4,armUF:42,armLF:34,armUB:190,armLB:150})],
         [30,POSE.idle]]},
   akick:{name:'PATADA GIRATORIA',startup:11,active:8,recover:20,dmg:15,limb:'footF',r:19,guard:'mid',push:11,hitstun:26,knockdown:true,plant:'back',
-    tr:[[0,POSE.idle],[5,P({py:-88,torso:16,twist:-30,hip:-14,armUF:180,armLF:130})],
-        [11,P({py:-92,torso:-6,rot:180,hip:14,legUF:110,legLF:186,legAF:34,armUF:60,armLF:40,armUB:96,armLB:60})],
-        [19,P({py:-92,torso:-10,rot:330,hip:22,legUF:96,legLF:196,legAF:42,armUF:80,armLF:60})],
-        [26,P({py:-88,torso:6,rot:360,legUF:150,legLF:180,armUF:130,armLF:90})],
+    tr:[[0,POSE.idle],[5,P({py:-88,torso:16,twist:-30,hip:-14,armUF:190,armLF:140})],
+        [11,P({py:-92,torso:-6,rot:180,hip:14,legUF:110,legLF:186,legAF:34,armUF:50,armLF:30,armUB:86,armLB:50})],
+        [19,P({py:-92,torso:-10,rot:330,hip:22,legUF:96,legLF:196,legAF:42,armUF:70,armLF:50})],
+        [26,P({py:-88,torso:6,rot:360,legUF:150,legLF:180,armUF:120,armLF:80})],
         [40,P({rot:360})]]}};}
 
 /* ===========================================================
@@ -1107,11 +1107,11 @@ lawyer:{id:'lawyer',name:'LIC. VARGAS',tag:'Objeción Sostenida',
     m.special={startup:11,active:3,recover:20,dmg:0,limb:null,guard:'mid',plant:'both',name:'¡PROTESTO!',
       onFrame:{11:f=>{for(let i=-1;i<=1;i++)shootProj(f,{kind:'paper',dmg:5,r:11,vx:f.facing*8.6,vy:i*1.5,
         life:120,push:4,hitstun:12});sfx.fire();}},
-      tr:[[0,POSE.idle],[11,P({torso:-10,armUF:186,armLF:250,armUB:150,armLB:104})],[15,P({torso:18,armUF:82,armLF:70,armUB:230,armLB:260})],[34,POSE.idle]]};
+      tr:[[0,POSE.idle],[11,P({torso:-10,armUF:196,armLF:260,armUB:140,armLB:94})],[15,P({torso:18,armUF:72,armLF:60,armUB:240,armLB:270})],[34,POSE.idle]]};
     m.super={startup:20,active:6,recover:38,dmg:0,limb:null,guard:'high',plant:'both',name:'DEMANDA COLECTIVA',
       onFrame:{20:f=>{ents.push({kind:'gavel',owner:f,x:f.opp.x,y:-220,vy:0,t:0,life:120,dmg:34,r:52,
         guard:'high',push:11,hitstun:30,knockdown:true,hits:new Set()});sfx.super();}},
-      tr:[[0,POSE.idle],[20,P({torso:-14,armUF:16,armLF:2,armUB:330,armLB:346,py:-98,head:-14})],[26,P({torso:24,armUF:112,armLF:130,armUB:200,armLB:230,py:-88})],[64,POSE.idle]]};
+      tr:[[0,POSE.idle],[20,P({torso:-14,armUF:6,armLF:-8,armUB:340,armLB:356,py:-98,head:-14})],[26,P({torso:24,armUF:102,armLF:120,armUB:210,armLB:240,py:-88})],[64,POSE.idle]]};
     return m;},
   build(R){
     const skin=R.mkMat(0xe0a97e),hair=R.mkMat(0x241a14),shirt=R.mkMat(0xf2e6c9),tie=R.mkMat(0xc8262b),
@@ -1158,12 +1158,12 @@ cheer:{id:'cheer',name:'CHISPA',tag:'Ánimo Letal',
   moves(){const m=baseMoves();
     m.special={startup:9,active:22,recover:18,dmg:5,limb:'handF',r:22,guard:'mid',push:4,hitstun:12,multi:6,
       plant:'none',name:'TORNADO POM-POM',vx:t=>(t>=9&&t<31)?6.4:0,
-      tr:[[0,POSE.idle],[9,POSE.spin],[31,P({py:-104,rot:1440,torso:6,head:2,armUF:80,armLF:78,armUB:262,armLB:264,legUF:172,legLF:184,legUB:190,legLB:202})],[40,POSE.idle],[49,POSE.idle]]};
+      tr:[[0,POSE.idle],[9,POSE.spin],[31,P({py:-104,rot:1440,torso:6,head:2,armUF:70,armLF:68,armUB:272,armLB:274,legUF:172,legLF:184,legUB:190,legLB:202})],[40,POSE.idle],[49,POSE.idle]]};
     m.super={startup:12,active:20,recover:26,dmg:6,limb:'footF',r:24,guard:'mid',push:5,hitstun:14,multi:12,
       plant:'none',name:'PIRÁMIDE HUMANA',vy:t=>t===12?-13:0,vx:t=>(t>=12&&t<32)?3.2:0,
       onFrame:{12:()=>sfx.super()},
-      tr:[[0,POSE.idle],[12,P({py:-100,torso:-10,legUF:120,legLF:210,legUB:198,legLB:226,armUF:20,armLF:6,armUB:340,armLB:354})],
-          [32,P({py:-100,rot:900,torso:-10,legUF:120,legLF:210,legUB:198,legLB:226,armUF:20,armLF:6,armUB:340,armLB:354})],[58,POSE.idle]]};
+      tr:[[0,POSE.idle],[12,P({py:-100,torso:-10,legUF:120,legLF:210,legUB:198,legLB:226,armUF:10,armLF:-4,armUB:350,armLB:364})],
+          [32,P({py:-100,rot:900,torso:-10,legUF:120,legLF:210,legUB:198,legLB:226,armUF:10,armLF:-4,armUB:350,armLB:364})],[58,POSE.idle]]};
     return m;},
   build(R){
     const skin=R.mkMat(0xf0c39a),hair=R.mkMat(0xf5b23a),top=R.mkMat(0xe8407a),
@@ -1556,32 +1556,32 @@ const TECHMOVES=[
    hitstun:26,knockdown:true,plant:'none',
    vy:t=>t===6?-14.5:0, vx:t=>(t>=6&&t<30)?6.2:0,
    tr:[[0,P({py:-70,torso:22,head:-6,legUF:150,legLF:200,legUB:150,legLB:200,
-             armUF:150,armLF:90,armUB:200,armLB:150,hip:0})],
+             armUF:140,armLF:80,armUB:210,armLB:160,hip:0})],
        [6,P({py:-104,torso:10,head:2,legUF:130,legLF:212,legUB:190,legLB:232,
-             armUF:120,armLF:60,armUB:220,armLB:180,hip:70})],
+             armUF:110,armLF:50,armUB:230,armLB:190,hip:70})],
        [12,P({py:-134,torso:-8,head:6,legUF:202,legLF:206,legUB:120,legLB:200,
-             armUF:100,armLF:44,armUB:248,armLB:200,hip:190})],
+             armUF:90,armLF:34,armUB:258,armLB:210,hip:190})],
        [20,P({py:-138,torso:-4,head:4,legUF:196,legLF:202,legUB:132,legLB:206,
-             armUF:112,armLF:52,armUB:238,armLB:196,hip:300})],
+             armUF:102,armLF:42,armUB:248,armLB:206,hip:300})],
        [30,P({py:-74,torso:24,head:-8,legUF:140,legLF:206,legUB:150,legLB:212,
-             armUF:150,armLF:88,armUB:202,armLB:154,hip:360})],
+             armUF:140,armLF:78,armUB:212,armLB:164,hip:360})],
        [42,P({py:-92,torso:6,head:2,hip:360})]]},
   {name:'CODAZO GIRATORIO',type:'punch',badge:'CG',
    startup:8,active:8,recover:16,dmg:12,limb:'handF',r:16,guard:'mid',push:7,
    hitstun:22,plant:'both',
    tr:[[0,P({py:-88,torso:10,hip:0})],
-       [8,P({py:-86,torso:-14,head:-10,armUF:196,armLF:120,armUB:150,armLB:110,
+       [8,P({py:-86,torso:-14,head:-10,armUF:206,armLF:130,armUB:140,armLB:100,
              legUF:168,legLF:186,legUB:196,legLB:208,hip:-90})],
-       [14,P({py:-86,torso:26,head:12,armUF:96,armLF:30,armUB:210,armLB:170,
+       [14,P({py:-86,torso:26,head:12,armUF:86,armLF:20,armUB:220,armLB:180,
              legUF:160,legLF:184,legUB:200,legLB:212,hip:120})],
        [30,P({py:-92,torso:6,hip:180})]]},
   {name:'LATIGAZO DE TORSO',type:'punch',badge:'LT',
    startup:7,active:7,recover:15,dmg:13,limb:'handF',r:17,guard:'mid',push:8,
    hitstun:22,plant:'both',
    tr:[[0,P({py:-90,torso:8,twist:0})],
-       [7,P({py:-88,torso:2,head:-8,twist:-78,armUF:172,armLF:112,armUB:226,armLB:192,
+       [7,P({py:-88,torso:2,head:-8,twist:-78,armUF:182,armLF:122,armUB:216,armLB:182,
              legUF:170,legLF:190,legUB:198,legLB:210})],
-       [13,P({py:-86,torso:15,head:10,twist:88,armUF:96,armLF:26,armUB:212,armLB:172,
+       [13,P({py:-86,torso:15,head:10,twist:88,armUF:86,armLF:16,armUB:222,armLB:182,
               legUF:162,legLF:186,legUB:202,legLB:214})],
        [30,P({py:-92,torso:6,twist:0})]]},
   {name:'BARRIDO ROTATORIO',type:'kick',badge:'BR',
@@ -1589,9 +1589,9 @@ const TECHMOVES=[
    hitstun:24,knockdown:true,plant:'back',
    tr:[[0,P({py:-58,torso:26,legUF:132,legLF:224,legUB:138,legLB:220,hip:0})],
        [9,P({py:-54,torso:30,legUF:196,legLF:200,legUB:134,legLB:222,
-             armUF:186,armLF:130,armUB:150,armLB:96,hip:120})],
+             armUF:196,armLF:140,armUB:140,armLB:86,hip:120})],
        [19,P({py:-54,torso:28,legUF:200,legLF:204,legUB:136,legLB:224,
-             armUF:170,armLF:110,armUB:160,armLB:104,hip:300})],
+             armUF:180,armLF:120,armUB:150,armLB:94,hip:300})],
        [34,P({py:-92,torso:6,hip:360})]]}];
 function buildMoveLib(){
   if(MOVELIB_READY)return;MOVELIB_READY=true;
@@ -2219,10 +2219,10 @@ let composer=null;   // compositor de bloom (opcional, se carga bajo demanda mas
    outputEncoding sRGB es imprescindible: sin el, r128 saca todo apagado.
    Sin tone mapping filmico los colores salen vivos (look arcade).
    Si algo queda quemado, baja GFX_LUZ; si quieres mas contraste, sube GFX_EXP. */
-const GFX_LUZ=0.85, GFX_EXP=1.15;
+const GFX_LUZ=0.68, GFX_EXP=1.45;
 /* Empujon de saturacion: 1.0 = sin cambios. Subelo para mas viveza. */
-const GFX_SAT=1.45;   // subido de 1.14: los colores se veian apagados
-const GFX_CONT=1.12;  // contraste sobre la luminosidad (1 = sin cambio)
+const GFX_SAT=1.55;   // hiperrealista: colores mas intensos y contrastados
+const GFX_CONT=1.18;  // contraste aumentado para mayor dramaticidad
 function satCol(c){
   const col=new THREE.Color(c);
   const h={};col.getHSL(h);
@@ -2239,7 +2239,7 @@ if('serviceWorker'in navigator&&location.protocol.indexOf('http')===0){
 
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 const scene=new THREE.Scene();
-scene.fog=new THREE.FogExp2(0x05040a,0.018);
+scene.fog=new THREE.FogExp2(0x020104,0.025);
 const cam=new THREE.PerspectiveCamera(46,W/H,.1,1400);
 /* ILUMINACION DE TRES PUNTOS (esquema de retrato: principal, relleno,
    contraluz). Con los cuerpos ya en PBR, es lo que hace que el relieve
@@ -2248,12 +2248,12 @@ const cam=new THREE.PerspectiveCamera(46,W/H,.1,1400);
    La PRINCIPAL sigue siendo direccional a proposito: un foco conico dejaba
    fuera de la sombra a quien se saliera del cono, y aqui la pelea recorre
    un eje ancho. */
-scene.add(new THREE.HemisphereLight(0xffeedd,0x2a2030,.30*GFX_LUZ));
-const sun=new THREE.DirectionalLight(0xfff4de,1.65*GFX_LUZ);
+scene.add(new THREE.HemisphereLight(0xffeedd,0x1a1520,.28*GFX_LUZ));
+const sun=new THREE.DirectionalLight(0xfff4de,1.85*GFX_LUZ);
 sun.position.set(8,13,8);sun.castShadow=true;
 sun.shadow.mapSize.set(4096,4096);
-sun.shadow.bias=-0.0002;sun.shadow.normalBias=0.05;
-sun.shadow.radius=2.2;
+sun.shadow.bias=-0.0003;sun.shadow.normalBias=0.08;
+sun.shadow.radius=2.8;
 /* La camara de sombra abarcaba mucho mas de lo que se ve: al repartir los
    4096px en un area enorme, la sombra salia blanda y desvaida. Acotada a la
    zona donde se pelea, cada pixel cubre menos terreno y el borde se define. */
@@ -2261,15 +2261,15 @@ const sc=sun.shadow.camera;sc.left=-11;sc.right=11;sc.top=11;sc.bottom=-6;sc.nea
 scene.add(sun);scene.add(sun.target);
 /* RELLENO frio y opuesto a la principal: rebaja el contraste sin borrar
    el modelado, y el tono azulado separa la sombra del color de la piel. */
-const fill=new THREE.DirectionalLight(0xaaccff,.65*GFX_LUZ);
+const fill=new THREE.DirectionalLight(0xaaccff,.78*GFX_LUZ);
 fill.position.set(-6,8,7);scene.add(fill);
 /* CONTRALUZ calido desde detras: es el que dibuja el borde brillante de
    hombros y brazos y despega al luchador del fondo. Foco, no direccional,
    porque interesa que caiga sobre la zona de combate y no sobre el decorado. */
-const rim=new THREE.SpotLight(0xffddaa,1.45*GFX_LUZ,0,Math.PI/4,.6,1);
+const rim=new THREE.SpotLight(0xffddaa,1.75*GFX_LUZ,0,Math.PI/4,.6,1);
 rim.position.set(0,11,-13);rim.target.position.set(0,3,0);
 scene.add(rim);scene.add(rim.target);
-const hemi=new THREE.HemisphereLight(0xcfe0ff,0x3a2f28,.15*GFX_LUZ);scene.add(hemi);
+const hemi=new THREE.HemisphereLight(0xcfe0ff,0x2a1f18,.22*GFX_LUZ);scene.add(hemi);
 /* LUZ DINAMICA: la escena respira y, sobre todo, destella con los impactos
    fuertes (game.shake ya sube al golpear). */
 const _LUZ0={sun:sun.intensity,rim:rim.intensity,fill:fill.intensity};
@@ -4829,13 +4829,11 @@ function loadBloom(){
        (glowMat) dispara el bloom; el resto del toon-shading, mas tenue por
        la iluminacion, no se ve afectado. Fuerza baja: brillo sutil, no un
        resplandor exagerado que rompa el look arcade. */
-    /* OJO con estos valores: hasta que se arreglo el orden de carga, el bloom
-       NUNCA llegaba a ejecutarse, asi que sus ajustes no se habian probado
-       nunca de verdad. Con la escena ya iluminada y con reflejos, el umbral
-       antiguo (.82) lo superaba medio escenario y todo salia resplandeciente
-       y borroso. Umbral alto = solo brilla lo realmente luminoso; radio bajo
-       = halo corto, sin emborronar la imagen. */
-    const bloom=new THREE.UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),0.35,0.42,0.88);
+    /* BLOOM HIPERREALISTA: valores ajustados para un look cinematografico.
+       Intensidad alta (0.48) para halos luminosos visibles, radio medio
+       (0.55) para un glow que envuelve sin emborronar, umbral bajo (0.75)
+       para que mas elementos brillen sutilmente. */
+    const bloom=new THREE.UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),0.48,0.55,0.75);
     c.addPass(bloom);
     c.setSize(renderer.domElement.width,renderer.domElement.height);
     composer=c;

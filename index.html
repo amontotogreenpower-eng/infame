@@ -51,7 +51,9 @@ window.addEventListener('unhandledrejection',function(e){
   html,body{height:100%;background:#05040a;overflow:hidden;font-family:"Courier New",monospace;
     touch-action:none;overscroll-behavior:none}
   #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
-  #stage{position:relative;width:960px;height:540px;max-width:100vw;max-height:100vh}
+  /* dvh: en el movil la barra del navegador aparece y desaparece, y con vh
+     el escenario cambiaba de tamano al hacerlo. */
+  #stage{position:relative;width:960px;height:540px;max-width:100vw;max-height:100vh;max-height:100dvh}
   #gl,#hud{position:absolute;top:0;left:0;width:100%;height:100%;display:block}
   #gl{background:#000}
   #hud{pointer-events:none}
@@ -74,7 +76,7 @@ window.addEventListener('unhandledrejection',function(e){
     border-radius:10px;backdrop-filter:blur(2px);opacity:.9;transition:opacity .15s}
   #fs:hover{opacity:1}
   #fs:active{background:rgba(255,215,90,.35);color:#fff}
-  #creator{position:fixed;left:0;top:0;bottom:0;width:min(460px,52vw);z-index:30;display:none;
+  #creator{position:fixed;left:0;top:0;bottom:0;max-height:100dvh;width:min(460px,52vw);z-index:30;display:none;
     flex-direction:column;background:linear-gradient(180deg,rgba(8,6,18,.97),rgba(10,7,22,.93));
     color:#e8e2ff;font:12px "Courier New",monospace;padding:10px 14px;
     box-shadow:4px 0 22px rgba(0,0,0,.6);border-right:2px solid rgba(255,215,90,.4);
@@ -113,6 +115,9 @@ window.addEventListener('unhandledrejection',function(e){
   .cr-tab.on{background:#ffd75a;color:#1a1024;border-color:#ffd75a}
   #creator.taller-only .cr-tab[data-pane="id"],#creator.taller-only .cr-tab[data-pane="look"],#creator.taller-only .cr-tab[data-pane="phys"],#creator.taller-only .cr-tab[data-pane="mv"],#creator.taller-only .cr-tab[data-pane="glb"]{display:none}
   #creator.taller-only .cr-foot{display:none}
+  /* El taller de golpes tiene MENU PROPIO (TALLER > EDITOR DE GOLPES).
+     Dentro del creador de personajes su pestana solo estorbaba. */
+  #creator:not(.taller-only) .cr-tab[data-pane="taller"]{display:none}
   #introVid{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;background:#000;z-index:40;display:none}
   #introSkip{position:fixed;right:14px;bottom:12px;z-index:41;color:#fff;font:bold 12px system-ui,sans-serif;background:rgba(0,0,0,.45);padding:6px 10px;border-radius:8px;display:none;pointer-events:none}
   #browser{position:fixed;inset:0;z-index:33;background:rgba(6,5,14,.94);display:none;flex-direction:column;padding:10px 12px;box-sizing:border-box;font-family:system-ui,sans-serif;color:#e8e2ff}
@@ -223,13 +228,22 @@ window.addEventListener('unhandledrejection',function(e){
   .cr-tcell{width:100%;aspect-ratio:1;background:#20202a;cursor:pointer}
   .cr-tcell.front{box-shadow:inset 0 0 0 1px rgba(255,215,90,.6)}
   .cr-tcell:hover{outline:1px solid rgba(255,215,90,.5)}
-  #camBtn{position:fixed;top:10px;left:10px;z-index:25;display:none;width:46px;height:46px;
+  /* BOTONES DEL HUD. Antes cada uno llevaba su tamano y su hueco en pixeles
+     fijos (10, 64, 118, 172): en pantallas pequenas se comian el ancho y en
+     grandes se quedaban diminutos. Ahora el tamano manda y las posiciones se
+     calculan en cascada, asi que nunca se solapan. */
+  :root{--hb:clamp(38px,7.2vmin,50px); --hgap:8px}
+  #camBtn,#pauseBtn,#perfBtn,#statsBtn{
+    position:fixed;top:10px;z-index:25;display:none;
+    width:var(--hb);height:var(--hb);
     align-items:center;justify-content:center;background:rgba(10,8,20,.78);
-    border:2px solid rgba(255,215,90,.55);border-radius:10px;font-size:22px;cursor:pointer;user-select:none}
-  #camBtn:active{background:rgba(255,215,90,.3)}
-  #pauseBtn{position:fixed;top:10px;left:64px;z-index:25;display:none;width:46px;height:46px;
-    align-items:center;justify-content:center;background:rgba(10,8,20,.78);
-    border:2px solid rgba(255,215,90,.55);border-radius:10px;font-size:20px;cursor:pointer;user-select:none;color:#ffd75a}
+    border:2px solid rgba(255,215,90,.55);border-radius:10px;
+    font-size:calc(var(--hb)*.46);cursor:pointer;user-select:none;color:#ffd75a}
+  #camBtn  {left:10px}
+  #pauseBtn{left:calc(10px + 1*(var(--hb) + var(--hgap)))}
+  #perfBtn {left:calc(10px + 2*(var(--hb) + var(--hgap)))}
+  #statsBtn{left:calc(10px + 3*(var(--hb) + var(--hgap)))}
+  #camBtn:active,#pauseBtn:active,#perfBtn:active,#statsBtn:active{background:rgba(255,215,90,.3)}
   #pauseBtn:active{background:rgba(255,215,90,.3)}
   #extraUI{position:fixed;left:10px;bottom:12px;z-index:24;display:none;gap:8px}
   #extraUI.on{display:flex}
@@ -307,8 +321,8 @@ window.addEventListener('unhandledrejection',function(e){
 <div id="touchUI"></div>
 <div id="camBtn" title="Cambiar cámara (C)">🎥</div>
 <div id="pauseBtn" title="Pausa / abandonar (Esc)">⏸</div>
-<div id="perfBtn" title="Gráfica FPS (G)" style="position:fixed;top:10px;left:118px;z-index:25;display:none;width:46px;height:46px;align-items:center;justify-content:center;background:rgba(10,8,20,.78);border:2px solid rgba(255,215,90,.55);border-radius:10px;font-size:18px;cursor:pointer;user-select:none;color:#ffd75a;">📊</div>
-<div id="statsBtn" title="Estadísticas (S)" style="position:fixed;top:10px;left:172px;z-index:25;display:none;width:46px;height:46px;align-items:center;justify-content:center;background:rgba(10,8,20,.78);border:2px solid rgba(255,215,90,.55);border-radius:10px;font-size:18px;cursor:pointer;user-select:none;color:#ffd75a;">📈</div>
+<div id="perfBtn" title="Gráfica FPS (G)">📊</div>
+<div id="statsBtn" title="Estadísticas (S)">📈</div>
 <div id="crt" class="off"></div>
 <div id="extraUI"></div>
 <video id="introVid" playsinline preload="auto" src="src/Intro.mp4"></video>
@@ -327,7 +341,7 @@ window.addEventListener('unhandledrejection',function(e){
       <button class="cr-tab" data-pane="phys">3· FÍSICO</button>
       <button class="cr-tab" data-pane="mv">4· GOLPES</button>
       <button class="cr-tab" data-pane="taller">5· TALLER</button>
-      <button class="cr-tab" data-pane="glb">6· MODELO GLB</button>
+      <button class="cr-tab" data-pane="glb">5· MODELO GLB</button>
     </div>
     <span id="cr-build" style="margin-left:auto;color:#8ef0ff;font-size:10px"></span>
     <span id="cr-close">✕ VOLVER</span></div>
@@ -371,31 +385,7 @@ window.addEventListener('unhandledrejection',function(e){
           <option value="glb">Modelo GLB importado</option>
         </select></label>
       <div id="cr-glbhint" class="cr-note" style="display:none">Estilo GLB activo: el cuerpo se
-        sustituye por el modelo importado. Elige el archivo en la pestaña <b>6· MODELO GLB</b>.</div>
-      <label>Cabeza importada (solo estilo Realista)
-        <button id="cr-headglb" class="cr-b" type="button">🗿 IMPORTAR CABEZA (.glb)</button></label>
-      <label>Eje del modelo que debe mirar al frente
-        <select id="cr-headglb-axis">
-          <option value="x">X (sin rotar, la mayoria de exportaciones)</option>
-          <option value="y">Y</option>
-          <option value="z">Z</option>
-          <option value="-x">-X</option>
-          <option value="-y">-Y</option>
-          <option value="-z">-Z (frente habitual en Blender/glTF)</option>
-        </select></label>
-      <label>Escala de la cabeza importada
-        <input type="number" id="cr-headglb-scale" step="0.05" value="1"></label>
-      <label>Desplazamiento X (frente/atras)
-        <input type="number" id="cr-headglb-x" step="0.05" value="0"></label>
-      <label>Desplazamiento Y (arriba/abajo)
-        <input type="number" id="cr-headglb-y" step="0.05" value="0"></label>
-      <label>Desplazamiento Z (izquierda/derecha)
-        <input type="number" id="cr-headglb-z" step="0.05" value="0"></label>
-      <label class="cr-chk"><input type="checkbox" id="cr-headglb-hide"> Ocultar cabeza procedural
-        (util mientras ajustas la posicion, sin esperar a que cargue el .glb)</label>
-      <button id="cr-headglb-clear" class="cr-b" type="button">✕ QUITAR CABEZA IMPORTADA</button>
-      <span id="cr-headglb-info" class="cr-note"></span>
-      <input type="file" id="cr-headglb-file" accept=".glb,model/gltf-binary" style="display:none">
+        sustituye por el modelo importado. Elige el archivo en la pestaña <b>MODELO GLB</b>.</div>
       <label>Vestimenta (estilo realista)
         <select id="cr-outfit">
           <option value="camiseta">Camiseta</option>
@@ -579,15 +569,6 @@ window.addEventListener('unhandledrejection',function(e){
         <button id="tw-importbtn">IMPORTAR .json</button>
         <input type="file" id="tw-importfile" accept="application/json" style="display:none">
       </div>
-      <div class="cr-sec">CUERPO IMPORTADO POR PIEZAS (avanzado)</div>
-      <div class="cr-note">Alternativa antigua: trocea el GLB en piezas rígidas y las cuelga del
-        esqueleto. Requiere calibrar con calibrador_v3.html. Útil solo para armaduras rígidas.</div>
-      <div style="display:flex;gap:5px;flex-wrap:wrap">
-        <button id="tw-bodyimportbtn">IMPORTAR .json</button>
-        <input type="file" id="tw-bodyimportfile" accept="application/json" style="display:none">
-        <button id="tw-bodyremove">QUITAR cuerpo importado</button>
-      </div>
-      <div id="tw-bodyimport-status" class="cr-note"></div>
       <label>Nombre <input id="tw-name" maxlength="22"></label>
       <label>Tipo (color de medalla)
         <select id="tw-type">
@@ -667,7 +648,7 @@ window.addEventListener('unhandledrejection',function(e){
         personaje que estás creando pasa a usar ese cuerpo: se deforma de verdad siguiendo la
         animación del juego. Los huesos se emparejan solos por su nombre, no hay que calibrar nada.</div>
       <div id="cr-glb-off" class="cr-note" style="color:#ffcf7f">Para que se aplique, pon
-        <b>Estilo del personaje = Modelo GLB importado</b> en la pestaña 2· APARIENCIA.</div>
+        <b>Estilo del personaje = Modelo GLB importado</b> en la pestaña APARIENCIA.</div>
       <label>Archivo .glb (debe estar en la misma carpeta que este index.html)
         <input type="text" id="cr-glbfile" placeholder="mi_modelo.glb" style="width:100%"></label>
       <div class="cr-note">Al escribir aquí el nombre, el personaje se guarda con esa referencia y
@@ -708,6 +689,42 @@ window.addEventListener('unhandledrejection',function(e){
       </div>
       <button id="cr-glbreset" class="cr-b" type="button">RESTABLECER TODOS LOS AJUSTES</button>
       <div id="cr-glb-status" class="cr-note"></div>
+      <div class="cr-sec">CABEZA IMPORTADA (.glb)</div>
+      <div class="cr-note">Solo para el estilo <b>Realista</b>: sustituye la cabeza
+        procedural por un modelo. El cuerpo entero se cambia mas arriba.</div>
+      <label>Cabeza importada (solo estilo Realista)
+        <button id="cr-headglb" class="cr-b" type="button">🗿 IMPORTAR CABEZA (.glb)</button></label>
+      <label>Eje del modelo que debe mirar al frente
+        <select id="cr-headglb-axis">
+          <option value="x">X (sin rotar, la mayoria de exportaciones)</option>
+          <option value="y">Y</option>
+          <option value="z">Z</option>
+          <option value="-x">-X</option>
+          <option value="-y">-Y</option>
+          <option value="-z">-Z (frente habitual en Blender/glTF)</option>
+        </select></label>
+      <label>Escala de la cabeza importada
+        <input type="number" id="cr-headglb-scale" step="0.05" value="1"></label>
+      <label>Desplazamiento X (frente/atras)
+        <input type="number" id="cr-headglb-x" step="0.05" value="0"></label>
+      <label>Desplazamiento Y (arriba/abajo)
+        <input type="number" id="cr-headglb-y" step="0.05" value="0"></label>
+      <label>Desplazamiento Z (izquierda/derecha)
+        <input type="number" id="cr-headglb-z" step="0.05" value="0"></label>
+      <label class="cr-chk"><input type="checkbox" id="cr-headglb-hide"> Ocultar cabeza procedural
+        (util mientras ajustas la posicion, sin esperar a que cargue el .glb)</label>
+      <button id="cr-headglb-clear" class="cr-b" type="button">✕ QUITAR CABEZA IMPORTADA</button>
+      <span id="cr-headglb-info" class="cr-note"></span>
+      <input type="file" id="cr-headglb-file" accept=".glb,model/gltf-binary" style="display:none">
+      <div class="cr-sec">CUERPO IMPORTADO POR PIEZAS (avanzado)</div>
+      <div class="cr-note">Alternativa antigua: trocea el GLB en piezas rígidas y las cuelga del
+        esqueleto. Requiere calibrar con calibrador_v3.html. Útil solo para armaduras rígidas.</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <button id="tw-bodyimportbtn">IMPORTAR .json</button>
+        <input type="file" id="tw-bodyimportfile" accept="application/json" style="display:none">
+        <button id="tw-bodyremove">QUITAR cuerpo importado</button>
+      </div>
+      <div id="tw-bodyimport-status" class="cr-note"></div>
     </div>
   </div>
   <div class="cr-foot">
@@ -4343,7 +4360,7 @@ function drawConfigMenu(){
 }
 function drawWorkshopMenu(){
   hx.fillStyle='rgba(6,5,14,.55)';hx.fillRect(0,0,W,H);
-  txt('TALLER',W/2,116,36,'#ffd75a');
+  txtArcade('TALLER',W/2,120,42,'#ffd75a','#ff8c1a');
   txt('Crea luchadores y diseña sus golpes',W/2,146,13,'#c9bde8');
   const WM=['CREADOR DE PERSONAJES','EDITOR DE GOLPES','PERSONAJES DISPONIBLES','GOLPES DISPONIBLES','VOLVER'];
   WM.forEach((m,i)=>{const on=i===game.wsel;
@@ -4352,7 +4369,7 @@ function drawWorkshopMenu(){
 }
 function drawControls(){
   hx.fillStyle='rgba(6,5,14,.9)';hx.fillRect(0,0,W,H);
-  txt('CONTROLES',W/2,72,30,'#ffd75a');
+  txtArcade('CONTROLES',W/2,76,34,'#ffd75a','#ff8c1a');
   txt('J para reasignar · A/D cambiar de jugador · K volver',W/2,98,12,'#9a8cc0');
   [[CTRL1,'JUGADOR 1',W*.28,0],[CTRL2,'JUGADOR 2',W*.72,9]].forEach(([C,tit,cx,off])=>{
     txt(tit,cx,132,17,'#8ef0ff');
@@ -4371,7 +4388,7 @@ function drawControls(){
 }
 function drawChampMenu(){
   hx.fillStyle='rgba(6,5,14,.55)';hx.fillRect(0,0,W,H);
-  txt('CAMPEONATOS',W/2,120,36,'#ffd75a');
+  txtArcade('CAMPEONATOS',W/2,124,42,'#ffd75a','#ff8c1a');
   const CM=['TORNEO','ELIMINATORIA','CUSTOM','VOLVER'];
   CM.forEach((m,i)=>{const on=i===game.csel;
     txt((on?'▸ ':'')+m,W/2,200+i*34,on?24:19,on?'#ffd75a':'#c9bde8');});
@@ -4379,7 +4396,7 @@ function drawChampMenu(){
 }
 function drawCustomList(){
   hx.fillStyle='rgba(6,5,14,.9)';hx.fillRect(0,0,W,H);
-  txt('CAMPEONATOS · CUSTOM',W/2,100,30,'#ffd75a');
+  txtArcade('CAMPEONATOS · CUSTOM',W/2,104,32,'#ffd75a','#ff8c1a');
   txt('Carpeta web «custom/» (index.json) · o elige una carpeta local',W/2,132,13,'#9a8cc0');
   const rows=['ELEGIR CARPETA…'].concat(CUSTLIST.map(c=>c.label));
   const start=Math.max(0,Math.min(game.clsel-4,rows.length-9));
@@ -8951,6 +8968,36 @@ const STAGE_NAMES={neutro:'DOJO NEUTRO · Sala de entrenamiento',
   lab:'LABORATORIO DE MARTA · Ventilar antes de entrar'};
 const FONT_BIG='"Bungee","Russo One","Courier New",monospace';
 const FONT_UI='"Russo One","Bungee","Courier New",monospace';
+/* ROTULO ARCADE: relleno con degradado, contorno grueso, sombra proyectada y
+   un brillo que recorre las letras. Para los titulos de pantalla, que antes
+   eran texto plano de un solo color. */
+function txtArcade(s,x,y,size,c1,c2,align='center'){
+  hx.save();
+  hx.font=size+'px '+FONT_BIG;
+  hx.textAlign=align; hx.textBaseline='alphabetic';
+  const w=hx.measureText(s).width;
+  hx.lineJoin='round'; hx.miterLimit=2;
+  // sombra proyectada
+  hx.fillStyle='rgba(0,0,0,.5)';
+  hx.fillText(s,x+Math.max(2,size*.055),y+Math.max(2,size*.07));
+  // doble contorno: oscuro grueso + filo de color
+  hx.lineWidth=Math.max(4,size*.20); hx.strokeStyle='#150d20'; hx.strokeText(s,x,y);
+  hx.lineWidth=Math.max(1.5,size*.075); hx.strokeStyle=c2; hx.strokeText(s,x,y);
+  // relleno con degradado vertical (metal caliente)
+  const g=hx.createLinearGradient(0,y-size*.88,0,y+size*.18);
+  g.addColorStop(0,'#fffbe8'); g.addColorStop(.40,c1);
+  g.addColorStop(.58,c2);      g.addColorStop(1,'#6d3200');
+  hx.fillStyle=g; hx.fillText(s,x,y);
+  // brillo que recorre el rotulo
+  const tt=((performance.now()*.00035)%1.7)-.35;
+  const x0=(align==='center'?x-w/2:align==='right'?x-w:x);
+  const gs=hx.createLinearGradient(x0+w*(tt-.16),0,x0+w*(tt+.16),0);
+  gs.addColorStop(0,'rgba(255,255,255,0)');
+  gs.addColorStop(.5,'rgba(255,255,255,.5)');
+  gs.addColorStop(1,'rgba(255,255,255,0)');
+  hx.fillStyle=gs; hx.fillText(s,x,y);
+  hx.restore();
+}
 function txt(s,x,y,size,col,align='center',shadow=true){
   const big=size>=22;
   hx.font=(big?'':'bold ')+size+'px '+(big?FONT_BIG:FONT_UI);
@@ -9260,7 +9307,7 @@ function drawTitle(){
   /* Un solo subtitulo: "ARCADE EDITION" ya sale en el splash, y aqui se
      dibujaba encima de "TORNEO MUNDIAL" (y 146 contra y 142), asi que los
      dos textos quedaban ilegibles superpuestos. */
-  txt('T O R N E O   M U N D I A L',W/2,146,17,'#ff8c1a');
+  txtArcade('T O R N E O   M U N D I A L',W/2,148,20,'#ffd75a','#ff8c1a');
   for(let i=0;i<game.menu.length;i++){
     const s=game.sel===i;
     txt((s?'▶ ':'')+game.menu[i]+(s?' ◀':''),W/2,188+i*27,s?23:19,s?'#fff':'#9a8cc0');
@@ -9313,7 +9360,7 @@ function drawSelect(){
   hx.fillStyle=rg;hx.fillRect(0,0,W,H);
 
   // cabecera + puntos del roster
-  txt(p2turn?'JUGADOR 2 · ELIGE':'ELIGE TU LUCHADOR',W/2,44,26,acc);
+  txtArcade(p2turn?'JUGADOR 2 · ELIGE':'ELIGE TU LUCHADOR',W/2,46,28,'#fff0b0',acc);
   const N=ROSTER.length, gapd=Math.min(20,560/Math.max(1,N)), x0=W/2-(N-1)*gapd/2;
   for(let i=0;i<N;i++){const on=i===idx;hx.beginPath();hx.arc(x0+i*gapd,64,on?5:3,0,7);
     hx.fillStyle=on?acc:'rgba(255,255,255,.25)';hx.fill();}

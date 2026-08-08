@@ -2342,6 +2342,19 @@ const rim=new THREE.SpotLight(0xffddaa,1.75*GFX_LUZ,0,Math.PI/4,.6,1);
 rim.position.set(0,11,-13);rim.target.position.set(0,3,0);
 scene.add(rim);scene.add(rim.target);
 const hemi=new THREE.HemisphereLight(0xcfe0ff,0x2a1f18,.22*GFX_LUZ);scene.add(hemi);
+/* FOCOS DE TECHO DEL RING. Van SIEMPRE en la escena, con intensidad 0 cuando
+   no se pelea en el ring, y NO se ocultan con .visible: three.js recompila el
+   shader de todos los materiales cuando cambia el numero de luces activas, y
+   un objeto invisible no entra en la lista de luces. Encenderlos apagando y
+   encendiendo la visibilidad daria un tiron justo al empezar el combate. */
+const ringSpots=[[-9,17,7],[9,17,7],[0,18,-11]].map(([x,y,z])=>{
+  const s=new THREE.SpotLight(0xfff0cf,0,0,Math.PI/5.2,.62,1.1);
+  s.position.set(x,y,z);s.target.position.set(0,1,0);
+  scene.add(s);scene.add(s.target);return s;
+});
+/* .30 medido, no elegido: con .62 el recorte central de la lona pasaba de
+   204 (exposicion original) a 222. Con .30 se queda en 201. */
+const RING_SPOT_I=.30*GFX_LUZ;   // encendidos; se reparte entre los tres
 /* LUZ DINAMICA: la escena respira y, sobre todo, destella con los impactos
    fuertes (game.shake ya sube al golpear). */
 const _LUZ0={sun:sun.intensity,rim:rim.intensity,fill:fill.intensity};
@@ -7064,41 +7077,80 @@ function buildStages(){
      hasta donde de verdad se puede pisar. */
   {const R=RING_APOTHEM, ROT=-Math.PI/8;   // -22.5°: alinea una CARA con +X, no un vertice
    const G=new THREE.Group();
-   const cLona=0x1a3a6e,cMetal=0x3a3a44,cSuelo=0x14141c,cApron=0x0a0a12;
+   const cMetal=0x4c4f5a,cApron=0x0a0a12;
 
-   // PLATAFORMA elevada 1m: lona octogonal + borde metalico
-   const lona=new THREE.Mesh(new THREE.CylinderGeometry(R,R,1,8),new THREE.MeshLambertMaterial({color:cLona}));
+   /* PLATAFORMA elevada 1m. La lona lleva TRES materiales (costado, cara de
+      arriba, cara de abajo) en vez de uno solo: la textura de tela solo tiene
+      sentido pisada desde arriba, y en el costado quedaba estirada. El orden
+      de CylinderGeometry es [lateral, tapa superior, tapa inferior]. */
+   const lonaTex=ringLonaTex();
+   /* El 0x404040 (x0.25) NO es decoracion: la lona salia QUEMADA. Medida la
+      luminancia media del recorte central del framebuffer (0..255) con la
+      misma camara y la misma pose:
+        color liso de antes ............ 204
+        textura sin atenuar ............ 235
+        textura x0.25 .................. 172
+        textura x0.25 + focos + haces .. 201
+      O sea que con la atenuacion y todo lo nuevo encendido queda en la misma
+      exposicion que tenia el ring antes (204), pero ahora la tela se ve. */
+   const matArriba=new THREE.MeshLambertMaterial({map:lonaTex,color:0x404040});
+   const lona=new THREE.Mesh(new THREE.CylinderGeometry(R,R,1,8),[
+     new THREE.MeshLambertMaterial({color:0x101828}),   // canto acolchado
+     matArriba,
+     new THREE.MeshBasicMaterial({color:0x05050a})]);
    lona.rotation.y=ROT;lona.position.y=.5;lona.receiveShadow=true;G.add(lona);
-   const borde=new THREE.Mesh(new THREE.CylinderGeometry(R+.15,R+.15,.18,8,1,true),
-     new THREE.MeshBasicMaterial({color:cMetal,side:THREE.DoubleSide}));
+   G.lona=lona;G.lonaMat=matArriba;
+   const metalM=new THREE.MeshPhongMaterial({color:cMetal,shininess:78,specular:0xb9c2d4});
+   const borde=new THREE.Mesh(new THREE.CylinderGeometry(R+.15,R+.15,.22,8,1,true),
+     new THREE.MeshPhongMaterial({color:cMetal,shininess:60,specular:0x99a2b4,side:THREE.DoubleSide}));
    borde.rotation.y=ROT;borde.position.y=1.05;G.add(borde);
    // patas/soporte (8, una por vertice) hasta el suelo
    for(let k=0;k<8;k++){const a=k*Math.PI/4+ROT+Math.PI/8;
-     const leg=new THREE.Mesh(new THREE.CylinderGeometry(.18,.18,1,6),new THREE.MeshBasicMaterial({color:cMetal}));
+     const leg=new THREE.Mesh(new THREE.CylinderGeometry(.18,.18,1,6),metalM);
      leg.position.set(Math.cos(a)*R*.94,.5,Math.sin(a)*R*.94);G.add(leg);}
 
-   // ALAMBRADA: 8 paneles verticales en el borde de la plataforma, textura de
-   // rejilla generada por canvas (sin depender de ningun archivo externo).
-   const fenceCv=document.createElement('canvas');fenceCv.width=fenceCv.height=128;
-   {const fx=fenceCv.getContext('2d');fx.clearRect(0,0,128,128);
-    fx.strokeStyle='rgba(210,215,225,.85)';fx.lineWidth=2;
-    for(let i=-2;i<10;i++){
-      fx.beginPath();fx.moveTo(i*16,0);fx.lineTo(i*16+128,128);fx.stroke();
-      fx.beginPath();fx.moveTo(i*16,128);fx.lineTo(i*16+128,0);fx.stroke();}}
-   const fenceTex=new THREE.CanvasTexture(fenceCv);
-   fenceTex.wrapS=fenceTex.wrapT=THREE.RepeatWrapping;fenceTex.repeat.set(3,1);
-   const fenceM=new THREE.MeshBasicMaterial({map:fenceTex,color:0xc8ccd8,transparent:true,
-     opacity:.8,side:THREE.DoubleSide,depthWrite:false});
-   const faceW=2*R*Math.tan(Math.PI/8), fenceH=2.3;
+   /* ===== ALAMBRADA =====
+      Era una plancha semitransparente con dos aspas cruzadas dibujadas a
+      linea fina y material BASIC: no recibia luz, o sea que no podia parecer
+      metal, y las aspas no se entrelazaban. Ahora la textura dibuja alambre
+      de verdad (filo oscuro + cuerpo gris + brillo superior, que es lo que da
+      la sensacion de hilo REDONDO) y el material es PHONG, asi que los focos
+      del techo le sacan reflejos. alphaTest en vez de opacidad: los huecos
+      son huecos de verdad y no hay problemas de orden de dibujado.
+      Todo va en un subgrupo para poder hacerlo vibrar de una pieza. */
+   const jaula=new THREE.Group();G.jaula=jaula;G.add(jaula);
+   const fenceTex=ringMallaTex();
+   /* La repeticion tiene que seguir la PROPORCION del panel o los rombos
+      salen aplastados: cada cara mide 2*R*tan(22.5)=19.9 de ancho por 2.6 de
+      alto (relacion 7.6), y con 7x2.4 (relacion 2.9) el alambre se estiraba
+      casi el triple a lo ancho. 26x3.4 deja rombos de ~0.75 de lado. */
+   fenceTex.wrapS=fenceTex.wrapT=THREE.RepeatWrapping;fenceTex.repeat.set(26,3.4);
+   const fenceM=new THREE.MeshPhongMaterial({map:fenceTex,color:0xdfe6f2,
+     shininess:96,specular:0xffffff,alphaTest:.42,side:THREE.DoubleSide});
+   const faceW=2*R*Math.tan(Math.PI/8), fenceH=2.6, yPie=1;
    for(let k=0;k<8;k++){const a=k*Math.PI/4;
      const panel=new THREE.Mesh(new THREE.PlaneGeometry(faceW*.98,fenceH),fenceM);
-     panel.position.set(Math.cos(a)*R,1+fenceH/2,Math.sin(a)*R);
-     panel.rotation.y=-a+Math.PI/2;G.add(panel);}
-   // postes metalicos en cada vertice de la alambrada
+     panel.position.set(Math.cos(a)*R,yPie+fenceH/2,Math.sin(a)*R);
+     panel.rotation.y=-a+Math.PI/2;jaula.add(panel);}
+   /* BARRAS horizontales: arriba, en medio y al pie. Son las que de verdad
+      leen como "jaula"; sin ellas la malla flota sin estructura. */
+   for(const [yy,rr] of [[yPie+fenceH,.14],[yPie+fenceH*.52,.075],[yPie+.06,.12]]){
+     const bar=new THREE.Mesh(new THREE.CylinderGeometry(R+rr*.5,R+rr*.5,rr*2,8,1,true),
+       new THREE.MeshPhongMaterial({color:cMetal,shininess:90,specular:0xd0d8e8,side:THREE.DoubleSide}));
+     bar.rotation.y=ROT;bar.position.y=yy;jaula.add(bar);}
+   // postes metalicos en cada vertice, con remate redondeado
    for(let k=0;k<8;k++){const a=k*Math.PI/4+ROT+Math.PI/8;
-     const post=new THREE.Mesh(new THREE.CylinderGeometry(.09,.09,fenceH+.3,6),
-       new THREE.MeshBasicMaterial({color:cMetal}));
-     post.position.set(Math.cos(a)*R,1+fenceH/2,Math.sin(a)*R);G.add(post);}
+     const post=new THREE.Mesh(new THREE.CylinderGeometry(.13,.15,fenceH+.3,8),metalM);
+     post.position.set(Math.cos(a)*R,yPie+fenceH/2,Math.sin(a)*R);jaula.add(post);
+     const cap=new THREE.Mesh(new THREE.SphereGeometry(.15,8,6),metalM);
+     cap.position.set(Math.cos(a)*R,yPie+fenceH+.15,Math.sin(a)*R);jaula.add(cap);}
+   /* ESQUINAS ROJA Y AZUL: dos postes acolchados enfrentados. Es el detalle
+      que dice "esto es un combate" de un vistazo. */
+   for(const [k,col] of [[2,0xc02a2a],[6,0x2a52c0]]){
+     const a=k*Math.PI/4+ROT+Math.PI/8;
+     const pad=new THREE.Mesh(new THREE.CylinderGeometry(.36,.36,fenceH*.82,10),
+       new THREE.MeshLambertMaterial({color:col}));
+     pad.position.set(Math.cos(a)*R,yPie+fenceH*.41,Math.sin(a)*R);jaula.add(pad);}
 
    // FRANJA / APRON: suelo octogonal grande al nivel del suelo, bajo y
    // alrededor de la plataforma elevada (la diferencia de altura ya da el
@@ -7124,6 +7176,61 @@ function buildStages(){
    const wallMesh=new THREE.Mesh(wallGeo,wallMat);
    wallMesh.position.y=wallH/2;G.add(wallMesh);
    G.screens=wallMesh;
+   /* ===== PARRILLA DE FOCOS =====
+      Seis focos colgados sobre el octogono, apuntando al centro. La luz REAL
+      son los tres SpotLight de la escena (ringSpots): aqui va lo que se ve,
+      que es carcasa + lente encendida + haz. El haz es un cono abierto con
+      mezcla aditiva y opacidad muy baja; sube de golpe con los impactos, que
+      es lo que hace que el sitio parezca vivo. */
+   {const focos=new THREE.Group();G.focos=focos;G.add(focos);
+    /* Altura de la parrilla. A 15 los focos quedaban FUERA DE ENCUADRE en la
+       camara de combate (mira desde y~3 ligeramente hacia abajo): se veia el
+       haz pero nunca la lampara. A 11 asoman por la banda de arriba. */
+    const hz=11, NF=6;
+    const carcM=new THREE.MeshPhongMaterial({color:0x14141c,shininess:24,specular:0x555c6e,side:THREE.DoubleSide});
+    // travesaños: un anillo octogonal y dos vigas cruzadas
+    const viga=new THREE.Mesh(new THREE.CylinderGeometry(R*.62,R*.62,.3,8,1,true),
+      new THREE.MeshPhongMaterial({color:0x181820,shininess:16,side:THREE.DoubleSide}));
+    viga.rotation.y=ROT;viga.position.y=hz+.9;focos.add(viga);
+    for(let k=0;k<2;k++){
+      const cruz=new THREE.Mesh(new THREE.BoxGeometry(R*1.24,.22,.22),
+        new THREE.MeshPhongMaterial({color:0x181820,shininess:16}));
+      cruz.rotation.y=k*Math.PI/2;cruz.position.y=hz+.9;focos.add(cruz);}
+    const abajo=new THREE.Vector3(0,-1,0);
+    for(let k=0;k<NF;k++){
+      const a=k*Math.PI*2/NF+Math.PI/6, rr=R*.46;
+      const lg=new THREE.Group();
+      lg.position.set(Math.cos(a)*rr,hz,Math.sin(a)*rr);
+      // el foco MIRA al centro de la lona, no recto hacia abajo
+      const dir=new THREE.Vector3(0,1,0).sub(lg.position).normalize();
+      lg.quaternion.setFromUnitVectors(abajo,dir);
+      const carc=new THREE.Mesh(new THREE.CylinderGeometry(1.45,.8,1.6,14,1,true),carcM);
+      carc.position.y=-.8;lg.add(carc);
+      const aro=new THREE.Mesh(new THREE.TorusGeometry(1.45,.1,6,16),
+        new THREE.MeshPhongMaterial({color:0x2a2a36,shininess:40}));
+      aro.rotation.x=Math.PI/2;aro.position.y=-.05;lg.add(aro);
+      const len=new THREE.Mesh(new THREE.CircleGeometry(.78,16),
+        new THREE.MeshBasicMaterial({color:0xfff3d0}));
+      len.rotation.x=Math.PI/2;len.position.y=-1.62;lg.add(len);
+      /* El haz llega HASTA LA LONA y se entierra un poco en ella. Cortado en
+         el aire se le veia el aro de abajo y los seis conos dibujaban una
+         reticula de siluetas flotando sobre el ring. Y solo la cara interior
+         (BackSide): con las dos caras el borde del cono sumaba el doble y se
+         marcaba un filo brillante donde deberia difuminarse. */
+      const hL=Math.hypot(rr,hz-1)+1.4;   // rr = distancia horizontal al centro
+      const haz=new THREE.Mesh(new THREE.CylinderGeometry(.85,7.2,hL,20,1,true),
+        new THREE.MeshBasicMaterial({color:0xffe6ac,transparent:true,opacity:.035,
+          depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.BackSide}));
+      haz.position.y=-1.62-hL/2;lg.add(haz);
+      lg.userData={len,haz,op0:.035,ph:k*1.83,y0:hz};
+      focos.add(lg);}
+    // charco de luz en la lona bajo cada foco: vende el haz sin coste real
+    const charco=new THREE.Mesh(new THREE.CircleGeometry(R*.86,32),
+      new THREE.MeshBasicMaterial({color:0xffe6ac,transparent:true,opacity:.02,
+        depthWrite:false,blending:THREE.AdditiveBlending}));
+    charco.rotation.x=-Math.PI/2;charco.position.y=1.012;G.charco=charco;G.add(charco);
+   }
+
    ringLoadWallMedia(wallMesh,(2*Math.PI*R2)/wallH);   // async, con caida elegante (ver definicion)
    ringLoadMatImage(lona);   // imagen central de la lona, opcional (ver definicion)
 
@@ -7201,19 +7308,106 @@ function ringLoadWallMedia(wallMesh,surfAspect){
     img.src='src/ring-image.jpg';
   };
 }
+/* TEXTURA DE LA LONA. Antes era un azul liso: a la altura de camara del
+   combate se veia como un plastico plano y delataba que el suelo era un
+   cilindro. Se dibuja por codigo (nada de archivos) en cuatro capas: vinilo
+   con degradado, trama de hilos, roces de uso, y las marcas pintadas
+   (circulo central, perimetro del octogono y el logo). */
+const RING_LOGO_ROT=Math.PI/2;   // ver ringLonaTex()
+function ringLonaTex(){
+  const cv=document.createElement('canvas');cv.width=cv.height=512;
+  const x=cv.getContext('2d');
+  const g=x.createRadialGradient(256,236,30,256,256,320);
+  g.addColorStop(0,'#25569a');g.addColorStop(.6,'#1a3a6e');g.addColorStop(1,'#0f2449');
+  x.fillStyle=g;x.fillRect(0,0,512,512);
+  // trama: hilos claros y oscuros alternos, muy tenues
+  x.globalAlpha=.055;
+  for(let i=0;i<512;i+=3){
+    x.fillStyle=(i%6)?'#dbe8ff':'#050b18';
+    x.fillRect(i,0,1.4,512);x.fillRect(0,i,512,1.4);}
+  x.globalAlpha=1;
+  // roces, polvo y manchas de sudor: lo que hace que no parezca recien puesta
+  for(let i=0;i<220;i++){
+    const a=Math.random()*6.283, r=Math.pow(Math.random(),.6)*248, rr=5+Math.random()*44;
+    x.globalAlpha=.018+Math.random()*.05;
+    x.fillStyle=Math.random()<.55?'#071228':'#6d94d2';
+    x.beginPath();x.ellipse(256+Math.cos(a)*r,256+Math.sin(a)*r,rr,rr*(.18+Math.random()*.55),a,0,6.283);x.fill();}
+  x.globalAlpha=1;
+  // marcas pintadas
+  const octo=(rad)=>{x.beginPath();
+    for(let k=0;k<8;k++){const a=k*Math.PI/4+Math.PI/8;
+      const px=256+Math.cos(a)*rad, py=256+Math.sin(a)*rad;
+      k?x.lineTo(px,py):x.moveTo(px,py);}
+    x.closePath();};
+  x.lineWidth=4;x.strokeStyle='rgba(232,240,255,.20)';octo(232);x.stroke();
+  x.lineWidth=6;x.strokeStyle='rgba(255,215,90,.42)';x.beginPath();x.arc(256,256,104,0,6.283);x.stroke();
+  x.lineWidth=2;x.strokeStyle='rgba(255,215,90,.22)';x.beginPath();x.arc(256,256,114,0,6.283);x.stroke();
+  x.fillStyle='rgba(255,215,90,.10)';octo(66);x.fill();
+  /* Logo PEQUENO. A tamano de rotulo (46px sobre 512) cada letra media mas de
+     3 unidades de mundo y los luchadores peleaban justo encima: se leia como
+     manchas sueltas, no como un logo. */
+  x.textAlign='center';x.textBaseline='middle';
+  x.fillStyle='rgba(255,246,208,.46)';x.font='bold 27px monospace';x.fillText('INFAME',256,248);
+  x.fillStyle='rgba(255,215,90,.36)';x.font='bold 12px monospace';x.fillText('F I G H T I N G',256,270);
+  /* ORIENTACION DEL LOGO. Comprobado desde la camara cenital con las cuatro
+     combinaciones de repeat/offset: la identidad es la unica que NO sale en
+     espejo (repeat.x=-1 y repeat.y=-1 invierten las letras). Lo que si hace
+     falta es GIRARLA, porque la tapa del cilindro deja el texto corriendo
+     sobre el eje Z y la camara de combate mira desde +Z: sin el giro el
+     rotulo se lee de canto. El angulo sale de comparar los cuatro cuartos. */
+  const t=new THREE.CanvasTexture(cv);t.anisotropy=4;
+  t.wrapS=t.wrapT=THREE.RepeatWrapping;
+  t.center.set(.5,.5);t.rotation=RING_LOGO_ROT;
+  return t;
+}
+/* TEXTURA DE ALAMBRE ENTRELAZADO. La clave para que parezca metal y no un
+   dibujo de lineas es pintar cada hilo en tres pasadas: filo oscuro ancho,
+   cuerpo gris, y un brillo fino desplazado hacia arriba. Eso da el volumen
+   redondo del alambre. Las dos familias de diagonales se dibujan alternando
+   para que se lean entrelazadas. El fondo queda transparente y el material
+   lo recorta con alphaTest, asi que los huecos son huecos de verdad. */
+function ringMallaTex(){
+  const S=128, cv=document.createElement('canvas');cv.width=cv.height=S;
+  const x=cv.getContext('2d');x.clearRect(0,0,S,S);
+  x.lineCap='round';
+  const hilo=(x1,y1,x2,y2)=>{
+    // el filo oscuro solo perfila; si pesa mas que el cuerpo, de cerca el
+    // alambre se ve NEGRO en vez de metalico
+    x.strokeStyle='rgba(14,17,24,.72)';x.lineWidth=7;
+    x.beginPath();x.moveTo(x1,y1);x.lineTo(x2,y2);x.stroke();
+    x.strokeStyle='#9aa3b8';x.lineWidth=5.4;
+    x.beginPath();x.moveTo(x1,y1);x.lineTo(x2,y2);x.stroke();
+    x.strokeStyle='#f4f8ff';x.lineWidth=2.1;
+    x.beginPath();x.moveTo(x1-1,y1-1.3);x.lineTo(x2-1,y2-1.3);x.stroke();};
+  for(let i=-2;i<4;i++)hilo(i*S/2,0,i*S/2+S,S);
+  for(let i=-2;i<4;i++)hilo(i*S/2,S,i*S/2+S,0);
+  // segundo repaso de la primera familia: la deja POR ENCIMA a trozos y es
+  // lo que hace que los hilos parezcan cruzarse uno sobre otro
+  x.save();x.beginPath();
+  for(let i=-2;i<4;i++)x.rect(i*S/2,0,S/4,S);
+  x.clip();
+  for(let i=-2;i<4;i++)hilo(i*S/2,0,i*S/2+S,S);
+  x.restore();
+  const t=new THREE.CanvasTexture(cv);t.anisotropy=4;return t;
+}
 /* Imagen central de la lona (el "logo" del centro del ring, como en un
    evento real). Solo imagen (no video, para no distraer del combate que
-   ocurre encima). Si no existe el archivo, se queda el color liso de
-   siempre: no rompe nada. surfAspect=1 porque la lona es practicamente
-   circular/octogonal, un cuadrado es la aproximacion mas razonable. */
+   ocurre encima). Si no existe el archivo, se queda la lona procedural: no
+   rompe nada. surfAspect=1 porque la lona es practicamente circular/
+   octogonal, un cuadrado es la aproximacion mas razonable.
+   Sustituye SOLO la cara de arriba: la lona lleva tres materiales y cambiar
+   'material' entero dejaba el canto y la cara inferior con la textura de
+   suelo estirada. */
 function ringLoadMatImage(lona){
   const img=new Image();
   img.onload=()=>{
     const tex=new THREE.Texture(img);tex.needsUpdate=true;
     texCover(tex,(img.naturalWidth||1)/(img.naturalHeight||1),1);
-    lona.material=new THREE.MeshLambertMaterial({map:tex});
+    // mismo freno de exposicion que la lona procedural (ver ringLonaTex)
+    if(Array.isArray(lona.material))lona.material[1]=new THREE.MeshLambertMaterial({map:tex,color:0x505050});
+    else lona.material=new THREE.MeshLambertMaterial({map:tex,color:0x505050});
   };
-  img.onerror=()=>{};   // sin archivo: se queda el color liso ya puesto
+  img.onerror=()=>{};   // sin archivo: se queda la lona procedural ya puesta
   img.src='src/ring-mat.jpg';
 }
 let arenaOn=false;                      // true = manda un escenario de combate fijo, pase lo que pase
@@ -7258,7 +7452,51 @@ function setStage(k){
   const imgFloor=(k==='imagen'&&stages.imagen&&stages.imagen.floorP&&stages.imagen.floorP.visible);
   TILEFLOOR.visible=!imgFloor;
 }
+/* VIBRACION DEL RING. Un impulso 0..1 que decae solo; lo levanta cualquier
+   aterrizaje fuerte o derribo. No toca la altura LOGICA del suelo
+   (RING_FLOOR_Y sigue valiendo 1): solo desplaza lo que se ve, y muy poco,
+   porque los luchadores no acompañan el movimiento. Lo que de verdad vende
+   el golpe es que la estructura y los focos siguen temblando despues. */
+let ringVib=0;
+function ringGolpe(f){
+  if(!ringStage||!ringStage.visible)return;
+  ringVib=Math.min(1,Math.max(ringVib,f));
+}
+function tickRing(t){
+  const G=ringStage;
+  if(!G||!G.visible){ringSpots.forEach(s=>{s.intensity=0;});return;}
+  ringVib*=.9;
+  if(ringVib<.002)ringVib=0;
+  const v=ringVib, golpe=Math.min(1,(game.shake||0)*7);
+  /* La lona se hunde y rebota; la jaula tiembla en su propia frecuencia (mas
+     rapida y con un punto de desfase) para que no parezca una pieza rigida. */
+  if(G.lona)G.lona.position.y=.5-v*.05*Math.sin(t*.92);
+  if(G.jaula){
+    G.jaula.position.y=v*.045*Math.sin(t*1.17+1.1);
+    G.jaula.rotation.z=v*.0035*Math.sin(t*.81);
+  }
+  if(G.focos){
+    // los focos cuelgan: se balancean mas despacio y tardan mas en pararse
+    const bal=v*.055;
+    G.focos.rotation.z=bal*Math.sin(t*.38);
+    G.focos.rotation.x=bal*Math.sin(t*.31+.7);
+    for(const lg of G.focos.children){
+      const d=lg.userData;if(!d||!d.haz)continue;
+      const p=.86+Math.sin(t*.021+d.ph)*.14;      // respiracion lenta del haz
+      d.haz.material.opacity=d.op0*(p+golpe*2.2+v*1.4);
+      d.len.material.color.setRGB(1,.95-golpe*.06,.82+golpe*.14);
+    }
+  }
+  if(G.charco)G.charco.material.opacity=.02*(1+golpe*1.6+v*.9);
+  /* Focos reales: encendidos solo con el ring a la vista, y apagados si el
+     modelo .glb ha sustituido al ring procedural (entonces trae su propia
+     iluminacion). Se apagan tambien sin sombras (calidad baja). */
+  const on=(!G.focos||G.focos.visible)&&nivelCalidad<2;
+  const I=on?RING_SPOT_I*(1+golpe*.9):0;
+  ringSpots.forEach((s,i)=>{s.intensity=I*(i===2?.7:1);});
+}
 function tickStage(t){
+  tickRing(t);
   /* PUBLICO: se anima por tandas (1/6 por frame) para no cargar el movil.
      Al meter un golpe fuerte, game.shake sube y el gentio salta mas. */
   if(tatami&&tatami.visible&&tatami.publico){
@@ -7620,7 +7858,10 @@ class Fighter{
     if(i.up&&!i.alt&&!this.air){this.vy=this.c.jump;sfx.jump();if(mvx!==0)this.vx=mvx*3.6;}
     this.x+=this.vx;if(!this.air)this.vx*=.7;
     this.vy+=GRAV;this.y+=this.vy;
-    if(this.y>GROUND){if(this.vy>7){const dp=this.rig.joint('chest');burst({x:dp.x,y:.14,z:dp.z},6,0x9a948a,.05,false);noise(.05,.035,320);}this.y=GROUND;this.vy=0;this.vx=0;this.fkUsed=false;}
+    if(this.y>GROUND){if(this.vy>7){const dp=this.rig.joint('chest');burst({x:dp.x,y:.14,z:dp.z},6,0x9a948a,.05,false);noise(.05,.035,320);
+        /* la lona acusa el aterrizaje: cuanto mas fuerte se cae, mas tiembla */
+        ringGolpe(Math.min(1,(this.vy-7)/9+.25));}
+      this.y=GROUND;this.vy=0;this.vx=0;this.fkUsed=false;}
     if(this.air)this.state='airborne';
     else if(this.blocking)this.state=this.crouch?'blockLow':'block';
     else if(this.crouch)this.state='crouch';
@@ -8051,7 +8292,7 @@ class Fighter{
       if(game.comboN>=2)tone(240+Math.min(game.comboN,9)*70,.1,'square',.045);
     }
     if(this.hp<=0){this.hp=0;this.state='ko';this.mv=null;this.vx=dir*4.5;this.vy=-9;
-      sfx.ko();game.shake=.28;}
+      sfx.ko();game.shake=.28;ringGolpe(1);}
   }
   kill(){scene.remove(this.rig.root);this.rig.dispose();if(this.blob){scene.remove(this.blob);this.blob.material.dispose();}}
 }

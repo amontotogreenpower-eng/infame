@@ -9164,6 +9164,27 @@ function drawCrawl(lines,cx,y,w,h,size){
   });
   hx.restore();
 }
+/* SELLO DE VERSION: fecha y hora del ultimo cambio del codigo, abajo a la
+   izquierda de la pantalla principal. Sale de document.lastModified, que es la
+   fecha de modificacion de este mismo archivo: como todo el juego vive en
+   index.html, esa fecha ES la del ultimo cambio, y se actualiza sola en cada
+   publicacion sin tener que mantener ningun numero a mano.
+   Se calcula una vez, no en cada fotograma. */
+const SELLO_CODIGO=(function(){
+  try{
+    const d=new Date(document.lastModified);
+    if(isNaN(d.getTime())) return String(document.lastModified||'');
+    const p=n=>String(n).padStart(2,'0');
+    return p(d.getDate())+'/'+p(d.getMonth()+1)+'/'+d.getFullYear()+
+           ' · '+p(d.getHours())+':'+p(d.getMinutes());
+  }catch(e){ return ''; }
+})();
+function drawSelloCodigo(){
+  if(!SELLO_CODIGO) return;
+  // mismo tono que las demas indicaciones: el morado apagado se perdia
+  // sobre los escenarios de suelo claro
+  txt('código: '+SELLO_CODIGO,10,H-12,11,'#c9bde8','left');
+}
 function drawTitle(){
   const g=hx.createLinearGradient(0,0,0,H);
   g.addColorStop(0,'rgba(5,4,12,.86)');g.addColorStop(.55,'rgba(5,4,12,.25)');g.addColorStop(1,'rgba(5,4,12,.6)');
@@ -9183,6 +9204,7 @@ function drawTitle(){
   const ST=game.stats;
   if(ST.wins||ST.best||ST.fat)txt('SESIÓN · VICTORIAS '+ST.wins+' · MEJOR RACHA '+ST.best+' · FATALITIES '+ST.fat,
     W/2,188+game.menu.length*27+36,11,'#9a8cc0');
+  drawSelloCodigo();
 }
 function drawSplash(){
   const tu=document.getElementById('touchUI');if(tu)tu.style.display='none';
@@ -9206,6 +9228,7 @@ function drawSplash(){
   txt('★ ARCADE EDITION ★',W/2,H-82,15,'hsl('+((tp*.12)%360)+',85%,66%)');
   if((game.splashT||0)>24 && Math.floor(t/430)%2)
     txt(IS_TOUCH?'TOCA PARA EMPEZAR':'PULSA CUALQUIER TECLA',W/2,H-40,20,'#fff');
+  drawSelloCodigo();
 }
 function drawSelect(){
   const t=performance.now();

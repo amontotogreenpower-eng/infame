@@ -248,8 +248,10 @@ window.addEventListener('unhandledrejection',function(e){
 <div id="wrap"><div id="stage">
   <canvas id="gl"></canvas>
   <canvas id="hud" width="960" height="540"></canvas>
-  <div id="statsPanel" style="position:absolute;top:60px;right:8px;z-index:7;background:rgba(8,6,18,.92);border:1px solid rgba(255,215,90,.4);border-radius:8px;padding:8px 10px;color:#e8e2ff;font:11px 'Courier New';display:none;min-width:140px;">
-    <div style="color:#ffd75a;font:bold 12px 'Bungee';margin-bottom:4px;text-align:center">ESTADÍSTICAS</div>
+  <!-- El contenido (cabecera incluida) lo genera updateHyperStatsPanel con su
+       propio marco; aqui solo se posiciona, sin caja ni titulo propios, o se
+       veria un recuadro dentro de otro y "ESTADISTICAS" dos veces. -->
+  <div id="statsPanel" style="position:absolute;top:60px;right:8px;z-index:7;color:#e8e2ff;font:11px 'Courier New';display:none;width:212px;max-width:44vw;">
     <div id="statsContent"></div>
   </div>
   <button id="fs" title="Pantalla completa" aria-label="Pantalla completa">
@@ -1690,12 +1692,6 @@ function powerOf(cfg){
   }
   const p=cfg.phys||{};
   return Math.round(s/Math.max(1,n)*10+((p.hp||105)-105)*.25+((p.dmg||1)-1)*40);
-}
-function movesFrom(arch){
-  return function(){const m=baseMoves(),A=ARCH[arch]||ARCH.rusher;
-    const sp=CHARS[A.special],su=CHARS[A.super];
-    const ms=sp.moves(),msu=su.moves();
-    m.special=ms.special;m.super=msu.super;return m;};
 }
 /* ===========================================================
    PELUCAS 3D ACOPLABLES (estilo lego / playmobil)
@@ -5077,214 +5073,6 @@ function attachSlotsToRig(rigLike, slots, calib, worldScale, mirror){
 
 
 /* ---- configuracion concreta del cuerpo "spartan" ---- */
-const SPARTAN_BONE_GROUPS = {
-  "head": {
-    "anchor": "mixamorigNeck_05",
-    "include": [
-      "mixamorigNeck_05"
-    ]
-  },
-  "torso": {
-    "anchor": "mixamorigSpine2_04",
-    "include": [
-      "mixamorigSpine2_04"
-    ]
-  },
-  "abdo": {
-    "anchor": "mixamorigHips_01",
-    "include": [
-      "mixamorigHips_01",
-      "mixamorigSpine_02",
-      "mixamorigSpine1_03"
-    ]
-  },
-  "armUF": {
-    "anchor": "mixamorigLeftArm_09",
-    "include": [
-      "mixamorigLeftArm_09",
-      "mixamorigLeftShoulder_08"
-    ]
-  },
-  "armLF": {
-    "anchor": "mixamorigLeftForeArm_010",
-    "include": [
-      "mixamorigLeftForeArm_010"
-    ]
-  },
-  "handF": {
-    "anchor": "mixamorigLeftHand_011",
-    "include": [
-      "mixamorigLeftHand_011",
-      "mixamorigLeftHandThumb1_012",
-      "mixamorigLeftHandThumb2_013",
-      "mixamorigLeftHandThumb3_014",
-      "mixamorigLeftHandThumb4_015",
-      "mixamorigLeftHandIndex1_016",
-      "mixamorigLeftHandIndex2_017",
-      "mixamorigLeftHandIndex3_018",
-      "mixamorigLeftHandIndex4_019",
-      "mixamorigLeftHandMiddle1_020",
-      "mixamorigLeftHandMiddle2_021",
-      "mixamorigLeftHandMiddle3_022",
-      "mixamorigLeftHandMiddle4_023",
-      "mixamorigLeftHandRing1_024",
-      "mixamorigLeftHandRing2_025",
-      "mixamorigLeftHandRing3_026",
-      "mixamorigLeftHandRing4_027",
-      "mixamorigLeftHandPinky1_028",
-      "mixamorigLeftHandPinky2_029",
-      "mixamorigLeftHandPinky3_030",
-      "mixamorigLeftHandPinky4_031"
-    ]
-  },
-  "legUF": {
-    "anchor": "mixamorigLeftUpLeg_055",
-    "include": [
-      "mixamorigLeftUpLeg_055"
-    ]
-  },
-  "legLF": {
-    "anchor": "mixamorigLeftLeg_056",
-    "include": [
-      "mixamorigLeftLeg_056"
-    ]
-  },
-  "footF": {
-    "anchor": "mixamorigLeftFoot_057",
-    "include": [
-      "mixamorigLeftFoot_057",
-      "mixamorigLeftToeBase_058"
-    ]
-  }
-};
-const SPARTAN_CALIB = {
-  "head": {
-    "bone": "headJ",
-    "pos": [
-      -3.7,
-      16.6,
-      0.0
-    ],
-    "rotDeg": [
-      180,
-      90,
-      0
-    ],
-    "scale": 1.2
-  },
-  "torso": {
-    "bone": "torso",
-    "pos": [
-      -0.9,
-      -15.0,
-      0.0
-    ],
-    "rotDeg": [
-      -88,
-      3,
-      -86
-    ],
-    "scale": 1.0
-  },
-  "abdo": {
-    "bone": "abdo",
-    "pos": [
-      -1.7,
-      0.0,
-      0.0
-    ],
-    "rotDeg": [
-      180,
-      90,
-      0
-    ],
-    "scale": 1.0
-  },
-  "armUF": {
-    "bone": "armUF",
-    "pos": [
-      0.0,
-      0.0,
-      0.0
-    ],
-    "rotDeg": [
-      180,
-      0,
-      0
-    ],
-    "scale": 1.0
-  },
-  "armLF": {
-    "bone": "armLF",
-    "pos": [
-      0.0,
-      0.0,
-      0.0
-    ],
-    "rotDeg": [
-      180,
-      0,
-      0
-    ],
-    "scale": 1.0
-  },
-  "handF": {
-    "bone": "handF",
-    "pos": [
-      -0.5,
-      4.4,
-      -1.3
-    ],
-    "rotDeg": [
-      173,
-      86,
-      0
-    ],
-    "scale": 1.0
-  },
-  "legUF": {
-    "bone": "legUF",
-    "pos": [
-      3.2,
-      -6.9,
-      0.8
-    ],
-    "rotDeg": [
-      180,
-      -11,
-      2
-    ],
-    "scale": 1.0
-  },
-  "legLF": {
-    "bone": "legLF",
-    "pos": [
-      0.0,
-      0.0,
-      0.0
-    ],
-    "rotDeg": [
-      180,
-      -86,
-      0
-    ],
-    "scale": 1.0
-  },
-  "footF": {
-    "bone": "footF",
-    "pos": [
-      0.0,
-      0.0,
-      0.0
-    ],
-    "rotDeg": [
-      -91,
-      -38,
-      96
-    ],
-    "scale": 1.0
-  }
-};
 
 const _importedBodyCache = {}; // url -> Promise<gltf.scene> (para no recargar el GLB por cada personaje)
 function loadGLBCached(url){
@@ -9015,8 +8803,10 @@ function drawTitle(){
   hx.fillStyle=g;hx.fillRect(0,0,W,H);
   const tp=performance.now();
   txt('INFAME FIGHTING',W/2,110,52,'hsl('+(45+Math.sin(tp*.0018)*7)+',100%,'+(62+Math.sin(tp*.0027)*7)+'%)');
-  txt('★ ARCADE EDITION ★',W/2,146,15,'hsl('+((tp*.12)%360)+',85%,66%)');
-  txt('T O R N E O   M U N D I A L',W/2,142,17,'#ff8c1a');
+  /* Un solo subtitulo: "ARCADE EDITION" ya sale en el splash, y aqui se
+     dibujaba encima de "TORNEO MUNDIAL" (y 146 contra y 142), asi que los
+     dos textos quedaban ilegibles superpuestos. */
+  txt('T O R N E O   M U N D I A L',W/2,146,17,'#ff8c1a');
   for(let i=0;i<game.menu.length;i++){
     const s=game.sel===i;
     txt((s?'▶ ':'')+game.menu[i]+(s?' ◀':''),W/2,188+i*27,s?23:19,s?'#fff':'#9a8cc0');
@@ -9027,7 +8817,6 @@ function drawTitle(){
   if(ST.wins||ST.best||ST.fat)txt('SESIÓN · VICTORIAS '+ST.wins+' · MEJOR RACHA '+ST.best+' · FATALITIES '+ST.fat,
     W/2,188+game.menu.length*27+36,11,'#9a8cc0');
 }
-function project(v){const p=v.clone().project(cam);return{x:(p.x*.5+.5)*W,y:(1-(p.y*.5+.5))*H};}
 function drawSplash(){
   const tu=document.getElementById('touchUI');if(tu)tu.style.display='none';
   const t=performance.now(), fin=Math.min(1,(game.splashT||0)/26);
@@ -9180,13 +8969,19 @@ let T0=0;
 let fpsAcc=0,fpsN=0,fpsLast=performance.now(),qualityDropped=false;
 /* --- HYPER-REALISTIC GRAPHS SYSTEM --- */
 let perfData=[],statsVisible=false,graphVisible=false;
+/* Ritmo del monitor de depuracion (ver el final de loop()). */
+let fpsSmooth=60,monLast=0,monN=0;
+const MON_MS=1000/12;
 const statsPanel=document.getElementById('statsPanel'),statsContent=document.getElementById('statsContent');
 
 // Enhanced Multi-Canvas Graph System
 const graphContainer = document.createElement('div');
 graphContainer.id = 'hyperGraphContainer';
-graphContainer.style.cssText = 'position:absolute;top:60px;left:8px;z-index:8;display:none;pointer-events:auto;';
-document.body.appendChild(graphContainer);
+graphContainer.style.cssText = 'position:absolute;top:60px;left:8px;z-index:8;display:none;pointer-events:auto;max-width:calc(100% - 16px);';
+/* Cuelga del #stage, como el panel de estadisticas, y no del body: el stage
+   va centrado y con bandas negras cuando la pantalla no es 16:9, y colgando
+   del body la grafica se quedaba flotando fuera del area de juego. */
+(statsPanel.parentNode || document.body).appendChild(graphContainer);
 
 // Main FPS Canvas
 const graphCanvas = document.createElement('canvas');
@@ -9242,9 +9037,12 @@ tabContainer.appendChild(perfTab);
 tabContainer.appendChild(combatTab);
 graphContainer.insertBefore(tabContainer, graphCanvas);
 
-// Particle system for graphs
+/* Particle system for graphs.
+   200 particulas, cada una con su gradiente radial y su shadowBlur, eran el
+   grueso del coste del propio monitor. Con el repintado a 12 Hz y este
+   recuento el overlay ya no se nota en el frame time. */
 let particles = [];
-const MAX_PARTICLES = 200;
+const MAX_PARTICLES = 64;
 
 // Combat data tracking
 let combatHistory = { p1Health: [], p2Health: [], superMeter: [], comboHits: [] };
@@ -9256,8 +9054,11 @@ function initParticles() {
         particles.push({
             x: Math.random() * graphCanvas.width,
             y: Math.random() * graphCanvas.height,
-            vx: (Math.random() - 0.5) * 0.8,
-            vy: (Math.random() - 0.5) * 0.8,
+            /* x3 respecto al valor original: antes se avanzaba una vez por
+               frame y ahora una por tick de monitor (12 Hz), asi el flujo
+               se ve igual de vivo. */
+            vx: (Math.random() - 0.5) * 2.4,
+            vy: (Math.random() - 0.5) * 2.4,
             size: Math.random() * 2.5 + 0.8,
             alpha: Math.random() * 0.6 + 0.3,
             hue: Math.random() * 60 + 35,
@@ -9287,32 +9088,30 @@ function toggleStats(){
     if(statsVisible) updateHyperStatsPanel();
 }
 
+/* Los luchadores vivos son las variables p1 / p2. NO existen game.p1 ni
+   game.p2: en game solo estan game.p1c / game.p2c, que son los indices del
+   selector de personaje. Todo el monitor leia game.p1 / game.p2, siempre
+   undefined, y por eso la pestana COMBAT no registraba nunca nada y el panel
+   de estadisticas jamas mostraba las fichas de los jugadores. */
+const MODOS_CON_LUCHA={fight:1,intro:1,roundend:1,fatality:1,fatalwait:1,matchend:1,pause:1};
+function hayLucha(){return !!MODOS_CON_LUCHA[game.mode];}
+
+function histPush(arr,v){arr.push(v);if(arr.length>MAX_HISTORY)arr.shift();}
+
 function drawHyperRealisticGraph(fps) {
     if(!graphVisible) return;
-    
+
     perfData.push(fps);
     if(perfData.length > 100) perfData.shift();
-    
+
     // Update combat data
-    if(game.p1) {
-        combatHistory.p1Health.push(game.p1.hp / game.p1.c.hpMax * 100);
-        if(combatHistory.p1Health.length > MAX_HISTORY) combatHistory.p1Health.shift();
+    const enLucha=hayLucha();
+    if(enLucha&&p1){
+        histPush(combatHistory.p1Health, Math.max(0,p1.hp)/p1.c.hpMax*100);
+        histPush(combatHistory.superMeter, Math.min(p1.meter,100));
     }
-    if(game.p2) {
-        combatHistory.p2Health.push(game.p2.hp / game.p2.c.hpMax * 100);
-        if(combatHistory.p2Health.length > MAX_HISTORY) combatHistory.p2Health.shift();
-    }
-    if(game.p1) {
-        combatHistory.superMeter.push(Math.min(game.p1.meter, 100));
-        if(combatHistory.superMeter.length > MAX_HISTORY) combatHistory.superMeter.shift();
-    }
-    if(game.comboN) {
-        combatHistory.comboHits.push(game.comboN);
-        if(combatHistory.comboHits.length > MAX_HISTORY) combatHistory.comboHits.shift();
-    } else {
-        combatHistory.comboHits.push(0);
-        if(combatHistory.comboHits.length > MAX_HISTORY) combatHistory.comboHits.shift();
-    }
+    if(enLucha&&p2) histPush(combatHistory.p2Health, Math.max(0,p2.hp)/p2.c.hpMax*100);
+    if(enLucha) histPush(combatHistory.comboHits, game.comboN||0);
     
     // Draw based on current tab
     if(currentTab === 'perf') {
@@ -9362,13 +9161,10 @@ function drawPerformanceGraph(fps) {
     const padding = 35;
     const graphH = h - padding * 2;
     const graphW = w - padding * 2;
-    
-    // Multi-layer glow effect behind line
-    for(let layer = 3; layer >= 0; layer--) {
-        ctx.shadowBlur = 15 + layer * 10;
-        ctx.shadowColor = `rgba(255, ${215 - layer*30}, ${90 - layer*20}, ${0.8 - layer*0.15})`;
-    }
-    
+    /* Con una sola muestra, i/(length-1) era 0/0 = NaN y toda la curva salia
+       sin dibujar hasta la segunda lectura. */
+    const den = Math.max(1, perfData.length - 1);
+
     // Create dynamic gradient for the line
     const lineGradient = ctx.createLinearGradient(0, padding, w - padding, padding);
     lineGradient.addColorStop(0, 'rgba(255, 80, 60, 0.95)');
@@ -9386,7 +9182,7 @@ function drawPerformanceGraph(fps) {
     ctx.beginPath();
     ctx.moveTo(padding, h - padding);
     for(let i = 0; i < perfData.length; i++) {
-        const x = padding + (i / (perfData.length - 1)) * graphW;
+        const x = padding + (i / den) * graphW;
         const y = h - padding - ((perfData[i] - minF) / range) * graphH;
         ctx.lineTo(x, y);
     }
@@ -9403,7 +9199,7 @@ function drawPerformanceGraph(fps) {
     ctx.lineJoin = 'round';
     ctx.beginPath();
     for(let i = 0; i < perfData.length; i++) {
-        const x = padding + (i / (perfData.length - 1)) * graphW;
+        const x = padding + (i / den) * graphW;
         const y = h - padding - ((perfData[i] - minF) / range) * graphH;
         if(i === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
@@ -9438,8 +9234,11 @@ function drawPerformanceGraph(fps) {
     ctx.shadowColor = 'rgba(100, 255, 150, 0.9)';
     ctx.fillStyle = '#6aff8a';
     ctx.font = 'bold 11px "Bungee"';
-    ctx.textAlign = 'right';
-    ctx.fillText('60 FPS', w - padding - 5, y60 - 6);
+    /* A la izquierda: alineado a la derecha caia justo debajo del contador
+       grande de FPS de la esquina y, con el juego a pocos fps, la linea de
+       referencia sube hasta arriba y los dos textos se pisaban. */
+    ctx.textAlign = 'left';
+    ctx.fillText('60 FPS', padding + 4, y60 - 6);
     ctx.shadowBlur = 0;
     
     // Draw current FPS with radial glow burst
@@ -9490,36 +9289,42 @@ function drawPerformanceGraph(fps) {
     ctx.fillStyle = innerGlow;
     ctx.fillRect(statsBoxX, statsBoxY, statsBoxW, statsBoxH);
     
-    // Stats text
-    ctx.fillStyle = '#8a9ac0';
+    /* Tres renglones. En una sola fila, "STABLE nn%" (alineado a la derecha
+       de una caja de 130 px) tapaba por completo al "MAX:" que empezaba en
+       +70, y no se llegaba a leer el maximo. */
+    const avg = perfData.reduce((a,b) => a+b, 0) / perfData.length;
+    const stability = Math.max(0, Math.min(100, 100 - (Math.max(...perfData) - Math.min(...perfData))));
+    const stabColor = stability > 40 ? '#6aff8a' : stability > 20 ? '#ffd75a' : '#ff4b3e';
+
     ctx.font = '9px "Courier New"';
+    ctx.fillStyle = '#8a9ac0';
     ctx.textAlign = 'left';
     ctx.fillText('MIN: ' + minF.toFixed(0), statsBoxX + 10, statsBoxY + 16);
-    ctx.fillText('MAX: ' + maxF.toFixed(0), statsBoxX + 70, statsBoxY + 16);
-    
-    const avg = perfData.reduce((a,b) => a+b, 0) / perfData.length;
+    ctx.textAlign = 'right';
+    ctx.fillText('MAX: ' + maxF.toFixed(0), statsBoxX + statsBoxW - 10, statsBoxY + 16);
+
     ctx.fillStyle = '#c9bde8';
-    ctx.fillText('AVG: ' + avg.toFixed(1), statsBoxX + 10, statsBoxY + 34);
-    
-    // Stability indicator
-    const stability = 100 - (Math.max(...perfData) - Math.min(...perfData));
-    const stabColor = stability > 40 ? '#6aff8a' : stability > 20 ? '#ffd75a' : '#ff4b3e';
+    ctx.textAlign = 'left';
+    ctx.fillText('AVG: ' + avg.toFixed(1), statsBoxX + 10, statsBoxY + 33);
+
     ctx.fillStyle = stabColor;
     ctx.font = 'bold 9px "Bungee"';
-    ctx.textAlign = 'right';
-    ctx.fillText('STABLE ' + stability.toFixed(0) + '%', statsBoxX + statsBoxW - 8, statsBoxY + 16);
-    
+    ctx.fillText('STABLE ' + stability.toFixed(0) + '%', statsBoxX + 10, statsBoxY + 50);
+
     // Update and draw particles with enhanced effects
     ctx.save();
     for(let p of particles) {
         p.x += p.vx;
         p.y += p.vy;
-        p.pulse += 0.05;
-        
-        // Bounce off walls
-        if(p.x < 0 || p.x > w) p.vx *= -1;
-        if(p.y < 0 || p.y > h) p.vy *= -1;
-        
+        p.pulse += 0.15;
+
+        // Bounce off walls (y se recolocan dentro: rebotar solo invirtiendo la
+        // velocidad dejaba particulas atascadas fuera del borde)
+        if(p.x < 0){ p.x = 0; p.vx = Math.abs(p.vx); }
+        else if(p.x > w){ p.x = w; p.vx = -Math.abs(p.vx); }
+        if(p.y < 0){ p.y = 0; p.vy = Math.abs(p.vy); }
+        else if(p.y > h){ p.y = h; p.vy = -Math.abs(p.vy); }
+
         // Attract particles to the FPS line
         const nearestIdx = Math.floor(((p.x - padding) / graphW) * perfData.length);
         if(nearestIdx >= 0 && nearestIdx < perfData.length) {
@@ -9697,33 +9502,33 @@ function drawCombatGraph() {
     }
     ctx.shadowBlur = 0;
     
-    // Legend
+    /* LEYENDA + VALOR ACTUAL, en dos filas.
+       Antes las cuatro etiquetas iban en una sola linea (la ultima arrancaba
+       en padding+220 sobre un lienzo de 320) y se salian del marco pisando el
+       porcentaje que se dibujaba alineado a la derecha. Ademas solo se
+       mostraba el valor de P1: los de P2, super y combo se calculaban y se
+       tiraban. */
+    const last = a => a.length ? a[a.length - 1] : 0;
+    const latestP1 = last(combatHistory.p1Health);
+    const latestP2 = last(combatHistory.p2Health);
+    const latestSuper = last(combatHistory.superMeter);
+    const latestCombo = last(combatHistory.comboHits);
+
+    const lx = padding + 5, rx = w - padding - 5, row1 = padding + 12, row2 = padding + 25;
     ctx.font = 'bold 9px "Bungee"';
+
     ctx.textAlign = 'left';
-    
-    ctx.fillStyle = 'rgba(255, 140, 60, 0.9)';
-    ctx.fillText('● P1 HP', padding + 5, padding + 12);
-    
-    ctx.fillStyle = 'rgba(60, 180, 255, 0.9)';
-    ctx.fillText('● P2 HP', padding + 70, padding + 12);
-    
-    ctx.fillStyle = 'rgba(200, 80, 255, 0.9)';
-    ctx.fillText('◌ SUPER', padding + 140, padding + 12);
-    
-    ctx.fillStyle = 'rgba(255, 180, 80, 0.9)';
-    ctx.fillText('▮ COMBOS', padding + 220, padding + 12);
-    
-    // Current values display
-    const latestP1 = combatHistory.p1Health.length > 0 ? combatHistory.p1Health[combatHistory.p1Health.length - 1] : 0;
-    const latestP2 = combatHistory.p2Health.length > 0 ? combatHistory.p2Health[combatHistory.p2Health.length - 1] : 0;
-    const latestSuper = combatHistory.superMeter.length > 0 ? combatHistory.superMeter[combatHistory.superMeter.length - 1] : 0;
-    const latestCombo = combatHistory.comboHits.length > 0 ? combatHistory.comboHits[combatHistory.comboHits.length - 1] : 0;
-    
-    ctx.font = '10px "Courier New"';
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = 'rgba(255, 140, 60, 0.95)';
+    ctx.fillText('● P1 ' + latestP1.toFixed(0) + '%', lx, row1);
+    ctx.fillStyle = 'rgba(200, 80, 255, 0.95)';
+    ctx.fillText('◌ SUPER ' + latestSuper.toFixed(0) + '%', lx, row2);
+
     ctx.textAlign = 'right';
-    ctx.fillText(latestP1.toFixed(0) + '%', w - padding - 5, padding + 12);
-    
+    ctx.fillStyle = 'rgba(60, 180, 255, 0.95)';
+    ctx.fillText('● P2 ' + latestP2.toFixed(0) + '%', rx, row1);
+    ctx.fillStyle = 'rgba(255, 180, 80, 0.95)';
+    ctx.fillText('▮ COMBO x' + latestCombo, rx, row2);
+
     // Border glow
     ctx.strokeStyle = 'rgba(100, 255, 150, 0.5)';
     ctx.lineWidth = 2;
@@ -9732,46 +9537,18 @@ function drawCombatGraph() {
     ctx.strokeRect(1, 1, w - 2, h - 2);
     ctx.shadowBlur = 0;
 }
-function updateStatsPanel(){
-  if(!statsVisible)return;
-  const ST=game.stats;
-  let html='<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">';
-  html+='<div style="background:rgba(20,16,40,.6);padding:6px;border-radius:4px;text-align:center">';
-  html+='<div style="color:#8a9ac0;font-size:9px">VICTORIAS</div>';
-  html+='<div style="color:#6aff8a;font:bold 18px \'Bungee\'">'+ST.wins+'</div></div>';
-  html+='<div style="background:rgba(20,16,40,.6);padding:6px;border-radius:4px;text-align:center">';
-  html+='<div style="color:#8a9ac0;font-size:9px">MEJOR RACHA</div>';
-  html+='<div style="color:#ffd75a;font:bold 18px \'Bungee\'">'+ST.best+'</div></div></div>';
-  html+='<div style="background:rgba(20,16,40,.6);padding:6px;border-radius:4px;text-align:center;margin-bottom:6px">';
-  html+='<div style="color:#8a9ac0;font-size:9px">FATALITIES</div>';
-  html+='<div style="color:#ff4b3e;font:bold 18px \'Bungee\'">'+ST.fat+'</div></div>';
-  if(game.p1){
-    html+='<div style="border-top:1px solid rgba(255,215,90,.3);padding-top:6px">';
-    html+='<div style="color:#ffd75a;font-size:10px;margin-bottom:4px">JUGADOR 1</div>';
-    html+='<div style="font-size:9px;color:#c9bde8">HP: <span style="color:#ff8c1a;font-weight:bold">'+Math.floor(game.p1.hp)+' / '+game.p1.c.hpMax+'</span></div>';
-    html+='<div style="font-size:9px;color:#c9bde8">SUPER: <span style="color:'+(game.p1.meter>=100?'#fff':game.p1.hud)+';font-weight:bold">'+Math.floor(game.p1.meter)+'%</span></div>';
-    if(game.comboN&&game.p1===game.comboSrc){
-      html+='<div style="font-size:9px;color:#c9bde8">COMBO: <span style="color:#ff8c6a;font-weight:bold">'+game.comboN+' HIT</span></div>';}
-    html+='</div>';}
-  if(game.p2&&!game.spectate){
-    html+='<div style="border-top:1px solid rgba(255,215,90,.3);padding-top:6px;margin-top:4px">';
-    html+='<div style="color:#ffd75a;font-size:10px;margin-bottom:4px">JUGADOR 2 / CPU</div>';
-    html+='<div style="font-size:9px;color:#c9bde8">HP: <span style="color:#ff8c1a;font-weight:bold">'+Math.floor(game.p2.hp)+' / '+game.p2.c.hpMax+'</span></div>';
-    html+='<div style="font-size:9px;color:#c9bde8">SUPER: <span style="color:'+(game.p2.meter>=100?'#fff':game.p2.hud)+';font-weight:bold">'+Math.floor(game.p2.meter)+'%</span></div>';
-    html+='</div>';}
-  html+='<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,215,90,.3)">';
-  html+='<div style="font-size:9px;color:#8a9ac0">ESC / Pausa: Menú</div>';
-  html+='<div style="font-size:9px;color:#8a9ac0">G: Gráfica FPS | S: Stats</div></div>';
-  statsContent.innerHTML=html;
-}
 
 // Enhanced Hyper-Realistic Stats Panel with dynamic effects
 function updateHyperStatsPanel(){
   if(!statsVisible) return;
   const ST = game.stats;
-  const p1 = game.p1;
-  const p2 = game.p2;
-  
+  /* Se leen directamente los luchadores p1 / p2 del ambito exterior; antes
+     esto era `const p1 = game.p1`, que no existe, asi que las fichas de
+     jugador del panel nunca llegaban a dibujarse. Fuera de combate no hay
+     ficha que mostrar (p1 / p2 conservan al ultimo luchador de la pelea
+     anterior y saldrian datos rancios en el menu). */
+  const enLucha = hayLucha();
+
   // Dynamic color based on health
   const getP1HealthColor = () => {
     if(!p1) return '#ff8c1a';
@@ -9807,7 +9584,7 @@ function updateHyperStatsPanel(){
   html += '<div style="color:#ff4b3e;font:bold 20px \'Bungee\';text-shadow:0 0 8px rgba(255,75,62,0.6)">'+ST.fat+'</div></div></div>';
   
   // Player 1 stats with health bar visualization
-  if(p1){
+  if(enLucha && p1){
     html += '<div style="margin-top:8px;padding:8px;background:rgba(10,8,20,0.6);border-radius:6px;border-left:3px solid '+p1.hud+'">';
     html += '<div style="color:'+p1.hud+';font-size:10px;margin-bottom:6px;font-weight:bold">👤 JUGADOR 1</div>';
     
@@ -9835,7 +9612,7 @@ function updateHyperStatsPanel(){
   }
   
   // Player 2 stats
-  if(p2 && !game.spectate){
+  if(enLucha && p2 && !game.spectate){
     html += '<div style="margin-top:8px;padding:8px;background:rgba(10,8,20,0.6);border-radius:6px;border-left:3px solid '+p2.hud+'">';
     html += '<div style="color:'+p2.hud+';font-size:10px;margin-bottom:6px;font-weight:bold">👤 JUGADOR 2</div>';
     
@@ -9868,7 +9645,11 @@ document.addEventListener('keydown',function(e){
 });
 function loop(){
   const _t=performance.now();
-  fpsAcc+=_t-fpsLast;fpsLast=_t;fpsN++;
+  const _dt=_t-fpsLast;
+  fpsAcc+=_dt;fpsLast=_t;fpsN++;
+  /* FPS suavizado: la grafica necesita un valor por frame, no solo la media
+     cada 90 que usa el recorte de calidad. */
+  fpsSmooth+=(1000/Math.max(1,_dt)-fpsSmooth)*.1;
   if(fpsN>=90){
     const ms=fpsAcc/fpsN;fpsAcc=0;fpsN=0;
     if(!qualityDropped&&ms>23){qualityDropped=true;PRCAP=1;fit();
@@ -9884,6 +9665,20 @@ function loop(){
   }catch(err){
     console.error('loop error:',err);
     try{hudButtons();}catch(e2){}
+  }
+  /* MONITOR (G / S): faltaba la llamada, asi que la grafica se abria en negro
+     y el panel se congelaba en los datos del instante en que se abrio.
+     Se refresca a ~12 Hz y no cada frame: repintar 200 particulas con
+     gradiente radial y sombra a 60 fps costaba mas que el propio juego y
+     falseaba justo la medida que pretende mostrar. Va fuera del try del
+     juego y con su propia red, para que un fallo del overlay de depuracion
+     no pueda tumbar el bucle. */
+  if((graphVisible||statsVisible)&&_t-monLast>=MON_MS){
+    monLast=_t;monN++;
+    try{
+      if(graphVisible)drawHyperRealisticGraph(fpsSmooth);
+      if(statsVisible&&(monN&1))updateHyperStatsPanel();   // panel a ~6 Hz
+    }catch(e2){console.error('monitor:',e2);}
   }
   for(const k in just)just[k]=false;
   requestAnimationFrame(loop);

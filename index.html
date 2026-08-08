@@ -7148,7 +7148,9 @@ function ringLoadMatImage(lona){
   img.src='src/ring-mat.jpg';
 }
 let arenaOn=false;                      // true = manda un escenario de combate fijo, pase lo que pase
-let combatArena='coliseo';              // 'coliseo' o 'ring' — preferencia elegida en CONFIGURACION
+/* Por defecto se pelea en el RING. Se puede cambiar a coliseo desde
+   CONFIGURACION > ESCENARIO. */
+let combatArena='ring';                 // 'coliseo' o 'ring' — preferencia elegida en CONFIGURACION
 function tatamiOn(v){
   arenaOn=!!v;
   const showColiseo=arenaOn&&combatArena==='coliseo';
@@ -7811,10 +7813,18 @@ class Fighter{
          doblaba de mas y el antebrazo se iba HACIA ATRAS. Comparadas las tres
          opciones sobre el maniqui: 158 (el valor de siempre) cruza por delante
          del vientre, 74 se pliega hacia atras, y 130 deja el antebrazo
-         adelante, que es la postura de espera natural. */
-      armUF:154+gd*4.5-pe*2.5-br*10, armLF:54+gd*7-bo*5-br*12,
-      armUB:198-gd*3.5+pe*2.5-br*6,  armLB:130-gd*5.5+bo*4-br*8,
-      armAF:-16+pe*4, armAB:16+pe*4,
+         adelante, que es la postura de espera natural.
+
+         Y LA APERTURA MANDA MAS QUE EL CODO. Habia bajado la separacion de
+         los brazos de 35 a 16 y con eso el antebrazo se METIA EN EL PECHO al
+         pelear. Renderizadas 16 / 26 / 35 / 44 y varias combinaciones, lo que
+         de verdad funciona es la guardia del propio juego: el brazo mas
+         vertical (168) con el antebrazo mas levantado (34) y la separacion
+         original de 35. Asi los dos punos quedan delante, separados del
+         cuerpo, sin cruzarlo. */
+      armUF:168+gd*4.5-pe*2.5-br*10, armLF:34+gd*7-bo*5-br*12,
+      armUB:200-gd*3.5+pe*2.5-br*6,  armLB:120-gd*5.5+bo*4-br*8,
+      armAF:-35+pe*4, armAB:35+pe*4,
       wristF:gd*7-bo*3, wristB:-gd*6+bo*2,
       /* Las dos rodillas botan a la vez (si no, el pie de apoyo mas bajo manda
          y el cuerpo no baja) y ademas cada una carga medio ciclo desfasada. */
@@ -8666,8 +8676,8 @@ function update(){
          y 158, casi horizontales) y la vista previa mostraba el antebrazo
          cruzado hacia dentro igual que en la partida. */
       if(!pose)pose=P({py:-92+Math.sin(bt)*1.1,torso:6+Math.sin(bt)*.8,
-        armUF:154,armUB:198,armAF:-16,armAB:16,
-        armLF:54+Math.sin(bt)*2,armLB:130+Math.sin(bt+.6)*2,head:2+Math.sin(bt*.7)*1.2});
+        armUF:168,armUB:200,armAF:-35,armAB:35,
+        armLF:34+Math.sin(bt)*2,armLB:120+Math.sin(bt+.6)*2,head:2+Math.sin(bt*.7)*1.2});
       crPrev.apply(pose,1,0,plantM);
       if(crTab!=='taller'&&crAuto)crYaw=Math.sin(performance.now()*.0005)*.5;
       twPlace();   // misma colocacion que en la edicion: evita el parpadeo
@@ -9356,7 +9366,29 @@ function drawChampion(){
 buildStages();buildShowcase();setStage('arena');showcaseOn(true);
 document.getElementById('load').style.display='none';
 let T0=0;
-let fpsAcc=0,fpsN=0,fpsLast=performance.now(),qualityDropped=false;
+let fpsAcc=0,fpsN=0,fpsLast=performance.now();
+/* DEGRADADO DE CALIDAD POR RENDIMIENTO — en dos pasos y reversible.
+   Antes bastaba UNA ventana de 90 fotogramas lenta para bajar la resolucion Y
+   apagar las sombras de golpe, y no se volvian a encender en toda la partida.
+   El problema es que la primera ventana cae en plena carga (construir
+   escenarios, subir texturas), asi que saltaba casi siempre y las sombras
+   desaparecian sin que la maquina lo necesitase.
+   Ahora: no se mide durante el arranque, hacen falta DOS ventanas lentas
+   seguidas para bajar un escalon, primero se recorta la resolucion y solo
+   despues se quitan las sombras, y si la cosa se recupera se vuelve a subir. */
+const PRCAP_MAX=PRCAP;
+let nivelCalidad=0;                 // 0 completa · 1 media resolucion · 2 ademas sin sombras
+let ventLentas=0, ventRapidas=0, ventVistas=0;
+function aplicarCalidad(n){
+  n=Math.max(0,Math.min(2,n));
+  if(n===nivelCalidad)return;
+  nivelCalidad=n; ventLentas=0; ventRapidas=0;
+  PRCAP = n>=1 ? 1 : PRCAP_MAX;
+  renderer.shadowMap.enabled = (n<2);
+  renderer.shadowMap.needsUpdate = true;
+  fit();
+  console.log('calidad:', n===0?'completa':(n===1?'resolucion reducida':'sin sombras'));
+}
 /* --- HYPER-REALISTIC GRAPHS SYSTEM --- */
 let perfData=[],statsVisible=false,graphVisible=false;
 /* Ritmo del monitor de depuracion (ver el final de loop()). */
@@ -10042,9 +10074,15 @@ function loop(){
   fpsSmooth+=(1000/Math.max(1,_dt)-fpsSmooth)*.1;
   if(fpsN>=90){
     const ms=fpsAcc/fpsN;fpsAcc=0;fpsN=0;
-    if(!qualityDropped&&ms>23){qualityDropped=true;PRCAP=1;fit();
-      renderer.shadowMap.enabled=false;renderer.shadowMap.needsUpdate=true;
-      console.log('calidad reducida para mantener la fluidez');}
+    /* Las dos primeras ventanas son la carga del juego, no el rendimiento
+       real: si se cuentan, las sombras se apagan siempre nada mas empezar. */
+    if(++ventVistas>2){
+      if(ms>23){ ventLentas++; ventRapidas=0; }
+      else if(ms<15){ ventRapidas++; ventLentas=0; }   // holgura clara: 66+ fps
+      else { ventLentas=0; ventRapidas=0; }            // zona intermedia: ni subir ni bajar
+      if(ventLentas>=2)        aplicarCalidad(nivelCalidad+1);
+      else if(ventRapidas>=6)  aplicarCalidad(nivelCalidad-1);
+    }
   }
   T0=performance.now()*.06;
   try{

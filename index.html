@@ -21,7 +21,10 @@ window.__fatal=function(m){try{
    los usa ya cae con gracia por dentro, y este filtro evita que ADEMAS
    salte el aviso bloqueante. NO cubre three.min.js: si esa falla, el juego
    no puede arrancar de verdad y el aviso debe seguir apareciendo. */
-window.__optRes=/(?:src\/Intro\.mp4|src\/luchador\d+[^\/]*\.png|src\/start\.mp3|src\/round\d\.mp3|src\/head-[\w-]+\.glb|src\/ring-[\w-]+\.(?:glb|mp4|jpg)|examples\/js\/loaders\/GLTFLoader\.js|examples\/js\/(?:shaders|postprocessing)\/[\w]+\.js)$/i;
+/* utils/ (SkeletonUtils) va en la lista: el codigo ya lo trata como opcional
+   con su propio catch, pero al no estar aqui su fallo saltaba igualmente como
+   aviso rojo bloqueante encima del juego. */
+window.__optRes=/(?:src\/Intro\.mp4|src\/luchador\d+[^\/]*\.png|src\/start\.mp3|src\/round\d\.mp3|src\/head-[\w-]+\.glb|src\/ring-[\w-]+\.(?:glb|mp4|jpg)|examples\/js\/loaders\/GLTFLoader\.js|examples\/js\/(?:shaders|postprocessing|utils)\/[\w]+\.js)$/i;
 window.addEventListener('error',function(e){
   if(e&&e.target&&e.target!==window&&e.target.tagName){
     var u=e.target.src||e.target.href||'';
@@ -2214,8 +2217,16 @@ let composer=null;   // compositor de bloom (opcional, se carga bajo demanda mas
 /* --- COLOR ---
    outputEncoding sRGB es imprescindible: sin el, r128 saca todo apagado.
    Sin tone mapping filmico los colores salen vivos (look arcade).
-   Si algo queda quemado, baja GFX_LUZ; si quieres mas contraste, sube GFX_EXP. */
-const GFX_LUZ=0.68, GFX_EXP=1.45;
+   Si algo queda quemado, baja GFX_LUZ; si quieres mas contraste, sube GFX_EXP.
+
+   EXPOSICION Y RESPLANDOR VAN JUNTOS. La exposicion no solo aclara: empuja
+   las luces altas por encima del umbral del bloom, y todo lo que lo pasa se
+   convierte en halo. Al subirla a 1.45 y bajar a la vez el umbral a 0.75, los
+   luchadores brillaban tanto que costaba seguir el combate.
+   El brillo TOTAL apenas cambia al volver atras (0.68*1.45 = 0.99 frente a
+   0.85*1.15 = 0.98): lo que se recupera es el margen de las luces altas, que
+   es lo que estaba disparando el resplandor. */
+const GFX_LUZ=0.85, GFX_EXP=1.15;
 /* Empujon de saturacion: 1.0 = sin cambios. Subelo para mas viveza. */
 const GFX_SAT=1.55;   // hiperrealista: colores mas intensos y contrastados
 const GFX_CONT=1.18;  // contraste aumentado para mayor dramaticidad
@@ -4821,15 +4832,14 @@ function loadBloom(){
     if(!THREE.EffectComposer||!THREE.UnrealBloomPass)return;   // caida elegante
     const c=new THREE.EffectComposer(renderer);
     c.addPass(new THREE.RenderPass(scene,cam));
-    /* umbral alto a proposito: solo lo realmente brillante y sin sombrear
-       (glowMat) dispara el bloom; el resto del toon-shading, mas tenue por
-       la iluminacion, no se ve afectado. Fuerza baja: brillo sutil, no un
-       resplandor exagerado que rompa el look arcade. */
-    /* BLOOM HIPERREALISTA: valores ajustados para un look cinematografico.
-       Intensidad alta (0.48) para halos luminosos visibles, radio medio
-       (0.55) para un glow que envuelve sin emborronar, umbral bajo (0.75)
-       para que mas elementos brillen sutilmente. */
-    const bloom=new THREE.UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),0.48,0.55,0.75);
+    /* Umbral ALTO a proposito: solo lo realmente brillante y sin sombrear
+       (glowMat, chispas, supers) dispara el bloom; la piel y la ropa de los
+       luchadores, mas tenues, no se ven afectadas. Fuerza baja: brillo
+       sutil, no un resplandor que tape el combate.
+       Se habia subido la fuerza a 0.48 y bajado el umbral a 0.75, y con eso
+       entraba en el bloom medio personaje: los luchadores resplandecian
+       tanto que costaba jugar. */
+    const bloom=new THREE.UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),0.34,0.5,0.88);
     c.addPass(bloom);
     c.setSize(renderer.domElement.width,renderer.domElement.height);
     composer=c;
@@ -5136,14 +5146,15 @@ function attachImportedBody(rig, C){
 // o detras) y elimina los separadores.
 // OJO: no se pueden quitar digitos finales a lo bruto, porque
 // Spine/Spine1/Spine2 son huesos distintos y se confundirian entre si.
-/* keepNum: conserva el numero final del nombre. Hace falta para distinguir
-   "spine_01" de "spine_03" (columna baja / pecho en rigs tipo Unreal), pero
-   NO puede ser lo unico que se pruebe, porque GLTFLoader anade "_1", "_2"...
-   a los nombres repetidos y ahi el numero hay que tirarlo. roleOfBone prueba
-   las dos formas. */
-function normBoneName(raw, keepNum){
-  let s = String(raw||'');
-  if(!keepNum) s = s.replace(/_\d+$/,'');
+/* El sufijo "_NN" SIEMPRE se tira. Es tentador conservarlo para distinguir
+   "spine_01" de "spine_03" (columna / pecho en rigs tipo Unreal), pero no se
+   puede: los exportadores lo usan como CONTADOR GLOBAL para desduplicar. Un
+   Mixamo pasado por Sketchfab sale como "Spine_02", "Spine1_03", "Spine2_04",
+   donde el numero no dice nada de la columna, y al interpretarlo se colaba
+   "Spine_02" como pecho y el torso quedaba retorcido. El pecho de los rigs
+   numerados se resuelve despues por jerarquia (ver pechoPorJerarquia). */
+function normBoneName(raw){
+  let s = String(raw||'').replace(/_\d+$/,'');
   s = s.toLowerCase();
   // "mixamorig" va pegado al nombre (GLTFLoader elimina los ':'), asi que
   // se quita sin exigir separador
@@ -5185,8 +5196,8 @@ const HUMANOID_PATTERNS = {
      cadera de verdad. Como se recorre de arriba abajo, la raiz llegaria
      antes y se quedaria el rol, dejando fuera a la pelvis. */
   hips:          [/^hips?$/, /^pelvis$/, /^cadera$/],
-  spine:         [/^spine$/, /^spine0?1$/, /^abdomen$/, /^waist$/],
-  chest:         [/^spine0?[23]$/, /^chest$/, /^upperchest$/, /^torso$/, /^ribcage$/],
+  spine:         [/^spine$/, /^spine1$/, /^abdomen$/, /^waist$/],
+  chest:         [/^spine[23]$/, /^chest$/, /^upperchest$/, /^torso$/, /^ribcage$/],
   neck:          [/^neck0?1?$/, /^cuello$/],
   head:          [/^head$/, /^cabeza$/],
   /* 'shldr' abreviado SI (es el brazo en Daz), 'shoulder' entero NO: ahi es
@@ -5207,17 +5218,8 @@ const HUMANOID_PATTERNS = {
 };
 
 function roleOfBone(rawName){
-  /* Se prueba primero conservando el numero final ("spine01" -> pecho) y
-     luego sin el, que es la forma que salva los nombres deduplicados por
-     GLTFLoader ("Hips_1" -> "hips"). */
-  const conNum = normBoneName(rawName, true);
-  if(conNum){
-    for(const role in HUMANOID_PATTERNS)
-      for(const re of HUMANOID_PATTERNS[role])
-        if(re.test(conNum)) return role;
-  }
   const n = normBoneName(rawName);
-  if(!n || n===conNum) return null;
+  if(!n) return null;
   for(const role in HUMANOID_PATTERNS){
     for(const re of HUMANOID_PATTERNS[role]){
       if(re.test(n)) return role;
@@ -5275,12 +5277,24 @@ function attachGLBFighter(rig, gltfScene, opts){
      saber que roles faltan no basta para arreglarlo: hay que ver como se
      llaman de verdad los huesos del archivo. */
   const sinRol = [];
+  const columnaLibre = [];   // huesos de columna que no se quedaron ningun rol
   skinRoot.traverse(o=>{
     if(!o.isBone) return;
     const role = roleOfBone(o.name);
     if(role && !found[role]) found[role] = o;
+    else if(role==='spine'||role==='chest') columnaLibre.push(o);
     else if(!role && sinRol.length<40) sinRol.push(o.name);
   });
+  /* PECHO POR JERARQUIA. En rigs con la columna numerada (Unreal: spine_01,
+     spine_02, spine_03) todos los eslabones normalizan al mismo nombre, asi
+     que el primero se queda 'spine' y el pecho quedaba sin hueso: el tronco
+     se doblaba de una pieza. Si falta, se coge el eslabon de columna sobrante
+     mas profundo, que es justo el de arriba. */
+  if(!found.chest && columnaLibre.length){
+    let mejor=null, prof=-1;
+    for(const o of columnaLibre){ const d=depthOf(o); if(d>prof){prof=d;mejor=o;} }
+    if(mejor) found.chest = mejor;
+  }
   if(!found.hips) throw new Error('no se reconocio un esqueleto humanoide en el GLB '+
     '(falta el hueso de cadera/hips). Huesos del modelo: '+
     (sinRol.slice(0,12).join(', ')||'ninguno')+(sinRol.length>12?'…':''));
@@ -5357,17 +5371,51 @@ function attachGLBFighter(rig, gltfScene, opts){
     const t=roleRig[a]; roleRig[a]=roleRig[b]; roleRig[b]=t;
   }
 
-  /* SEGMENTOS: para cada hueso del GLB se guarda hacia donde apunta en su
-     pose de bind, EN SU PROPIO ESPACIO LOCAL (constante). Cada fotograma
-     basta con girar el hueso para que esa direccion local coincida con la
-     direccion que tiene el hueso equivalente del rig de control.
+  /* SEGMENTOS: por cada hueso se guarda su MARCO DE BIND completo y cada
+     fotograma se reconstruye el marco equivalente a partir del rig de
+     control. Esto es inmune a que las poses de referencia no coincidan
+     (T-pose vs A-pose vs el rig del juego sin posar): no se copian
+     rotaciones, se copian MARCOS.
 
-     Esto es inmune a que las poses de referencia no coincidan (T-pose vs
-     A-pose vs el rig del juego sin posar): no se copian rotaciones, se
-     copian DIRECCIONES. Lo unico que no se transfiere es el giro sobre el
-     propio eje del hueso (torsion), que se queda en el valor de bind. */
+     POR QUE UN MARCO Y NO SOLO LA DIRECCION: antes se giraba el hueso con
+     setFromUnitVectors(direccionBind, direccionObjetivo), que da la rotacion
+     MINIMA entre dos vectores. Eso clava la direccion del hueso, pero deja
+     LIBRE el giro sobre su propio eje, y cada hueso acababa con una torsion
+     arbitraria distinta. Medido en un Mixamo real: las direcciones salian a
+     0 grados de error, pero un pie apuntaba a -X y el otro a +X (o sea, cada
+     pie para un lado), la cabeza caia 21 grados y las manos quedaban
+     giradas. Fijando ademas un eje de referencia, la torsion queda
+     determinada y los dos lados salen coherentes.
+
+     El eje de referencia se toma en el espacio del ROOT del luchador (no del
+     mundo) para que no dependa de hacia donde mire el personaje. */
+  const _mb=new THREE.Matrix4(), _u=new THREE.Vector3(), _v=new THREE.Vector3(), _w=new THREE.Vector3();
+  /* Marco ortonormal a partir de la direccion del hueso y un eje de apoyo.
+     Devuelve el quaternion de ese marco. */
+  function marco(dir, ref, out){
+    _u.copy(dir).normalize();
+    _v.copy(ref).addScaledVector(_u, -ref.dot(_u));
+    if(_v.lengthSq()<1e-8){            // dir y ref casi paralelos: eje de repuesto
+      _v.set(_u.y, -_u.x, 0);
+      if(_v.lengthSq()<1e-8) _v.set(0,0,1);
+      _v.addScaledVector(_u, -_v.dot(_u));
+    }
+    _v.normalize(); _w.copy(_u).cross(_v).normalize();
+    _mb.makeBasis(_u,_v,_w);
+    return out.setFromRotationMatrix(_mb);
+  }
+  /* Eje de apoyo por hueso: se elige UNA VEZ en el bind el que menos se
+     parece a la direccion del hueso, y se conserva. Si se recalculara cada
+     frame podria cambiar a mitad de animacion y el miembro daria un tiron. */
+  const _EJES=[new THREE.Vector3(0,0,1), new THREE.Vector3(0,1,0), new THREE.Vector3(1,0,0)];
+  const ejeApoyo=(dir)=>{
+    let mejor=_EJES[0], v=2;
+    for(const e of _EJES){ const d=Math.abs(e.dot(dir)); if(d<v){v=d;mejor=e;} }
+    return mejor.clone();
+  };
   const segs=[], missing=[], byRole={};
   const wp=new THREE.Vector3(), wc=new THREE.Vector3(), qb=new THREE.Quaternion();
+  const qRoot=new THREE.Quaternion(), qRootI=new THREE.Quaternion();
   const poseCorr = opts.pose||{};
   const _e=new THREE.Euler(), G2=Math.PI/180;
   const corrDe=(role)=>{
@@ -5397,13 +5445,19 @@ function attachGLBFighter(rig, gltfScene, opts){
       dst.getWorldPosition(wp); child.getWorldPosition(wc);
       if(wp.distanceTo(wc)<1e-6) continue;
       dst.getWorldQuaternion(qb);
-      const bindDir = wc.clone().sub(wp).normalize().applyQuaternion(qb.clone().invert()).normalize();
       // en el rig de control, la referencia es la posicion de esa misma
       // articulacion y la de la siguiente de la cadena
       const srcNext=[];
       for(let j=i+1;j<chain.length;j++){ const o=rig[roleRig[chain[j]]]; if(o) srcNext.push(o); }
       if(!srcNext.length) continue;
-      segs.push({role, dst, bindDir, src, srcNext, corr:corrDe(role), depth:depthOf(dst)});
+      /* Todo el marco de bind se guarda en espacio del ROOT. */
+      rig.root.getWorldQuaternion(qRoot); qRootI.copy(qRoot).invert();
+      const dirBind = wc.clone().sub(wp).normalize().applyQuaternion(qRootI).normalize();
+      const eje = ejeApoyo(dirBind);
+      const mBindInv = marco(dirBind, eje, new THREE.Quaternion()).invert();
+      const qBindRoot = qRootI.clone().multiply(qb);   // orientacion de bind, en el root
+      segs.push({role, dst, src, srcNext, eje, mBindInv, qBindRoot,
+                 corr:corrDe(role), depth:depthOf(dst)});
     }
   }
   segs.sort((a,b)=>a.depth-b.depth);   // padres antes que hijos
@@ -5413,7 +5467,8 @@ function attachGLBFighter(rig, gltfScene, opts){
   rig.pel.traverse(o=>{ if(o.isMesh) o.visible=false; });
 
   const tmpV=new THREE.Vector3(), dW=new THREE.Vector3(), pPos=new THREE.Vector3(),
-        cPos=new THREE.Vector3(), qp=new THREE.Quaternion(), dL=new THREE.Vector3();
+        cPos=new THREE.Vector3(), qp=new THREE.Quaternion(), dL=new THREE.Vector3(),
+        qRun=new THREE.Quaternion(), qT=new THREE.Quaternion();
   const hips = found.hips;
 
   /* Se llama al final de apply(), cuando las matrices del rig de control ya
@@ -5446,13 +5501,19 @@ function attachGLBFighter(rig, gltfScene, opts){
       }
       if(!ok) continue;
       dW.copy(cPos).sub(pPos).normalize();
-      // pasar esa direccion al espacio del PADRE del hueso GLB
+      /* MARCO OBJETIVO (en espacio del root) a partir de la direccion que
+         tiene el hueso en el rig de control, con el MISMO eje de apoyo que se
+         eligio en el bind. Al reconstruir el marco entero, y no solo la
+         direccion, la torsion queda fijada y deja de ser arbitraria. */
+      rig.root.getWorldQuaternion(qRoot); qRootI.copy(qRoot).invert();
+      dL.copy(dW).applyQuaternion(qRootI).normalize();
+      marco(dL, sg.eje, qRun);
+      // orientacion final del hueso: mundo -> root -> marco -> bind
+      qT.copy(qRun).multiply(sg.mBindInv).multiply(sg.qBindRoot);
+      qT.premultiply(qRoot);                       // de vuelta al mundo
       sg.dst.parent.getWorldQuaternion(qp);
-      dL.copy(dW).applyQuaternion(qp.invert()).normalize();
-      sg.dst.quaternion.setFromUnitVectors(sg.bindDir, dL);
-      /* la alineacion por direccion no fija el giro sobre el propio eje del
-         hueso: esa parte (y cualquier desfase que quede) viene de la
-         correccion ajustada a mano y guardada con el personaje */
+      sg.dst.quaternion.copy(qp.invert()).multiply(qT);   // y al local del padre
+      // la correccion manual del creador se sigue aplicando al final
       sg.dst.quaternion.multiply(sg.corr);
       sg.dst.updateMatrixWorld(true);
     }

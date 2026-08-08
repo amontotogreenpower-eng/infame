@@ -5367,26 +5367,26 @@ function attachGLBFighter(rig, gltfScene, opts){
   /* ORIENTACION: el rig del juego separa los miembros en Z (delantero /
      trasero respecto a la camara) mientras que la mayoria de esqueletos
      humanoides usan X como eje izquierda-derecha. Sin corregirlo el
-     luchador aparece girado 90 grados. Se mide el vector hombro izq ->
-     hombro der en ambos esqueletos y se gira el conjunto en Y lo justo
-     para que coincidan (tambien arregla el caso de 180 grados, porque el
-     vector va dirigido de un lado concreto al otro). */
-  /* El hombro IZQUIERDO del modelo tiene que acabar sobre el hombro izquierdo
-     del rig, que es el TRASERO (armUB, en -Z), no el delantero: ver la nota
-     de RIG_TO_ROLE. Con el emparejamiento al reves el modelo entraba girado
-     180 grados, o sea de espaldas. */
-  if(opts.autoYaw!==false && found.leftUpperArm && found.rightUpperArm && rig.armUF && rig.armUB){
-    const gl=new THREE.Vector3(), gr=new THREE.Vector3(), rl=new THREE.Vector3(), rr=new THREE.Vector3();
+     luchador aparece girado 90 grados. Se gira el conjunto en Y lo justo
+     para que el eje hombro-izquierdo -> hombro-derecho del modelo caiga sobre
+     la derecha del personaje.
+
+     LA REFERENCIA ES FIJA, +Z, y NO se mide sobre los brazos del rig. Medido:
+     en el espacio del root el personaje SIEMPRE mira a +X (luego su derecha
+     es siempre +Z), pero el rig coloca el miembro delantero en z=+zG*facing,
+     asi que armUF cae a un lado u otro segun hacia donde mire. Tomando los
+     brazos del rig como referencia, el giro salia distinto para P1 (facing 1)
+     y para P2 (facing -1) y el MISMO MODELO encajaba de forma distinta segun
+     lo eligieras para ti o como rival. */
+  if(opts.autoYaw!==false && found.leftUpperArm && found.rightUpperArm){
+    const gl=new THREE.Vector3(), gr=new THREE.Vector3();
     found.leftUpperArm.getWorldPosition(gl);  found.rightUpperArm.getWorldPosition(gr);
-    rig.armUB.getWorldPosition(rl);           rig.armUF.getWorldPosition(rr);
     rig.root.worldToLocal(gl); rig.root.worldToLocal(gr);
-    rig.root.worldToLocal(rl); rig.root.worldToLocal(rr);
-    const a=new THREE.Vector3(gr.x-gl.x,0,gr.z-gl.z);
-    const b=new THREE.Vector3(rr.x-rl.x,0,rr.z-rl.z);
-    if(a.lengthSq()>1e-8 && b.lengthSq()>1e-8){
-      a.normalize(); b.normalize();
-      // angulo con signo alrededor de Y para llevar 'a' sobre 'b'
-      wrapper.rotation.y += Math.atan2(a.z*b.x-a.x*b.z, a.x*b.x+a.z*b.z);
+    const a=new THREE.Vector3(gr.x-gl.x,0,gr.z-gl.z);   // izquierda -> derecha del modelo
+    if(a.lengthSq()>1e-8){
+      a.normalize();
+      // angulo con signo alrededor de Y para llevar 'a' sobre (0,0,1)
+      wrapper.rotation.y += Math.atan2(-a.x, a.z);
       rig.root.updateMatrixWorld(true);
     }
   }
@@ -5405,6 +5405,18 @@ function attachGLBFighter(rig, gltfScene, opts){
   if(opts.swap) for(const [a,b] of SWAP_ROLES){
     const t=roleRig[a]; roleRig[a]=roleRig[b]; roleRig[b]=t;
   }
+  /* ...y ADEMAS, el lado depende de hacia donde mire. ROLE_TO_RIG describe el
+     caso facing=1 (F = derecha del personaje); al mirar al otro lado el rig
+     intercambia los miembros delantero y trasero, asi que el hueso que manda
+     sobre cada lado del modelo tambien se intercambia. Resolverlo AL MONTAR
+     era el motivo de que el mismo GLB encajara distinto como jugador y como
+     rival: se resuelve en cada frame. */
+  const _FB={armUF:'armUB',armUB:'armUF',armLF:'armLB',armLB:'armLF',handF:'handB',handB:'handF',
+             legUF:'legUB',legUB:'legUF',legLF:'legLB',legLB:'legLF',footF:'footB',footB:'footF'};
+  const huesoDe=(role,facing)=>{
+    const n=roleRig[role]; if(!n) return null;
+    return rig[(facing===-1 && _FB[n]) ? _FB[n] : n];
+  };
 
   /* SEGMENTOS: por cada hueso se guarda su MARCO DE BIND completo y cada
      fotograma se reconstruye el marco equivalente a partir del rig de
@@ -5468,7 +5480,9 @@ function attachGLBFighter(rig, gltfScene, opts){
       // hueso hijo del GLB: el siguiente de la cadena que exista
       let child=null;
       for(let j=i+1;j<chain.length;j++){ if(found[chain[j]]){ child=found[chain[j]]; break; } }
-      const src=rig[roleRig[role]];
+      // el hueso del rig que manda depende de facing: se resuelve por frame.
+      // aqui solo se comprueba que EXISTE, para decidir si es punta de cadena.
+      const src=huesoDe(role,1);
       if(!child || !src){
         /* PUNTA DE CADENA (mano, pie, cabeza): no tiene hijo al que apuntar,
            asi que conserva su rotacion de bind; solo se le puede aplicar la
@@ -5482,16 +5496,18 @@ function attachGLBFighter(rig, gltfScene, opts){
       dst.getWorldQuaternion(qb);
       // en el rig de control, la referencia es la posicion de esa misma
       // articulacion y la de la siguiente de la cadena
-      const srcNext=[];
-      for(let j=i+1;j<chain.length;j++){ const o=rig[roleRig[chain[j]]]; if(o) srcNext.push(o); }
-      if(!srcNext.length) continue;
+      /* Se guardan los ROLES siguientes de la cadena, no los huesos: cual les
+         corresponde depende de facing y se resuelve en cada frame. */
+      const rolesNext=[];
+      for(let j=i+1;j<chain.length;j++){ if(huesoDe(chain[j],1)) rolesNext.push(chain[j]); }
+      if(!rolesNext.length) continue;
       /* Todo el marco de bind se guarda en espacio del ROOT. */
       rig.root.getWorldQuaternion(qRoot); qRootI.copy(qRoot).invert();
       const dirBind = wc.clone().sub(wp).normalize().applyQuaternion(qRootI).normalize();
       const eje = ejeApoyo(dirBind);
       const mBindInv = marco(dirBind, eje, new THREE.Quaternion()).invert();
       const qBindRoot = qRootI.clone().multiply(qb);   // orientacion de bind, en el root
-      segs.push({role, dst, src, srcNext, eje, mBindInv, qBindRoot,
+      segs.push({role, dst, rolesNext, eje, mBindInv, qBindRoot,
                  corr:corrDe(role), depth:depthOf(dst)});
     }
   }
@@ -5516,6 +5532,8 @@ function attachGLBFighter(rig, gltfScene, opts){
      refresca su subarbol, para que los huesos intermedios NO mapeados
      (hombros, Spine1, dedos...) arrastren bien a sus hijos. */
   rig._retarget = function(){
+    // hacia donde mira el luchador en este frame (apply lo deja en _facing)
+    const fac = (rig._facing===-1) ? -1 : 1;
     // la cadera del GLB sigue a la pelvis del rig de control
     tmpV.setFromMatrixPosition(rig.pel.matrixWorld);
     tmpV.y += yOff;                        // correccion de altura (ver arriba)
@@ -5532,12 +5550,18 @@ function attachGLBFighter(rig, gltfScene, opts){
         sg.dst.updateMatrixWorld(true);
         continue;
       }
-      // direccion real del hueso en el rig de control: de esta articulacion
-      // a la siguiente que no este pegada encima (evita segmentos de long. 0)
-      sg.src.getWorldPosition(pPos);
+      /* direccion real del hueso en el rig de control: de esta articulacion a
+         la siguiente que no este pegada encima (evita segmentos de long. 0).
+         Que hueso del rig corresponde a cada rol se resuelve AQUI, con el
+         facing del frame, porque el rig intercambia los miembros delantero y
+         trasero al mirar al otro lado. */
+      const src=huesoDe(sg.role,fac);
+      if(!src) continue;
+      src.getWorldPosition(pPos);
       let ok=false;
-      for(let j=0;j<sg.srcNext.length;j++){
-        sg.srcNext[j].getWorldPosition(cPos);
+      for(let j=0;j<sg.rolesNext.length;j++){
+        const nx=huesoDe(sg.rolesNext[j],fac); if(!nx) continue;
+        nx.getWorldPosition(cPos);
         if(pPos.distanceToSquared(cPos)>1e-8){ ok=true; break; }
       }
       if(!ok) continue;
@@ -6236,6 +6260,7 @@ class Rig{
   apply(p,facing,groundY,plant){
     const R=v=>(180-v)*D, rel=(a,b)=>(a-b)*D;
     // postura a tres cuartos: el pecho mira al rival pero se abre a la cámara
+    this._facing=facing;          // lo necesita _retarget (cuerpos GLB)
     this.root.rotation.y=facing===1?-YAW:Math.PI+YAW;
     // el lado "delantero" siempre queda del lado de la cámara
     const zG=this.gapZ||this.zA;this.holdAF.position.z=zG*facing;this.holdAB.position.z=-zG*facing;
@@ -9139,6 +9164,27 @@ function drawCrawl(lines,cx,y,w,h,size){
   });
   hx.restore();
 }
+/* SELLO DE VERSION: fecha y hora del ultimo cambio del codigo, abajo a la
+   izquierda de la pantalla principal. Sale de document.lastModified, que es la
+   fecha de modificacion de este mismo archivo: como todo el juego vive en
+   index.html, esa fecha ES la del ultimo cambio, y se actualiza sola en cada
+   publicacion sin tener que mantener ningun numero a mano.
+   Se calcula una vez, no en cada fotograma. */
+const SELLO_CODIGO=(function(){
+  try{
+    const d=new Date(document.lastModified);
+    if(isNaN(d.getTime())) return String(document.lastModified||'');
+    const p=n=>String(n).padStart(2,'0');
+    return p(d.getDate())+'/'+p(d.getMonth()+1)+'/'+d.getFullYear()+
+           ' · '+p(d.getHours())+':'+p(d.getMinutes());
+  }catch(e){ return ''; }
+})();
+function drawSelloCodigo(){
+  if(!SELLO_CODIGO) return;
+  // mismo tono que las demas indicaciones: el morado apagado se perdia
+  // sobre los escenarios de suelo claro
+  txt('código: '+SELLO_CODIGO,10,H-12,11,'#c9bde8','left');
+}
 function drawTitle(){
   const g=hx.createLinearGradient(0,0,0,H);
   g.addColorStop(0,'rgba(5,4,12,.86)');g.addColorStop(.55,'rgba(5,4,12,.25)');g.addColorStop(1,'rgba(5,4,12,.6)');
@@ -9158,6 +9204,7 @@ function drawTitle(){
   const ST=game.stats;
   if(ST.wins||ST.best||ST.fat)txt('SESIÓN · VICTORIAS '+ST.wins+' · MEJOR RACHA '+ST.best+' · FATALITIES '+ST.fat,
     W/2,188+game.menu.length*27+36,11,'#9a8cc0');
+  drawSelloCodigo();
 }
 function drawSplash(){
   const tu=document.getElementById('touchUI');if(tu)tu.style.display='none';
@@ -9181,6 +9228,7 @@ function drawSplash(){
   txt('★ ARCADE EDITION ★',W/2,H-82,15,'hsl('+((tp*.12)%360)+',85%,66%)');
   if((game.splashT||0)>24 && Math.floor(t/430)%2)
     txt(IS_TOUCH?'TOCA PARA EMPEZAR':'PULSA CUALQUIER TECLA',W/2,H-40,20,'#fff');
+  drawSelloCodigo();
 }
 function drawSelect(){
   const t=performance.now();

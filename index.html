@@ -7840,11 +7840,15 @@ class Fighter{
 
        Tres ritmos primos entre si (bote, peso, respiracion) para que el bucle
        no se lea como un ciclo corto repitiendose. */
-    /* Cerca del rival = en guardia; lejos = relajado. La referencia es el
-       alcance util de un golpe: pegado (menos de 150 px de juego) guardia
-       entera, y a partir de 330 px, brazos abajo. */
+    /* Cerca del rival = en guardia; lejos = relajado.
+       LOS UMBRALES SALEN DE MEDIR, no de suponer: los luchadores arrancan el
+       asalto a 384 px y pelean sobre los 341. Con el corte anterior (relajado
+       a partir de 330) estaban relajados PRACTICAMENTE SIEMPRE, incluso al
+       empezar la pelea, con los brazos caidos y abiertos. Ahora la guardia es
+       lo normal en distancia de combate y solo se relaja cuando de verdad
+       estan separados. */
     const dRival=this.opp?Math.abs(this.opp.x-this.x):999;
-    const g=Math.max(0,Math.min(1,(330-dRival)/180));
+    const g=Math.max(0,Math.min(1,(620-dRival)/240));
     const bo=(1-Math.cos(this.t*.105))*.5;   // 0..1 bote de boxeador
     const pe=Math.sin(this.t*.041);          // el peso pasa de una pierna a otra
     const re=Math.sin(this.t*.027);          // respiracion, la mas lenta
@@ -9013,7 +9017,20 @@ function txt(s,x,y,size,col,align='center',shadow=true){
 function hexA(h,a){if(!h||h[0]!=='#')return h||'rgba(0,0,0,0)';const n=parseInt(h.slice(1),16);return 'rgba('+((n>>16)&255)+','+((n>>8)&255)+','+(n&255)+','+a+')';}
 function rr(x,y,w,h,r){r=Math.min(r,w/2,h/2);hx.beginPath();hx.moveTo(x+r,y);hx.arcTo(x+w,y,x+w,y+h,r);hx.arcTo(x+w,y+h,x,y+h,r);hx.arcTo(x,y+h,x,y,r);hx.arcTo(x,y,x+w,y,r);hx.closePath();}
 function panelFrame(x,y,w,h,col){
-  rr(x,y,w,h,10);hx.fillStyle='rgba(8,7,20,.86)';hx.fill();
+  /* Marco de panel: antes era un rectangulo relleno plano con borde de un
+     color. Ahora lleva halo exterior, fondo con degradado y un filo interior
+     claro que le da relieve, ademas de las esquinas de siempre. */
+  hx.save();
+  hx.shadowColor=hexA(col,.55);hx.shadowBlur=18;
+  rr(x,y,w,h,10);hx.fillStyle='rgba(8,7,20,.9)';hx.fill();
+  hx.shadowBlur=0;
+  const pg=hx.createLinearGradient(0,y,0,y+h);
+  pg.addColorStop(0,'rgba(255,255,255,.09)');pg.addColorStop(.45,'rgba(255,255,255,.02)');
+  pg.addColorStop(1,'rgba(0,0,0,.28)');
+  rr(x,y,w,h,10);hx.fillStyle=pg;hx.fill();
+  rr(x+2.5,y+2.5,w-5,h-5,8);hx.lineWidth=1;hx.strokeStyle='rgba(255,255,255,.16)';hx.stroke();
+  hx.restore();
+  rr(x,y,w,h,10);
   hx.lineWidth=2.5;hx.strokeStyle=col;hx.stroke();
   hx.strokeStyle=hexA(col,.95);hx.lineWidth=3;const c=15;
   hx.beginPath();hx.moveTo(x+7,y+7+c);hx.lineTo(x+7,y+7);hx.lineTo(x+7+c,y+7);hx.stroke();
@@ -9035,20 +9052,63 @@ function wrapText(text,x,y,maxw,size,col,lineH){
   if(line){txt(line,x,y,size,col,'left',false);y+=lineH;}
   return y;
 }
+/* BARRA DE VIDA. Era un rectangulo plano con un borde blanco. Ahora lleva:
+   marco biselado dorado, relleno con degradado, muescas cada 25%, brillo
+   superior, aviso palpitante por debajo del 25% y, sobre todo, BARRA
+   FANTASMA: el trozo que acabas de perder se queda un momento en rojo palido
+   y baja despues, que es como se lee de un vistazo lo que ha dolido el
+   ultimo golpe. */
 function hpBar(x,y,w,h,f,flip){
-  hx.fillStyle='#0a0a12';hx.fillRect(x-3,y-3,w+6,h+6);
-  hx.fillStyle='#4a0d16';hx.fillRect(x,y,w,h);
-  const r=Math.max(0,f.hp)/f.c.hpMax,fw=w*r;
-  hx.fillStyle=r>.5?'#ffd75a':r>.25?'#ff8c1a':'#ff4b3e';
-  hx.fillRect(flip?x+w-fw:x,y,fw,h);
-  hx.fillStyle='rgba(255,255,255,.25)';hx.fillRect(flip?x+w-fw:x,y,fw,h*.35);
-  hx.strokeStyle='#fff';hx.lineWidth=2;hx.strokeRect(x,y,w,h);
-  const my=y+h+8,mw=w*.72,mf=mw*f.meter/100;
-  hx.fillStyle='#0a0a12';hx.fillRect(flip?x+w-mw-2:x-2,my-2,mw+4,12);
-  hx.fillStyle='#1c2a4a';hx.fillRect(flip?x+w-mw:x,my,mw,8);
-  hx.fillStyle=f.meter>=100?(Math.floor(performance.now()/90)%2?'#fff':f.hud):f.hud;
-  hx.fillRect(flip?x+w-mf:x,my,mf,8);
-  txt('SUPER',flip?x+w-mw-8:x+mw+8,my+8,9,f.meter>=100?'#fff':'#6a7a9a',flip?'right':'left',false);
+  const r=Math.max(0,f.hp)/f.c.hpMax, fw=w*r;
+  // fantasma: cae despacio al perder vida, instantaneo al recuperarla
+  if(f._hpG==null)f._hpG=r;
+  f._hpG += (r-f._hpG)*(r<f._hpG?.05:.6);
+  const gw=w*Math.max(0,f._hpG);
+  const bajo=r<.25, pulso=bajo?(.5+.5*Math.sin(performance.now()*.012)):0;
+
+  hx.save();
+  // marco
+  hx.fillStyle='#07060e';hx.fillRect(x-4,y-4,w+8,h+8);
+  const mg=hx.createLinearGradient(0,y-4,0,y+h+4);
+  mg.addColorStop(0,'#ffe89a');mg.addColorStop(.5,'#c9962b');mg.addColorStop(1,'#7a5a12');
+  hx.strokeStyle=mg;hx.lineWidth=2;hx.strokeRect(x-3.5,y-3.5,w+7,h+7);
+  // canal interior
+  hx.fillStyle='#2a0a12';hx.fillRect(x,y,w,h);
+  // fantasma del ultimo mordisco
+  if(gw>fw+.5){hx.fillStyle='rgba(255,90,70,.55)';
+    hx.fillRect(flip?x+w-gw:x+fw,y,gw-fw,h);}
+  // relleno con degradado segun la vida que queda
+  const c1=r>.5?'#ffe98a':r>.25?'#ffb04a':'#ff6a5a';
+  const c2=r>.5?'#ff9c1a':r>.25?'#ff6a1a':'#c41a12';
+  const fg=hx.createLinearGradient(0,y,0,y+h);
+  fg.addColorStop(0,'#fffbe0');fg.addColorStop(.28,c1);
+  fg.addColorStop(.62,c2);fg.addColorStop(1,'#6d1a06');
+  hx.fillStyle=fg;hx.fillRect(flip?x+w-fw:x,y,fw,h);
+  // brillo superior
+  hx.fillStyle='rgba(255,255,255,.28)';hx.fillRect(flip?x+w-fw:x,y,fw,h*.32);
+  // muescas cada cuarto
+  hx.strokeStyle='rgba(0,0,0,.45)';hx.lineWidth=1;
+  for(let i=1;i<4;i++){const mx=Math.round(x+w*i/4)+.5;
+    hx.beginPath();hx.moveTo(mx,y+1);hx.lineTo(mx,y+h-1);hx.stroke();}
+  // aviso de vida baja
+  if(bajo){hx.strokeStyle='rgba(255,60,45,'+(.35+.5*pulso)+')';hx.lineWidth=3;
+    hx.strokeRect(x-2,y-2,w+4,h+4);}
+  hx.strokeStyle='rgba(255,255,255,.85)';hx.lineWidth=1.5;hx.strokeRect(x,y,w,h);
+
+  // ---- barra de super ----
+  const my=y+h+9,mw=w*.72,mf=mw*Math.min(100,f.meter)/100,lleno=f.meter>=100;
+  hx.fillStyle='#07060e';hx.fillRect(flip?x+w-mw-3:x-3,my-3,mw+6,14);
+  hx.fillStyle='#101c33';hx.fillRect(flip?x+w-mw:x,my,mw,8);
+  const sg=hx.createLinearGradient(0,my,0,my+8);
+  if(lleno){const p2=Math.floor(performance.now()/90)%2;
+    sg.addColorStop(0,p2?'#ffffff':'#dff6ff');sg.addColorStop(1,p2?f.hud:'#7fd8ff');}
+  else{sg.addColorStop(0,'#dff6ff');sg.addColorStop(.5,f.hud);sg.addColorStop(1,'#12304f');}
+  hx.fillStyle=sg;hx.fillRect(flip?x+w-mf:x,my,mf,8);
+  hx.strokeStyle=lleno?'#fff':'rgba(255,255,255,.35)';hx.lineWidth=1;
+  hx.strokeRect(flip?x+w-mw:x,my,mw,8);
+  hx.restore();
+  txt(lleno?'¡SUPER!':'SUPER',flip?x+w-mw-9:x+mw+9,my+8,lleno?10:9,
+      lleno?'#fff':'#6a7a9a',flip?'right':'left',false);
 }
 let VIGN=null;
 function hudButtons(){
@@ -9361,9 +9421,18 @@ function drawSelect(){
 
   // cabecera + puntos del roster
   txtArcade(p2turn?'JUGADOR 2 · ELIGE':'ELIGE TU LUCHADOR',W/2,46,28,'#fff0b0',acc);
+  /* Puntos del roster: el elegido late y lleva halo, para que se vea de un
+     vistazo por donde vas sin tener que contar. */
   const N=ROSTER.length, gapd=Math.min(20,560/Math.max(1,N)), x0=W/2-(N-1)*gapd/2;
-  for(let i=0;i<N;i++){const on=i===idx;hx.beginPath();hx.arc(x0+i*gapd,64,on?5:3,0,7);
-    hx.fillStyle=on?acc:'rgba(255,255,255,.25)';hx.fill();}
+  for(let i=0;i<N;i++){
+    const on=i===idx, px=x0+i*gapd;
+    if(on){hx.save();hx.shadowColor=acc;hx.shadowBlur=12;
+      hx.beginPath();hx.arc(px,64,6+Math.sin(t*.008)*.9,0,7);hx.fillStyle=acc;hx.fill();
+      hx.restore();
+      hx.beginPath();hx.arc(px,64,2.2,0,7);hx.fillStyle='#fff';hx.fill();
+    }else{
+      hx.beginPath();hx.arc(px,64,3,0,7);hx.fillStyle='rgba(255,255,255,.28)';hx.fill();
+    }}
 
   // PANEL IZQUIERDO · retrato grande (entra desde la izquierda)
   if(C){
@@ -9373,7 +9442,7 @@ function drawSelect(){
     drawPortrait(C,'general',34,py+6,pw-12,ph-12,acc,null);
     const npy=py+ph-42;
     hx.fillStyle='rgba(5,4,12,.74)';hx.fillRect(34,npy,pw-12,36);
-    txt(C.name,28+pw/2,npy+18,20,acc);
+    txtArcade(C.name,28+pw/2,npy+20,20,'#fff6d0',acc);
     txt(C.tag||'',28+pw/2,npy+32,10,'#d8cff0');
     hx.restore();
   }

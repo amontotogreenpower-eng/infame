@@ -21,7 +21,10 @@ window.__fatal=function(m){try{
    los usa ya cae con gracia por dentro, y este filtro evita que ADEMAS
    salte el aviso bloqueante. NO cubre three.min.js: si esa falla, el juego
    no puede arrancar de verdad y el aviso debe seguir apareciendo. */
-window.__optRes=/(?:src\/Intro\.mp4|src\/luchador\d+[^\/]*\.png|src\/start\.mp3|src\/round\d\.mp3|src\/head-[\w-]+\.glb|src\/ring-[\w-]+\.(?:glb|mp4|jpg)|examples\/js\/loaders\/GLTFLoader\.js|examples\/js\/(?:shaders|postprocessing)\/[\w]+\.js)$/i;
+/* utils/ (SkeletonUtils) va en la lista: el codigo ya lo trata como opcional
+   con su propio catch, pero al no estar aqui su fallo saltaba igualmente como
+   aviso rojo bloqueante encima del juego. */
+window.__optRes=/(?:src\/Intro\.mp4|src\/luchador\d+[^\/]*\.png|src\/start\.mp3|src\/round\d\.mp3|src\/head-[\w-]+\.glb|src\/ring-[\w-]+\.(?:glb|mp4|jpg)|examples\/js\/loaders\/GLTFLoader\.js|examples\/js\/(?:shaders|postprocessing|utils)\/[\w]+\.js)$/i;
 window.addEventListener('error',function(e){
   if(e&&e.target&&e.target!==window&&e.target.tagName){
     var u=e.target.src||e.target.href||'';
@@ -2214,8 +2217,16 @@ let composer=null;   // compositor de bloom (opcional, se carga bajo demanda mas
 /* --- COLOR ---
    outputEncoding sRGB es imprescindible: sin el, r128 saca todo apagado.
    Sin tone mapping filmico los colores salen vivos (look arcade).
-   Si algo queda quemado, baja GFX_LUZ; si quieres mas contraste, sube GFX_EXP. */
-const GFX_LUZ=0.68, GFX_EXP=1.45;
+   Si algo queda quemado, baja GFX_LUZ; si quieres mas contraste, sube GFX_EXP.
+
+   EXPOSICION Y RESPLANDOR VAN JUNTOS. La exposicion no solo aclara: empuja
+   las luces altas por encima del umbral del bloom, y todo lo que lo pasa se
+   convierte en halo. Al subirla a 1.45 y bajar a la vez el umbral a 0.75, los
+   luchadores brillaban tanto que costaba seguir el combate.
+   El brillo TOTAL apenas cambia al volver atras (0.68*1.45 = 0.99 frente a
+   0.85*1.15 = 0.98): lo que se recupera es el margen de las luces altas, que
+   es lo que estaba disparando el resplandor. */
+const GFX_LUZ=0.85, GFX_EXP=1.15;
 /* Empujon de saturacion: 1.0 = sin cambios. Subelo para mas viveza. */
 const GFX_SAT=1.55;   // hiperrealista: colores mas intensos y contrastados
 const GFX_CONT=1.18;  // contraste aumentado para mayor dramaticidad
@@ -4821,15 +4832,14 @@ function loadBloom(){
     if(!THREE.EffectComposer||!THREE.UnrealBloomPass)return;   // caida elegante
     const c=new THREE.EffectComposer(renderer);
     c.addPass(new THREE.RenderPass(scene,cam));
-    /* umbral alto a proposito: solo lo realmente brillante y sin sombrear
-       (glowMat) dispara el bloom; el resto del toon-shading, mas tenue por
-       la iluminacion, no se ve afectado. Fuerza baja: brillo sutil, no un
-       resplandor exagerado que rompa el look arcade. */
-    /* BLOOM HIPERREALISTA: valores ajustados para un look cinematografico.
-       Intensidad alta (0.48) para halos luminosos visibles, radio medio
-       (0.55) para un glow que envuelve sin emborronar, umbral bajo (0.75)
-       para que mas elementos brillen sutilmente. */
-    const bloom=new THREE.UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),0.48,0.55,0.75);
+    /* Umbral ALTO a proposito: solo lo realmente brillante y sin sombrear
+       (glowMat, chispas, supers) dispara el bloom; la piel y la ropa de los
+       luchadores, mas tenues, no se ven afectadas. Fuerza baja: brillo
+       sutil, no un resplandor que tape el combate.
+       Se habia subido la fuerza a 0.48 y bajado el umbral a 0.75, y con eso
+       entraba en el bloom medio personaje: los luchadores resplandecian
+       tanto que costaba jugar. */
+    const bloom=new THREE.UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),0.34,0.5,0.88);
     c.addPass(bloom);
     c.setSize(renderer.domElement.width,renderer.domElement.height);
     composer=c;
@@ -5131,12 +5141,18 @@ function attachImportedBody(rig, C){
 
 /* --- 1. Reconocer huesos humanoides por nombre ---------------- */
 
-// normaliza un nombre de hueso para compararlo: quita el sufijo
-// numerico que anaden algunos exportadores (_09, _057), el prefijo
-// del rig (mixamorig, armature, bip01) y cualquier separador.
-// OJO: el sufijo _NN se quita ANTES de nada; no se pueden quitar
-// digitos finales en general porque Spine/Spine1/Spine2 son huesos
-// distintos y se confundirian entre si.
+// normaliza un nombre de hueso para compararlo: quita el prefijo del rig
+// (mixamorig, armature, bip01), normaliza el lado (que puede venir delante
+// o detras) y elimina los separadores.
+// OJO: no se pueden quitar digitos finales a lo bruto, porque
+// Spine/Spine1/Spine2 son huesos distintos y se confundirian entre si.
+/* El sufijo "_NN" SIEMPRE se tira. Es tentador conservarlo para distinguir
+   "spine_01" de "spine_03" (columna / pecho en rigs tipo Unreal), pero no se
+   puede: los exportadores lo usan como CONTADOR GLOBAL para desduplicar. Un
+   Mixamo pasado por Sketchfab sale como "Spine_02", "Spine1_03", "Spine2_04",
+   donde el numero no dice nada de la columna, y al interpretarlo se colaba
+   "Spine_02" como pecho y el torso quedaba retorcido. El pecho de los rigs
+   numerados se resuelve despues por jerarquia (ver pechoPorJerarquia). */
 function normBoneName(raw){
   let s = String(raw||'').replace(/_\d+$/,'');
   s = s.toLowerCase();
@@ -5146,32 +5162,59 @@ function normBoneName(raw){
   /* Los demas prefijos SI exigen separador: sin el, "rig" se comeria el
      principio de "rightArm" -> "htarm" y no se reconoceria ningun hueso
      del lado derecho (pasaba con los nombres estilo VRM). */
-  s = s.replace(/^(armature|bip01|bip|rig|def)[:_\-\s|]+/,'');
+  s = s.replace(/^(armature|bip01|bip|rig|def|root)[:_\-\s|]+/,'');
+  /* EL LADO PUEDE IR AL FINAL. "upper_arm.L", "hand_R", "thigh_l"... es como
+     exporta Blender por defecto y como nombran Unreal y media galeria de
+     modelos. Antes solo se entendia el lado como PREFIJO, asi que en esos
+     rigs no se reconocia ni un solo hueso de brazo o pierna: se quedaban
+     clavados en pose de bind (brazos en cruz, piernas rectas) mientras el
+     resto del cuerpo se movia. Aqui el sufijo se pasa al principio para que
+     todo el resto del codigo siga viendo "left..." / "right...". */
+  let side = '';
+  let m = s.match(/[._\-\s|]+(left|right|lft|rgt|l|r)$/);
+  if(m){ side = (m[1][0]==='l') ? 'left' : 'right'; s = s.slice(0, m.index); }
+  else {
+    // ...o al principio como palabra suelta: "Bip01 L Thigh" -> "left thigh"
+    m = s.match(/^(left|right|lft|rgt|l|r)[._\-\s|]+/);
+    if(m){ side = (m[1][0]==='l') ? 'left' : 'right'; s = s.slice(m[0].length); }
+  }
   s = s.replace(/[^a-z0-9]/g,'');
-  return s;
+  return side + s;
 }
 
-// patrones por rol humanoide. El orden importa poco porque los
-// patrones estan anclados (^...$) para no solaparse: p.ej.
-// "leftarm" (brazo) no colisiona con "leftforearm" (antebrazo).
+/* Patrones por rol humanoide. Van anclados (^...$) para no solaparse: p.ej.
+   "leftarm" (brazo) no colisiona con "leftforearm" (antebrazo).
+   El lado admite la forma larga y la corta: normBoneName ya ha dejado
+   "left"/"right" delante cuando venia como sufijo o como palabra suelta,
+   pero hay rigs (Daz: lShldr, lThigh) que lo pegan sin separador.
+   El ORDEN SI IMPORTA entre "upper" y "lower": leftUpperLeg se prueba antes
+   que leftLowerLeg, cuyo "(low|lower)?" es opcional y se comeria "leftleg". */
+const _L='(?:left|l)', _R='(?:right|r)';
+const _re=(s)=>new RegExp('^'+s+'$');
 const HUMANOID_PATTERNS = {
+  /* Sin /^bip01$/: en 3ds Max ese es el hueso RAIZ y "Bip01 Pelvis" es la
+     cadera de verdad. Como se recorre de arriba abajo, la raiz llegaria
+     antes y se quedaria el rol, dejando fuera a la pelvis. */
   hips:          [/^hips?$/, /^pelvis$/, /^cadera$/],
-  spine:         [/^spine$/, /^spine1$/, /^abdomen$/],
-  chest:         [/^spine2$/, /^chest$/, /^upperchest$/, /^torso$/],
-  neck:          [/^neck$/, /^cuello$/],
+  spine:         [/^spine$/, /^spine1$/, /^abdomen$/, /^waist$/],
+  chest:         [/^spine[23]$/, /^chest$/, /^upperchest$/, /^torso$/, /^ribcage$/],
+  neck:          [/^neck0?1?$/, /^cuello$/],
   head:          [/^head$/, /^cabeza$/],
-  leftUpperArm:  [/^left(upper)?arm$/, /^l(upper)?arm$/, /^brazoizq$/],
-  leftLowerArm:  [/^left(fore|lower)arm$/, /^l(fore|lower)arm$/],
-  leftHand:      [/^lefthand$/, /^lhand$/, /^manoizq$/],
-  rightUpperArm: [/^right(upper)?arm$/, /^r(upper)?arm$/, /^brazoder$/],
-  rightLowerArm: [/^right(fore|lower)arm$/, /^r(fore|lower)arm$/],
-  rightHand:     [/^righthand$/, /^rhand$/, /^manoder$/],
-  leftUpperLeg:  [/^left(up|upper)leg$/, /^l(up|upper)leg$/, /^leftthigh$/],
-  leftLowerLeg:  [/^left(low|lower)?leg$/, /^l(low|lower)?leg$/, /^leftshin$/],
-  leftFoot:      [/^leftfoot$/, /^lfoot$/, /^pieizq$/],
-  rightUpperLeg: [/^right(up|upper)leg$/, /^r(up|upper)leg$/, /^rightthigh$/],
-  rightLowerLeg: [/^right(low|lower)?leg$/, /^r(low|lower)?leg$/, /^rightshin$/],
-  rightFoot:     [/^rightfoot$/, /^rfoot$/, /^pieder$/],
+  /* 'shldr' abreviado SI (es el brazo en Daz), 'shoulder' entero NO: ahi es
+     la clavicula (Mixamo, Rigify, Unreal) y, al ir antes que el brazo en la
+     jerarquia, se quedaba el rol y el brazo de verdad no se movia. */
+  leftUpperArm:  [_re(_L+'(?:upper)?arm'), _re(_L+'shldr'), /^brazoizq$/],
+  leftLowerArm:  [_re(_L+'(?:fore|lower)arm'), _re(_L+'elbow')],
+  leftHand:      [_re(_L+'hand'), /^manoizq$/, _re(_L+'wrist')],
+  rightUpperArm: [_re(_R+'(?:upper)?arm'), _re(_R+'shldr'), /^brazoder$/],
+  rightLowerArm: [_re(_R+'(?:fore|lower)arm'), _re(_R+'elbow')],
+  rightHand:     [_re(_R+'hand'), /^manoder$/, _re(_R+'wrist')],
+  leftUpperLeg:  [_re(_L+'(?:up|upper)leg'), _re(_L+'(?:thigh|hip|upperleg)')],
+  leftLowerLeg:  [_re(_L+'(?:low|lower)?leg'), _re(_L+'(?:shin|calf|knee)')],
+  leftFoot:      [_re(_L+'foot'), /^pieizq$/, _re(_L+'ankle')],
+  rightUpperLeg: [_re(_R+'(?:up|upper)leg'), _re(_R+'(?:thigh|hip|upperleg)')],
+  rightLowerLeg: [_re(_R+'(?:low|lower)?leg'), _re(_R+'(?:shin|calf|knee)')],
+  rightFoot:     [_re(_R+'foot'), /^pieder$/, _re(_R+'ankle')],
 };
 
 function roleOfBone(rawName){
@@ -5186,16 +5229,25 @@ function roleOfBone(rawName){
 }
 
 /* Que hueso del rig de INFAME manda sobre que rol humanoide.
-   El rig del juego usa F/B (delantero/trasero respecto a la camara)
-   en vez de izquierda/derecha anatomica: se mapea F->izquierda y
-   B->derecha de forma fija. Como la malla sigue a su hueso, al
-   cambiar de lado el luchador la figura acompana sola. */
+   El rig del juego usa F/B (delantero/trasero respecto a la camara) en vez de
+   izquierda/derecha anatomica, asi que hay que traducir.
+
+   F = DERECHA del personaje, no izquierda. El rig mira al frente por +X y
+   tiene el arriba en +Y, luego su derecha cae en +Z (derecha = frente x
+   arriba), y +Z es justo donde se colocan los miembros delanteros
+   (holdAF.position.z = +zG con facing=1). Estaba al reves, y como la
+   orientacion automatica gira el modelo para que su izquierda coincida con
+   el lado que le digamos, el resultado era un modelo importado MIRANDO HACIA
+   ATRAS, con los muslos torcidos y un brazo cruzado hacia dentro.
+   (Ojo al comprobarlo: la cara del rig NO es el +X del hueso headJ. Las
+   facciones cuelgan de 'head', que va gitado 180 grados en Z sobre headJ, de
+   modo que la cara mira hacia el -X de headJ.) */
 const RIG_TO_ROLE = {
   pel:'hips', abdo:'spine', torso:'chest', neck:'neck', headJ:'head',
-  armUF:'leftUpperArm',  armLF:'leftLowerArm',  handF:'leftHand',
-  armUB:'rightUpperArm', armLB:'rightLowerArm', handB:'rightHand',
-  legUF:'leftUpperLeg',  legLF:'leftLowerLeg',  footF:'leftFoot',
-  legUB:'rightUpperLeg', legLB:'rightLowerLeg', footB:'rightFoot',
+  armUF:'rightUpperArm', armLF:'rightLowerArm', handF:'rightHand',
+  armUB:'leftUpperArm',  armLB:'leftLowerArm',  handB:'leftHand',
+  legUF:'rightUpperLeg', legLF:'rightLowerLeg', footF:'rightFoot',
+  legUB:'leftUpperLeg',  legLB:'leftLowerLeg',  footB:'leftFoot',
 };
 // inverso: rol humanoide -> nombre del hueso en el rig del juego
 const ROLE_TO_RIG = {};
@@ -5230,12 +5282,31 @@ function attachGLBFighter(rig, gltfScene, opts){
 
   // localizar huesos humanoides por nombre
   const found = {};
+  /* Se guardan tambien los nombres SIN reconocer. Cuando un modelo no encaja,
+     saber que roles faltan no basta para arreglarlo: hay que ver como se
+     llaman de verdad los huesos del archivo. */
+  const sinRol = [];
+  const columnaLibre = [];   // huesos de columna que no se quedaron ningun rol
   skinRoot.traverse(o=>{
     if(!o.isBone) return;
     const role = roleOfBone(o.name);
     if(role && !found[role]) found[role] = o;
+    else if(role==='spine'||role==='chest') columnaLibre.push(o);
+    else if(!role && sinRol.length<40) sinRol.push(o.name);
   });
-  if(!found.hips) throw new Error('no se reconocio un esqueleto humanoide en el GLB (no se encontro el hueso de cadera/hips)');
+  /* PECHO POR JERARQUIA. En rigs con la columna numerada (Unreal: spine_01,
+     spine_02, spine_03) todos los eslabones normalizan al mismo nombre, asi
+     que el primero se queda 'spine' y el pecho quedaba sin hueso: el tronco
+     se doblaba de una pieza. Si falta, se coge el eslabon de columna sobrante
+     mas profundo, que es justo el de arriba. */
+  if(!found.chest && columnaLibre.length){
+    let mejor=null, prof=-1;
+    for(const o of columnaLibre){ const d=depthOf(o); if(d>prof){prof=d;mejor=o;} }
+    if(mejor) found.chest = mejor;
+  }
+  if(!found.hips) throw new Error('no se reconocio un esqueleto humanoide en el GLB '+
+    '(falta el hueso de cadera/hips). Huesos del modelo: '+
+    (sinRol.slice(0,12).join(', ')||'ninguno')+(sinRol.length>12?'…':''));
 
   // los SkinnedMesh desaparecen a veces al salir de camara porque su
   // caja se calcula en pose de bind, no deformada
@@ -5278,10 +5349,14 @@ function attachGLBFighter(rig, gltfScene, opts){
      hombro der en ambos esqueletos y se gira el conjunto en Y lo justo
      para que coincidan (tambien arregla el caso de 180 grados, porque el
      vector va dirigido de un lado concreto al otro). */
+  /* El hombro IZQUIERDO del modelo tiene que acabar sobre el hombro izquierdo
+     del rig, que es el TRASERO (armUB, en -Z), no el delantero: ver la nota
+     de RIG_TO_ROLE. Con el emparejamiento al reves el modelo entraba girado
+     180 grados, o sea de espaldas. */
   if(opts.autoYaw!==false && found.leftUpperArm && found.rightUpperArm && rig.armUF && rig.armUB){
     const gl=new THREE.Vector3(), gr=new THREE.Vector3(), rl=new THREE.Vector3(), rr=new THREE.Vector3();
     found.leftUpperArm.getWorldPosition(gl);  found.rightUpperArm.getWorldPosition(gr);
-    rig.armUF.getWorldPosition(rl);           rig.armUB.getWorldPosition(rr);
+    rig.armUB.getWorldPosition(rl);           rig.armUF.getWorldPosition(rr);
     rig.root.worldToLocal(gl); rig.root.worldToLocal(gr);
     rig.root.worldToLocal(rl); rig.root.worldToLocal(rr);
     const a=new THREE.Vector3(gr.x-gl.x,0,gr.z-gl.z);
@@ -5309,17 +5384,51 @@ function attachGLBFighter(rig, gltfScene, opts){
     const t=roleRig[a]; roleRig[a]=roleRig[b]; roleRig[b]=t;
   }
 
-  /* SEGMENTOS: para cada hueso del GLB se guarda hacia donde apunta en su
-     pose de bind, EN SU PROPIO ESPACIO LOCAL (constante). Cada fotograma
-     basta con girar el hueso para que esa direccion local coincida con la
-     direccion que tiene el hueso equivalente del rig de control.
+  /* SEGMENTOS: por cada hueso se guarda su MARCO DE BIND completo y cada
+     fotograma se reconstruye el marco equivalente a partir del rig de
+     control. Esto es inmune a que las poses de referencia no coincidan
+     (T-pose vs A-pose vs el rig del juego sin posar): no se copian
+     rotaciones, se copian MARCOS.
 
-     Esto es inmune a que las poses de referencia no coincidan (T-pose vs
-     A-pose vs el rig del juego sin posar): no se copian rotaciones, se
-     copian DIRECCIONES. Lo unico que no se transfiere es el giro sobre el
-     propio eje del hueso (torsion), que se queda en el valor de bind. */
+     POR QUE UN MARCO Y NO SOLO LA DIRECCION: antes se giraba el hueso con
+     setFromUnitVectors(direccionBind, direccionObjetivo), que da la rotacion
+     MINIMA entre dos vectores. Eso clava la direccion del hueso, pero deja
+     LIBRE el giro sobre su propio eje, y cada hueso acababa con una torsion
+     arbitraria distinta. Medido en un Mixamo real: las direcciones salian a
+     0 grados de error, pero un pie apuntaba a -X y el otro a +X (o sea, cada
+     pie para un lado), la cabeza caia 21 grados y las manos quedaban
+     giradas. Fijando ademas un eje de referencia, la torsion queda
+     determinada y los dos lados salen coherentes.
+
+     El eje de referencia se toma en el espacio del ROOT del luchador (no del
+     mundo) para que no dependa de hacia donde mire el personaje. */
+  const _mb=new THREE.Matrix4(), _u=new THREE.Vector3(), _v=new THREE.Vector3(), _w=new THREE.Vector3();
+  /* Marco ortonormal a partir de la direccion del hueso y un eje de apoyo.
+     Devuelve el quaternion de ese marco. */
+  function marco(dir, ref, out){
+    _u.copy(dir).normalize();
+    _v.copy(ref).addScaledVector(_u, -ref.dot(_u));
+    if(_v.lengthSq()<1e-8){            // dir y ref casi paralelos: eje de repuesto
+      _v.set(_u.y, -_u.x, 0);
+      if(_v.lengthSq()<1e-8) _v.set(0,0,1);
+      _v.addScaledVector(_u, -_v.dot(_u));
+    }
+    _v.normalize(); _w.copy(_u).cross(_v).normalize();
+    _mb.makeBasis(_u,_v,_w);
+    return out.setFromRotationMatrix(_mb);
+  }
+  /* Eje de apoyo por hueso: se elige UNA VEZ en el bind el que menos se
+     parece a la direccion del hueso, y se conserva. Si se recalculara cada
+     frame podria cambiar a mitad de animacion y el miembro daria un tiron. */
+  const _EJES=[new THREE.Vector3(0,0,1), new THREE.Vector3(0,1,0), new THREE.Vector3(1,0,0)];
+  const ejeApoyo=(dir)=>{
+    let mejor=_EJES[0], v=2;
+    for(const e of _EJES){ const d=Math.abs(e.dot(dir)); if(d<v){v=d;mejor=e;} }
+    return mejor.clone();
+  };
   const segs=[], missing=[], byRole={};
   const wp=new THREE.Vector3(), wc=new THREE.Vector3(), qb=new THREE.Quaternion();
+  const qRoot=new THREE.Quaternion(), qRootI=new THREE.Quaternion();
   const poseCorr = opts.pose||{};
   const _e=new THREE.Euler(), G2=Math.PI/180;
   const corrDe=(role)=>{
@@ -5349,13 +5458,19 @@ function attachGLBFighter(rig, gltfScene, opts){
       dst.getWorldPosition(wp); child.getWorldPosition(wc);
       if(wp.distanceTo(wc)<1e-6) continue;
       dst.getWorldQuaternion(qb);
-      const bindDir = wc.clone().sub(wp).normalize().applyQuaternion(qb.clone().invert()).normalize();
       // en el rig de control, la referencia es la posicion de esa misma
       // articulacion y la de la siguiente de la cadena
       const srcNext=[];
       for(let j=i+1;j<chain.length;j++){ const o=rig[roleRig[chain[j]]]; if(o) srcNext.push(o); }
       if(!srcNext.length) continue;
-      segs.push({role, dst, bindDir, src, srcNext, corr:corrDe(role), depth:depthOf(dst)});
+      /* Todo el marco de bind se guarda en espacio del ROOT. */
+      rig.root.getWorldQuaternion(qRoot); qRootI.copy(qRoot).invert();
+      const dirBind = wc.clone().sub(wp).normalize().applyQuaternion(qRootI).normalize();
+      const eje = ejeApoyo(dirBind);
+      const mBindInv = marco(dirBind, eje, new THREE.Quaternion()).invert();
+      const qBindRoot = qRootI.clone().multiply(qb);   // orientacion de bind, en el root
+      segs.push({role, dst, src, srcNext, eje, mBindInv, qBindRoot,
+                 corr:corrDe(role), depth:depthOf(dst)});
     }
   }
   segs.sort((a,b)=>a.depth-b.depth);   // padres antes que hijos
@@ -5365,7 +5480,8 @@ function attachGLBFighter(rig, gltfScene, opts){
   rig.pel.traverse(o=>{ if(o.isMesh) o.visible=false; });
 
   const tmpV=new THREE.Vector3(), dW=new THREE.Vector3(), pPos=new THREE.Vector3(),
-        cPos=new THREE.Vector3(), qp=new THREE.Quaternion(), dL=new THREE.Vector3();
+        cPos=new THREE.Vector3(), qp=new THREE.Quaternion(), dL=new THREE.Vector3(),
+        qRun=new THREE.Quaternion(), qT=new THREE.Quaternion();
   const hips = found.hips;
 
   /* Se llama al final de apply(), cuando las matrices del rig de control ya
@@ -5398,13 +5514,19 @@ function attachGLBFighter(rig, gltfScene, opts){
       }
       if(!ok) continue;
       dW.copy(cPos).sub(pPos).normalize();
-      // pasar esa direccion al espacio del PADRE del hueso GLB
+      /* MARCO OBJETIVO (en espacio del root) a partir de la direccion que
+         tiene el hueso en el rig de control, con el MISMO eje de apoyo que se
+         eligio en el bind. Al reconstruir el marco entero, y no solo la
+         direccion, la torsion queda fijada y deja de ser arbitraria. */
+      rig.root.getWorldQuaternion(qRoot); qRootI.copy(qRoot).invert();
+      dL.copy(dW).applyQuaternion(qRootI).normalize();
+      marco(dL, sg.eje, qRun);
+      // orientacion final del hueso: mundo -> root -> marco -> bind
+      qT.copy(qRun).multiply(sg.mBindInv).multiply(sg.qBindRoot);
+      qT.premultiply(qRoot);                       // de vuelta al mundo
       sg.dst.parent.getWorldQuaternion(qp);
-      dL.copy(dW).applyQuaternion(qp.invert()).normalize();
-      sg.dst.quaternion.setFromUnitVectors(sg.bindDir, dL);
-      /* la alineacion por direccion no fija el giro sobre el propio eje del
-         hueso: esa parte (y cualquier desfase que quede) viene de la
-         correccion ajustada a mano y guardada con el personaje */
+      sg.dst.quaternion.copy(qp.invert()).multiply(qT);   // y al local del padre
+      // la correccion manual del creador se sigue aplicando al final
       sg.dst.quaternion.multiply(sg.corr);
       sg.dst.updateMatrixWorld(true);
     }
@@ -5423,7 +5545,7 @@ function attachGLBFighter(rig, gltfScene, opts){
   rig._glbRoot = wrapper;
   rig._retarget();
 
-  return {bones:found, pairs:segs.length, missing, fit};
+  return {bones:found, pairs:segs.length, missing, fit, sinRol};
 }
 
 /* Los loaders de GLB no se cargan al arrancar (bloqueaban el inicio del
@@ -5495,10 +5617,18 @@ function setupGLBBody(rig, C){
     let info;
     try{ info = attachGLBFighter(rig, scene, Object.assign({scale:C.glbScale||1}, C.glbAdjust||{})); }
     catch(err){ aviso(err.message); return; }
-    if(info.missing.length) console.warn('luchador GLB', C.id, '- huesos no encontrados:', info.missing.join(', '));
+    if(info.missing.length) console.warn('luchador GLB', C.id, '- roles sin hueso:', info.missing.join(', '),
+      '| nombres no reconocidos del modelo:', (info.sinRol||[]).join(', '));
     if(typeof crGLBStatus==='function')try{
+      /* Si faltan roles se listan TAMBIEN los nombres reales que trae el
+         modelo: es lo unico que permite ver por que no encajo (p.ej. que el
+         lado va en sufijo, o que son huesos de control). */
       crGLBStatus('Modelo aplicado ('+info.pairs+' segmentos, escala '+info.fit.toFixed(2)+')'+
-        (info.missing.length?'. Huesos no reconocidos: '+info.missing.join(', '):'.'));
+        (info.missing.length
+          ? '. Sin emparejar: '+info.missing.join(', ')+
+            ((info.sinRol&&info.sinRol.length)?' · huesos del modelo: '+info.sinRol.slice(0,10).join(', ')+
+              (info.sinRol.length>10?'…':''):'')
+          : '.'));
     }catch(e){}
   }).catch(err=>aviso(err&&err.message?err.message:String(err)));
 }
@@ -7041,6 +7171,11 @@ class Fighter{
     this.state='idle';this.mv=null;this.mvT=0;this.hitIds=new Set();this.flashT=0;
     this.mvHit=false;this.mvTier=0;this.cmb=0;this.thEsc=0;this.dizzy=0;this.dizN=0;
     this.stun=0;this.blocking=false;this.crouch=false;this.walkPh=0;
+    /* +1 = avanza hacia el rival, -1 = retrocede, 0 = quieto. Avanzar y
+       retroceder no son la misma animacion al reves: al ir hacia atras el
+       cuerpo se echa atras, la guardia sube y el paso se acorta. */
+    this.walkDir=0;
+    this.braceT=0;   // tension de guardia tras encajar/bloquear
     this.dashT=0;this.dashDir=0;this.tapT=0;this.tapDir=0;this.cd=0;
     this.guardWalk=false;
     this.aiT=0;this.plan='none';this.planT=0;this.pose=IDLE;
@@ -7245,7 +7380,7 @@ class Fighter{
       if(this.blob){const w=axW((this.x-480)*K);this.blob.position.set(w.x,.025+stageFloorY(),w.z);}
       return;
     }
-    this.t++;if(this.cd>0)this.cd--;if(this.tapT>0)this.tapT--;
+    this.t++;if(this.cd>0)this.cd--;if(this.tapT>0)this.tapT--;if(this.braceT>0)this.braceT--;
     /* Si pasa un segundo sin encajar nada, la cuenta de golpes se olvida:
        han de ser SEGUIDOS para aturdir. */
     if(this.state!=='hurt'&&this.stun<=0){this.dizT=(this.dizT||0)+1;
@@ -7317,6 +7452,7 @@ class Fighter{
     if(!this.air&&threat&&(mvx===back||(i.down&&(i.left||i.right)&&(i.right?1:-1)===back))){this.blocking=true;mvx=0;}
     if(this.dizzy>0)mvx=0;   // aturdido: no se puede mover
     this.x+=mvx*this.c.speed*(this.guardWalk?.30:1);
+    this.walkDir=(mvx===0||this.air)?0:(mvx===this.facing?1:-1);
     if(mvx!==0&&!this.air)this.walkPh+=(this.guardWalk?.10:.22)*(mvx===this.facing?1:-.85);
     if(this.strafe)this.strafePh=(this.strafePh||0)+.08*this.strafe;   // ciclo de paso lateral
     if(i.up&&!i.alt&&!this.air){this.vy=this.c.jump;sfx.jump();if(mvx!==0)this.vx=mvx*3.6;}
@@ -7383,10 +7519,66 @@ class Fighter{
     if(this.stun>0)return POSE.hurt;
     if(this.mv)return track(this.mv.tr,this.mvT);
     if(this.state==='dash')return POSE.dash;
-    if(this.state==='block')return POSE.block;
-    if(this.state==='blockLow')return POSE.blockLow;
-    if(this.state==='crouch')return POSE.crouch;
-    if(this.air)return this.vy<0?POSE.jump:POSE.fall;
+    /* BLOQUEO: eran tres poses fijas, congeladas mientras se mantenia la
+       tecla. Ahora la guardia tiembla por la tension y se hunde un poco al
+       recibir (braceT), que es lo que hace que aguantar se vea como un
+       esfuerzo y no como una pausa del juego. */
+    if(this.state==='block'||this.state==='blockLow'){
+      const bajo=this.state==='blockLow';
+      const tb=Math.sin(this.t*.55)*.5+Math.sin(this.t*.31)*.5;   // temblor de esfuerzo
+      const br=Math.min(1,this.braceT/12);                        // encaje reciente (0..1)
+      const re=Math.sin(this.t*.05);
+      const base=bajo?POSE.blockLow:POSE.block;
+      return P({py:base.py,
+        torso:base.torso-br*7+re*1.2, head:base.head-br*4-Math.abs(tb)*1.5,
+        headY:tb*2, twist:-br*5, tside:tb*1.2,
+        abdo:(bajo?12:2)-br*3,
+        armUF:base.armUF+tb*2.5-br*6, armLF:base.armLF+tb*3.5-br*9,
+        armUB:base.armUB-tb*2+br*4,   armLB:base.armLB-tb*3+br*6,
+        armAF:-14+tb*2, armAB:14+tb*2,
+        wristF:tb*4, wristB:-tb*3,
+        /* Al encajar, las rodillas ceden y el cuerpo baja: el golpe se nota. */
+        legUF:base.legUF-br*7, legLF:base.legLF+br*9,
+        legUB:base.legUB-br*5, legLB:base.legLB+br*8,
+        legAF:2, legAB:2});
+    }
+    if(this.state==='crouch'){
+      // agachado: respira y se reajusta, no es una foto fija
+      const re=Math.sin(this.t*.055), gd=Math.sin(this.t*.09);
+      return P({py:POSE.crouch.py, torso:24+re*1.8, abdo:14+re*1.2, head:-10-re*1.2,
+        headY:gd*2.5, tside:gd*1.2, hip:gd*1.5,
+        armUF:125+gd*4, armLF:55+gd*6, armUB:215-gd*3, armLB:155-gd*5,
+        armAF:-20, armAB:20, wristF:gd*5, wristB:-gd*4,
+        /* Muy poco recorrido a proposito: con la rodilla tan cerrada, un grado
+           mueve el cuerpo mucho mas que de pie y "respirar" se convertia en
+           hacer sentadillas. */
+        legUF:128-re*.8, legLF:228+re*1, legUB:136-re*.6, legLB:222+re*.8});
+    }
+    /* EN EL AIRE: eran dos poses fijas y el cambio ocurria de golpe al cruzar
+       vy=0, o sea un salto visible justo en el punto mas alto, que es donde
+       mas se mira. Ahora se mezclan de forma continua segun la velocidad
+       vertical: al subir las rodillas se recogen y los brazos suben, en el
+       ápice el cuerpo se estira y al caer las piernas buscan el suelo.
+       'py' se deja como estaba: en el aire no hay plantado de pies y tocarlo
+       moveria el cuerpo respecto a la fisica. */
+    if(this.air){
+      const u=Math.max(-1,Math.min(1,this.vy/14));   // -1 sube · 0 apice · +1 cae
+      const sube=Math.max(0,-u), cae=Math.max(0,u);
+      const ap=1-Math.abs(u);                        // 1 justo en el apice
+      const fl=Math.sin(this.t*.2);                  // el cuerpo no va rigido
+      return P({py:-96,
+        torso:7-u*9+ap*3, head:1+u*5-ap*2, headY:fl*3, tside:fl*1.5, twist:-u*4,
+        /* Brazos: arriba al impulsarse, abiertos para equilibrar al caer. */
+        armUF:110-sube*14+cae*4+fl*3, armLF:30-sube*12+cae*10+fl*4,
+        armUB:220+sube*12-cae*6-fl*3, armLB:170+sube*16-cae*8-fl*4,
+        armAF:-18-cae*10, armAB:18+cae*10,
+        wristF:fl*6, wristB:-fl*5,
+        /* Piernas: recogidas al subir, estiradas buscando suelo al caer. */
+        legUF:148-sube*16+cae*10, legLF:192+sube*26-cae*14+fl*2,
+        legUB:197-sube*6+cae*4,   legLB:227+sube*14-cae*13-fl*2,
+        footAF:-sube*10+cae*6, footAB:-sube*8+cae*5,
+        toeF:cae*8, toeB:cae*6, legAF:2, legAB:2});
+    }
     if(this.dizzy>0){
       // tambaleo: cuerpo suelto, brazos colgando y cabeza girando
       const w=this.t*.09, w2=this.t*.055;
@@ -7420,15 +7612,30 @@ class Fighter{
       const sq=v=>v*v;
       const pushF=gw?sq(Math.max(0,s)):0,  pushB=gw?sq(Math.max(0,-s)):0;
       const heelF=gw?sq(Math.max(0,-s)):0, heelB=gw?sq(Math.max(0,s)):0;
+      /* GUARDIA PARADA (gstand): con s=c=0 todos los terminos del ciclo se
+         anulaban y quedaba una estatua perfecta, justo en el estado en el que
+         mas se mira al personaje (esperando el ataque). Estos tres ritmos
+         sueltos le dan vida sin moverlo del sitio. */
+      const rb=(1-Math.cos(this.t*.115))*.5;      // rebote sobre las piernas
+      const gd=Math.sin(this.t*.082);             // guardia flotante
+      const pe=Math.sin(this.t*.047);             // reparto de peso
+      const q=gw?.35:1;                           // andando, el rebote es del paso
+      const flex=rb*7*q;                          // baja el cuerpo de verdad
+      /* Tambien en guardia: yendo hacia atras el peso se echa atras y la
+         guardia se cierra un poco mas. */
+      const atras=(gw&&this.walkDir<0)?1:0;
       /* Mas agachado, torso inclinado hacia el rival y cabeza recta:
          'head' compensa la inclinacion del torso para que la mirada quede al frente. */
-      return P({py:-68+ab*2,torso:20,abdo:12+s*1.4,head:5,
-        hip:s*4,twist:-s*5,tside:s*1.4,
-        armUF:170-s*4,armLF:26-s*5,armUB:190+s*4,armLB:36+s*5,
-        wristF:-s*5,wristB:s*5,
-        legUF:146+s*12,legLF:200+s*12+swF*15,
+      return P({py:-68+ab*2,torso:20+pe*1.6*q-atras*11,abdo:12+s*1.4,head:5-rb*1.4*q+atras*7,
+        headY:pe*3*q,
+        hip:s*4+pe*2*q,twist:-s*5-pe*2.5*q,tside:s*1.4+pe*1.6*q,
+        armUF:170-s*4+gd*4*q-atras*5,armLF:26-s*5+gd*6*q-atras*12,
+        armUB:190+s*4-gd*3.5*q,armLB:36+s*5-gd*5*q-atras*8,
+        armAF:-30+pe*3*q,armAB:30+pe*3*q,
+        wristF:-s*5+gd*6*q,wristB:s*5-gd*5*q,
+        legUF:146+s*12-flex,legLF:200+s*12+swF*15+flex,
         footAF:-swF*9-heelF*7+pushF*10, toeF:pushF*14,
-        legUB:154-s*12,legLB:206-s*12+swB*15,
+        legUB:154-s*12-flex,legLB:206-s*12+swB*15+flex,
         footAB:-swB*9-heelB*7+pushB*10, toeB:pushB*14});
     }
     if(this.state==='walk'){
@@ -7445,26 +7652,71 @@ class Fighter{
       const sq=v=>v*v;
       const pushF=sq(Math.max(0,s)),  pushB=sq(Math.max(0,-s));   // despegue de punta
       const heelF=sq(Math.max(0,-s)), heelB=sq(Math.max(0,s));    // contacto de talon
-      return P({py:-92+ab*3,torso:8+s*1.2,abdo:6+s*2,head:2,headY:-s*3,
+      /* AVANZAR NO ES RETROCEDER AL REVES. Yendo hacia el rival el cuerpo se
+         echa encima y la zancada se abre; retrocediendo el peso se va atras,
+         la guardia sube a la cara y el paso se acorta y se arrastra. Antes las
+         dos direcciones compartian pose y solo cambiaba el signo de la fase,
+         que es justo lo que hace que el retroceso parezca un video invertido.
+         atras: 0 avanzando -> 1 retrocediendo. */
+      const atras=this.walkDir<0?1:0;
+      const zan=1-atras*.34;                    // zancada mas corta hacia atras
+      /* Rebote del paso. Iba en 'py', que con los pies plantados no mueve
+         nada: la subida y bajada del andar no se veia. Ahora sale de flexionar
+         las dos piernas a la vez, que si baja el cuerpo de verdad. */
+      const bote=(1-ab)*5;
+      return P({py:-92,
+        torso:8+s*1.2-atras*13, abdo:6+s*2-atras*3, head:2+atras*9, headY:-s*3*zan,
         /* La pelvis gira con la zancada y los hombros giran AL REVES. Esa
            contrarrotacion es la firma del andar humano; sin ella el tronco
            va de una pieza y el personaje parece un maniqui. */
-        hip:s*7,twist:-s*9,tside:s*2.2,
-        armUF:152-s*10,armLF:78-s*12,armUB:196+s*12,armLB:158+s*10,
-        armAF:5,armAB:5,wristF:-s*10,wristB:s*10,
-        legUF:180+s*22,legLF:180+s*22+8+swF*30,
-        footAF:-swF*10-heelF*12+pushF*16, toeF:pushF*24,
-        legUB:180-s*22,legLB:180-s*22+8+swB*30,
-        footAB:-swB*10-heelB*12+pushB*16, toeB:pushB*24,
+        hip:s*7*zan,twist:-s*9*zan,tside:s*2.2,
+        /* Retrocediendo los brazos dejan de balancearse y se cierran en
+           guardia: se anda hacia atras protegiendose, no paseando. */
+        armUF:152-s*10*zan-atras*8, armLF:78-s*12*zan-atras*34,
+        armUB:196+s*12*zan-atras*4, armLB:158+s*10*zan-atras*22,
+        armAF:5-atras*22, armAB:5+atras*22,
+        wristF:-s*10*zan, wristB:s*10*zan,
+        legUF:180+s*22*zan-bote, legLF:180+s*22*zan+8+swF*30*zan+bote,
+        footAF:-swF*10-heelF*12+pushF*16, toeF:pushF*24*zan,
+        legUB:180-s*22*zan-bote, legLB:180-s*22*zan+8+swB*30*zan+bote,
+        footAB:-swB*10-heelB*12+pushB*16, toeB:pushB*24*zan,
         legAF:2,legAB:2});
     }
-    const b=Math.sin(this.t*.06);
-    /* Reposo: respiracion repartida por varias articulaciones en vez de un
-       solo balanceo, para que no parezca una estatua con un muelle. */
-    const b2=Math.sin(this.t*.06-.7);
-    return P({py:-92+b*1.6,torso:6+b*1.2,abdo:6+b*.8,head:2-b,headY:b2*1.5,
-      armLF:78+b*4,armLB:158-b*3,armUF:152+b*2,armUB:196-b*1.5,
-      wristF:b2*4,wristB:-b2*3,tside:b2*.8});
+    /* ===== REPOSO DE COMBATE (esperando el ataque) =====
+       Es la pose que mas tiempo se ve, asi que aqui se nota cualquier rigidez.
+
+       OJO CON 'py': con los dos pies plantados NO HACE NADA. El rig recoloca
+       la raiz cada frame para que el pie mas bajo toque el suelo, asi que
+       subir o bajar la pelvis se cancela entero (medido: mover py +-12 deja
+       el pecho exactamente en la misma Y del mundo). El rebote de este reposo
+       iba en py, o sea que no se veia: el personaje solo movia un poco los
+       brazos. El bote de verdad sale de FLEXIONAR muslo y tibia en sentidos
+       opuestos, que baja la cadera dejando los pies clavados.
+
+       Tres ritmos primos entre si (bote, peso, respiracion) para que el bucle
+       no se lea como un ciclo corto repitiendose. */
+    const bo=(1-Math.cos(this.t*.105))*.5;   // 0..1 bote de boxeador
+    const pe=Math.sin(this.t*.041);          // el peso pasa de una pierna a otra
+    const re=Math.sin(this.t*.027);          // respiracion, la mas lenta
+    const gd=Math.sin(this.t*.073);          // los punos nunca quietos
+    const br=Math.min(1,this.braceT/12);     // tension despues de encajar (0..1)
+    const flex=5+bo*9+br*5;                  // flexion de rodilla -> altura real
+    return P({
+      py:-92,
+      torso:6+re*1.4-bo*1.6+br*4, abdo:5+re*1+bo*.8, head:2-re*.9-bo*1.2-br*3,
+      headY:pe*3.5, hip:pe*3.2, twist:-pe*4-br*3, tside:pe*2+re*.5,
+      /* Guardia viva: el brazo de delante hace circulos cortos y el de atras
+         acompana en contrafase; al botar, los dos punos suben un poco. */
+      armUF:152+gd*4.5-pe*2.5-br*10, armLF:78+gd*7-bo*5-br*16,
+      armUB:196-gd*3.5+pe*2.5-br*6,  armLB:158-gd*5.5+bo*4-br*10,
+      armAF:-35+pe*4, armAB:35+pe*4,
+      wristF:gd*7-bo*3, wristB:-gd*6+bo*2,
+      /* Las dos rodillas botan a la vez (si no, el pie de apoyo mas bajo manda
+         y el cuerpo no baja) y ademas cada una carga medio ciclo desfasada. */
+      legUF:176-flex-Math.max(0,pe)*3, legLF:176+flex+Math.max(0,pe)*4,
+      legUB:188-flex+Math.max(0,-pe)*2, legLB:204+flex+Math.max(0,-pe)*4,
+      footAF:-bo*3.5, footAB:-bo*3, legAF:2, legAB:2
+    });
   }
   plantMode(){
     if(this.state==='ko'||this.air)return 'none';
@@ -7562,6 +7814,7 @@ class Fighter{
       this.hp-=Math.max(1,Math.round(src.dmg*.12));
       this.vx=dir*src.push*.5/this.c.weight;this.stun=Math.max(this.stun,8);
       this.meter=Math.min(100,this.meter+4);sfx.block();
+      this.braceT=12;   // la guardia se hunde y se recompone (ver currentPose)
       burst(chest,6,0x8ef0ff,.06);
     }else{
       const sc=Math.max(.34,1-this.cmb*.13)*(this.guardWalk?.55:1);
@@ -7579,6 +7832,10 @@ class Fighter{
       if(src.knockdown||this.air)this.vy=-7.5;
       this.stun=Math.max(this.stun,src.hitstun||14);
       this.meter=Math.min(100,this.meter+6);
+      /* Dura mas que el aturdimiento a proposito: al recuperar el control el
+         luchador sigue recomponiendo la guardia unos frames en vez de volver
+         de golpe a la pose de reposo perfecta. */
+      this.braceT=26;
       game.shake=Math.min(.16,.05+src.dmg*.007);
       game.freeze=Math.min(14,3+Math.round(src.dmg*.5));this.flashT=4;
       burst(chest,src.dmg>=14?14:8,src.dmg>=14?0xffffff:0xffd75a,src.dmg>=14?.11:.08);

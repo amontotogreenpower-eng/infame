@@ -4352,25 +4352,23 @@ function cfgMenuItems(){
 }
 function drawConfigMenu(){
   hx.fillStyle='rgba(6,5,14,.55)';hx.fillRect(0,0,W,H);
-  txt('CONFIGURACIÓN',W/2,120,36,'#ffd75a');
+  txtArcade('CONFIGURACIÓN',W/2,120,36,'#ffd75a','#ff8c1a');
   const CM=cfgMenuItems();
-  CM.forEach((m,i)=>{const on=i===game.gsel;
-    txt((on?'▸ ':'')+m,W/2,200+i*34,on?23:18,on?'#ffd75a':'#c9bde8');});
-  txt('W/S elegir · J confirmar · K volver',W/2,200+CM.length*34+18,12,'#9a8cc0');
+  CM.forEach((m,i)=>menuItem(m,W/2,200+i*34,372,i===game.gsel,'#ffd75a',19));
+  menuHint('W/S elegir · J confirmar · K volver',W/2,200+CM.length*34+18,12);
 }
 function drawWorkshopMenu(){
   hx.fillStyle='rgba(6,5,14,.55)';hx.fillRect(0,0,W,H);
   txtArcade('TALLER',W/2,120,42,'#ffd75a','#ff8c1a');
-  txt('Crea luchadores y diseña sus golpes',W/2,146,13,'#c9bde8');
+  menuHint('Crea luchadores y diseña sus golpes',W/2,148,13);
   const WM=['CREADOR DE PERSONAJES','EDITOR DE GOLPES','PERSONAJES DISPONIBLES','GOLPES DISPONIBLES','VOLVER'];
-  WM.forEach((m,i)=>{const on=i===game.wsel;
-    txt((on?'▸ ':'')+m,W/2,212+i*34,on?23:18,on?'#ffd75a':'#c9bde8');});
-  txt('W/S elegir · J confirmar · K volver',W/2,212+WM.length*34+18,12,'#9a8cc0');
+  WM.forEach((m,i)=>menuItem(m,W/2,212+i*34,372,i===game.wsel,'#ffd75a',19));
+  menuHint('W/S elegir · J confirmar · K volver',W/2,212+WM.length*34+18,12);
 }
 function drawControls(){
   hx.fillStyle='rgba(6,5,14,.9)';hx.fillRect(0,0,W,H);
   txtArcade('CONTROLES',W/2,76,34,'#ffd75a','#ff8c1a');
-  txt('J para reasignar · A/D cambiar de jugador · K volver',W/2,98,12,'#9a8cc0');
+  menuHint('J para reasignar · A/D cambiar de jugador · K volver',W/2,98,12);
   [[CTRL1,'JUGADOR 1',W*.28,0],[CTRL2,'JUGADOR 2',W*.72,9]].forEach(([C,tit,cx,off])=>{
     txt(tit,cx,132,17,'#8ef0ff');
     CTRL_ROWS.forEach((row,i)=>{
@@ -4383,29 +4381,27 @@ function drawControls(){
     });
   });
   const yR=164+9*30+16;
-  txt((game.cfsel===18?'▸ ':'')+'RESTABLECER POR DEFECTO',W/2,yR,17,game.cfsel===18?'#ff9a3e':'#c9bde8');
-  txt((game.cfsel===19?'▸ ':'')+'VOLVER',W/2,yR+30,17,game.cfsel===19?'#ffd75a':'#c9bde8');
+  menuItem('RESTABLECER POR DEFECTO',W/2,yR,300,game.cfsel===18,'#ff9a3e',17);
+  menuItem('VOLVER',W/2,yR+32,300,game.cfsel===19,'#ffd75a',17);
 }
 function drawChampMenu(){
   hx.fillStyle='rgba(6,5,14,.55)';hx.fillRect(0,0,W,H);
   txtArcade('CAMPEONATOS',W/2,124,42,'#ffd75a','#ff8c1a');
   const CM=['TORNEO','ELIMINATORIA','CUSTOM','VOLVER'];
-  CM.forEach((m,i)=>{const on=i===game.csel;
-    txt((on?'▸ ':'')+m,W/2,200+i*34,on?24:19,on?'#ffd75a':'#c9bde8');});
-  txt('W/S elegir · J confirmar · K volver',W/2,200+CM.length*34+18,12,'#9a8cc0');
+  CM.forEach((m,i)=>menuItem(m,W/2,200+i*34,340,i===game.csel,'#ffd75a',19));
+  menuHint('W/S elegir · J confirmar · K volver',W/2,200+CM.length*34+18,12);
 }
 function drawCustomList(){
   hx.fillStyle='rgba(6,5,14,.9)';hx.fillRect(0,0,W,H);
   txtArcade('CAMPEONATOS · CUSTOM',W/2,104,32,'#ffd75a','#ff8c1a');
-  txt('Carpeta web «custom/» (index.json) · o elige una carpeta local',W/2,132,13,'#9a8cc0');
+  menuHint('Carpeta web «custom/» (index.json) · o elige una carpeta local',W/2,134,13);
   const rows=['ELEGIR CARPETA…'].concat(CUSTLIST.map(c=>c.label));
   const start=Math.max(0,Math.min(game.clsel-4,rows.length-9));
-  rows.slice(start,start+9).forEach((m,i)=>{const idx=start+i,on=idx===game.clsel;
-    txt((on?'▸ ':'')+m,W/2,176+i*30,on?20:16,
-      idx===0?(on?'#8aff9a':'#5ac07a'):(on?'#ffd75a':'#e8e2ff'));});
-  if(!CUSTLIST.length)txt('(aún no hay torneos cargados)',W/2,H-118,13,'#8878a8');
-  if(game.custMsg)txt(game.custMsg,W/2,H-92,13,'#ff8c6a');
-  txt('J cargar · K volver',W/2,H-60,13,'#9a8cc0');
+  rows.slice(start,start+9).forEach((m,i)=>{const idx=start+i;
+    menuItem(m,W/2,178+i*31,560,idx===game.clsel,idx===0?'#8aff9a':'#ffd75a',16);});
+  if(!CUSTLIST.length)menuHint('(aún no hay torneos cargados)',W/2,H-118,13,'#a596c8');
+  if(game.custMsg)menuHint(game.custMsg,W/2,H-92,13,'#ff8c6a');
+  menuHint('J cargar · K volver',W/2,H-60,13);
 }
 function drawOrgNews(){
   hx.fillStyle='rgba(6,5,14,.88)';hx.fillRect(0,0,W,H);
@@ -9016,6 +9012,50 @@ function txt(s,x,y,size,col,align='center',shadow=true){
 /* --- helpers UI vistosos --- */
 function hexA(h,a){if(!h||h[0]!=='#')return h||'rgba(0,0,0,0)';const n=parseInt(h.slice(1),16);return 'rgba('+((n>>16)&255)+','+((n>>8)&255)+','+(n&255)+','+a+')';}
 function rr(x,y,w,h,r){r=Math.min(r,w/2,h/2);hx.beginPath();hx.moveTo(x+r,y);hx.arcTo(x+w,y,x+w,y+h,r);hx.arcTo(x+w,y+h,x,y+h,r);hx.arcTo(x,y+h,x,y,r);hx.arcTo(x,y,x+w,y,r);hx.closePath();}
+/* ENTRADA DE MENU. Los menus eran listas de texto suelto con un triangulito
+   delante y nada mas. Ahora cada entrada va sobre su placa: las de fondo se
+   insinuan con un filo de acento, y la elegida se ilumina, respira, lleva
+   galones a los lados y usa el rotulo arcade. */
+function menuItem(label,cx,y,w,on,acc,size){
+  acc=acc||'#ffd75a'; size=size||19;
+  const ex=on?(3+Math.sin(performance.now()*.006)*2):0;   // la elegida respira
+  const h=size+13, x=cx-w/2-ex, ww=w+ex*2, yy=y-size+2;
+  hx.save();
+  if(on){
+    hx.shadowColor=hexA(acc,.85);hx.shadowBlur=16;
+    rr(x,yy,ww,h,7);
+    const g=hx.createLinearGradient(0,yy,0,yy+h);
+    g.addColorStop(0,hexA(acc,.34));g.addColorStop(.5,hexA(acc,.14));g.addColorStop(1,hexA(acc,.30));
+    hx.fillStyle=g;hx.fill();
+    hx.shadowBlur=0;hx.lineWidth=2;hx.strokeStyle=acc;hx.stroke();
+  }else{
+    /* Opaca de verdad: con .40 el escenario 3D (suelo claro, luchadores)
+       se colaba por detras y el rotulo era ilegible. */
+    rr(x,yy,ww,h,7);
+    hx.fillStyle='rgba(9,7,20,.80)';hx.fill();
+    hx.lineWidth=1;hx.strokeStyle='rgba(255,255,255,.10)';hx.stroke();
+    hx.fillStyle=hexA(acc,.45);hx.fillRect(x+5,yy+5,3,h-10);   // filo de acento
+  }
+  hx.restore();
+  if(on){
+    txt('▶',x+15,y,size*.72,acc,'center',false);
+    txt('◀',x+ww-15,y,size*.72,acc,'center',false);
+    txtArcade(label,cx,y,size,'#fff6d0',acc);
+  }else txt(label,cx,y,size*.92,'#d3c8ee');
+}
+/* Pie de ayuda de los menus. Sobre suelos claros el texto suelto se perdia,
+   asi que va sobre su propia pastilla oscura ajustada al ancho del rotulo. */
+function menuHint(s,cx,y,size,col){
+  size=size||12;
+  hx.save();
+  hx.font='bold '+size+'px '+FONT_UI;
+  const w=hx.measureText(s).width+26, h=size+12;
+  rr(cx-w/2,y-size+1,w,h,h/2);
+  hx.fillStyle='rgba(9,7,20,.74)';hx.fill();
+  hx.lineWidth=1;hx.strokeStyle='rgba(255,255,255,.08)';hx.stroke();
+  hx.restore();
+  txt(s,cx,y,size,col||'#c9bde8');
+}
 function panelFrame(x,y,w,h,col){
   /* Marco de panel: antes era un rectangulo relleno plano con borde de un
      color. Ahora lleva halo exterior, fondo con degradado y un filo interior
@@ -9172,11 +9212,10 @@ function drawHUD(){
   }
   if(game.mode==='pause'){
     hx.fillStyle='rgba(6,5,14,.72)';hx.fillRect(0,0,W,H);
-    txt('PAUSA',W/2,H/2-70,42,'#ffd75a');
-    ['CONTINUAR','ABANDONAR COMBATE'].forEach((m,i)=>{
-      const on=i===game.psel;
-      txt((on?'▸ ':'')+m,W/2,H/2+i*40,on?26:20,on?'#ffd75a':'#c9bde8');});
-    txt('W/S elegir · J confirmar · ESC continuar',W/2,H/2+110,13,'#9a8cc0');
+    txtArcade('PAUSA',W/2,H/2-70,42,'#ffd75a','#ff8c1a');
+    ['CONTINUAR','ABANDONAR COMBATE'].forEach((m,i)=>
+      menuItem(m,W/2,H/2+i*36,340,i===game.psel,i?'#ff9a3e':'#ffd75a',19));
+    menuHint('W/S elegir · J confirmar · ESC continuar',W/2,H/2+110,13);
     return;
   }
   if(game.mode==='config'){drawConfigMenu();return;}
@@ -9368,15 +9407,17 @@ function drawTitle(){
      dibujaba encima de "TORNEO MUNDIAL" (y 146 contra y 142), asi que los
      dos textos quedaban ilegibles superpuestos. */
   txtArcade('T O R N E O   M U N D I A L',W/2,148,20,'#ffd75a','#ff8c1a');
-  for(let i=0;i<game.menu.length;i++){
-    const s=game.sel===i;
-    txt((s?'▶ ':'')+game.menu[i]+(s?' ◀':''),W/2,188+i*27,s?23:19,s?'#fff':'#9a8cc0');
-  }
-  txt('W/S elegir · J confirmar',W/2,188+game.menu.length*27+14,13,'#c9bde8');
-  if(CUSTOMS.length)txt(CUSTOMS.length+' personaje(s) creados en el roster',W/2,188+game.menu.length*27+52,11,'#8aff9a');
+  /* GAP debe superar la altura de placa (size+13=32) o las placas se tocan
+     y los bordes se funden en una sola barra. */
+  const GAP=34, Y0=190;
+  for(let i=0;i<game.menu.length;i++)
+    menuItem(game.menu[i],W/2,Y0+i*GAP,306,game.sel===i,'#ffd75a',19);
+  const yFin=Y0+game.menu.length*GAP;
+  menuHint('W/S elegir · J confirmar',W/2,yFin+14,13);
   const ST=game.stats;
-  if(ST.wins||ST.best||ST.fat)txt('SESIÓN · VICTORIAS '+ST.wins+' · MEJOR RACHA '+ST.best+' · FATALITIES '+ST.fat,
-    W/2,188+game.menu.length*27+36,11,'#9a8cc0');
+  if(ST.wins||ST.best||ST.fat)menuHint('SESIÓN · VICTORIAS '+ST.wins+' · MEJOR RACHA '+ST.best+' · FATALITIES '+ST.fat,
+    W/2,yFin+40,11,'#c0b2e2');
+  if(CUSTOMS.length)menuHint(CUSTOMS.length+' personaje(s) creados en el roster',W/2,yFin+62,11,'#8aff9a');
   drawSelloCodigo();
 }
 function drawSplash(){

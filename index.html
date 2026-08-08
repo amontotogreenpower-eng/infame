@@ -88,8 +88,26 @@ window.addEventListener('unhandledrejection',function(e){
   #creator.on{display:flex}
   .cr-head{display:flex;flex-wrap:wrap;align-items:center;gap:6px;
     border-bottom:2px solid rgba(255,215,90,.5);padding-bottom:6px;margin-bottom:6px}
-  .cr-head b{color:#ffd75a;font-size:15px;letter-spacing:2px;font-family:"Bungee","Courier New",monospace}
-  .cr-tabs{display:flex;gap:4px;flex:1;justify-content:center}
+  .cr-head b{color:#ffd75a;font-size:15px;letter-spacing:2px;font-family:"Bungee","Courier New",monospace;order:1}
+  #cr-build{order:2}
+  #cr-close{order:2}
+  /* Las pestanas y las filas de botones DESLIZAN en horizontal en vez de
+     apretujarse o partirse en varias lineas: en pantallas estrechas no
+     cabian y no habia forma de llegar a las ultimas. */
+  /* Fila propia y completa: compartiendo linea con el titulo y el boton de
+     cerrar, en el panel estrecho a las pestanas les quedaban 85 px de los 506
+     que ocupan, o sea que se veia una pestana y media. */
+  .cr-tabs{display:flex;gap:4px;flex:1 0 100%;order:3;min-width:0;justify-content:flex-start;
+    overflow-x:auto;overflow-y:hidden;flex-wrap:nowrap;
+    scrollbar-width:thin;-webkit-overflow-scrolling:touch;
+    scroll-snap-type:x proximity;padding-bottom:2px}
+  .cr-tabs::-webkit-scrollbar{height:5px}
+  .cr-tabs::-webkit-scrollbar-thumb{background:rgba(255,215,90,.45);border-radius:3px}
+  .cr-tab{flex:0 0 auto;white-space:nowrap;scroll-snap-align:start}
+  /* filas de botones dentro de los paneles: igual, se deslizan */
+  .cr-pane>div[style*="flex-wrap"]{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .tw-navart{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .tw-navart button{flex:0 0 auto;white-space:nowrap}
   .cr-tab{background:#1a1430;color:#9a8cc0;border:1px solid rgba(255,255,255,.15);
     border-radius:5px;padding:5px 8px;cursor:pointer;font:bold 10px "Courier New"}
   .cr-tab.on{background:#ffd75a;color:#1a1024;border-color:#ffd75a}
@@ -124,7 +142,7 @@ window.addEventListener('unhandledrejection',function(e){
   .cr-swatches{display:grid;grid-template-columns:1fr 1fr;gap:4px 8px}
   .cr-swatches label{flex-direction:row;align-items:center;justify-content:space-between}
   #creator input[type=color]{width:40px;height:26px;border:none;background:none;cursor:pointer}
-  .tw-navart{display:flex;gap:6px;margin:4px 0}
+  .tw-navart{display:flex;gap:6px;margin:4px 0;flex-wrap:nowrap}
   #mocapBox{position:relative;display:none;margin:4px 0}
   #mocapBox.on{display:block}
   #mocapVid{width:100%;border-radius:8px;transform:scaleX(-1);background:#000}
@@ -6338,6 +6356,15 @@ class Rig{
     let dy=0;
     if(plant==='both')dy=-Math.min(this.lowY(this.footF,this.soleF),this.lowY(this.footB,this.soleB));
     else if(plant==='back')dy=-this.lowY(this.footB,this.soleB);
+    else if(plant==='suelo'){
+      /* cuerpo tendido: se apoya el punto mas bajo de todo el conjunto, con
+         el margen del grosor del miembro para que no se hunda en la lona */
+      let lo=Infinity;
+      for(const o of [this.footF,this.footB,this.pel,this.chest,this.headJ,this.handF,this.handB]){
+        if(!o)continue; const y=this.wy(o); if(y<lo)lo=y;
+      }
+      if(isFinite(lo)) dy=-lo+(this.d.limbW||3)*this.s;
+    }
     /* En captura, py trae la altura REAL de la cadera. Si el cuerpo esta por
        encima de su altura de reposo es un salto: entonces no se planta el pie
        (se dejaria el salto en nada) y se respeta la elevacion medida. */
@@ -7796,6 +7823,11 @@ class Fighter{
 
        Tres ritmos primos entre si (bote, peso, respiracion) para que el bucle
        no se lea como un ciclo corto repitiendose. */
+    /* Cerca del rival = en guardia; lejos = relajado. La referencia es el
+       alcance util de un golpe: pegado (menos de 150 px de juego) guardia
+       entera, y a partir de 330 px, brazos abajo. */
+    const dRival=this.opp?Math.abs(this.opp.x-this.x):999;
+    const g=Math.max(0,Math.min(1,(330-dRival)/180));
     const bo=(1-Math.cos(this.t*.105))*.5;   // 0..1 bote de boxeador
     const pe=Math.sin(this.t*.041);          // el peso pasa de una pierna a otra
     const re=Math.sin(this.t*.027);          // respiracion, la mas lenta
@@ -7830,9 +7862,13 @@ class Fighter{
          vertical (168) con el antebrazo mas levantado (34) y la separacion
          original de 35. Asi los dos punos quedan delante, separados del
          cuerpo, sin cruzarlo. */
-      armUF:168+gd*4.5-pe*2.5-br*10, armLF:34+gd*7-bo*5-br*12,
-      armUB:200-gd*3.5+pe*2.5-br*6,  armLB:120-gd*5.5+bo*4-br*8,
-      armAF:-35+pe*4, armAB:35+pe*4,
+      /* GUARDIA SEGUN LA DISTANCIA. Con el rival encima, los punos suben a
+         proteger la cara; con el rival lejos, los brazos bajan a una postura
+         de espera. Se interpola entre las dos, asi que la transicion se ve.
+         'g' va de 0 (lejos) a 1 (cerca). */
+      armUF:lerp(150,168,g)+gd*4.5-pe*2.5-br*10, armLF:lerp(92,34,g)+gd*7-bo*5-br*12,
+      armUB:lerp(194,200,g)-gd*3.5+pe*2.5-br*6,  armLB:lerp(148,120,g)-gd*5.5+bo*4-br*8,
+      armAF:lerp(-30,-35,g)+pe*4, armAB:lerp(30,35,g)+pe*4,
       wristF:gd*7-bo*3, wristB:-gd*6+bo*2,
       /* Las dos rodillas botan a la vez (si no, el pie de apoyo mas bajo manda
          y el cuerpo no baja) y ademas cada una carga medio ciclo desfasada. */
@@ -7842,7 +7878,13 @@ class Fighter{
     });
   }
   plantMode(){
-    if(this.state==='ko'||this.air)return 'none';
+    /* Derribado NO es lo mismo que en el aire. Con 'none' el cuerpo se queda
+       a la altura de la cadera de pie y, como la pose de K.O. lo tumba 82
+       grados sobre ella, el luchador quedaba inclinado FLOTANDO sobre la lona
+       en vez de caer. 'suelo' apoya la parte mas baja del cuerpo, sea la que
+       sea (hombro, cabeza, cadera...), que es lo que hace un cuerpo tendido. */
+    if(this.state==='ko')return 'suelo';
+    if(this.air)return 'none';
     if(this.mv)return this.mv.plant||'both';
     return 'both';
   }

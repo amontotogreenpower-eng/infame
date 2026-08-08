@@ -7041,6 +7041,11 @@ class Fighter{
     this.state='idle';this.mv=null;this.mvT=0;this.hitIds=new Set();this.flashT=0;
     this.mvHit=false;this.mvTier=0;this.cmb=0;this.thEsc=0;this.dizzy=0;this.dizN=0;
     this.stun=0;this.blocking=false;this.crouch=false;this.walkPh=0;
+    /* +1 = avanza hacia el rival, -1 = retrocede, 0 = quieto. Avanzar y
+       retroceder no son la misma animacion al reves: al ir hacia atras el
+       cuerpo se echa atras, la guardia sube y el paso se acorta. */
+    this.walkDir=0;
+    this.braceT=0;   // tension de guardia tras encajar/bloquear
     this.dashT=0;this.dashDir=0;this.tapT=0;this.tapDir=0;this.cd=0;
     this.guardWalk=false;
     this.aiT=0;this.plan='none';this.planT=0;this.pose=IDLE;
@@ -7245,7 +7250,7 @@ class Fighter{
       if(this.blob){const w=axW((this.x-480)*K);this.blob.position.set(w.x,.025+stageFloorY(),w.z);}
       return;
     }
-    this.t++;if(this.cd>0)this.cd--;if(this.tapT>0)this.tapT--;
+    this.t++;if(this.cd>0)this.cd--;if(this.tapT>0)this.tapT--;if(this.braceT>0)this.braceT--;
     /* Si pasa un segundo sin encajar nada, la cuenta de golpes se olvida:
        han de ser SEGUIDOS para aturdir. */
     if(this.state!=='hurt'&&this.stun<=0){this.dizT=(this.dizT||0)+1;
@@ -7317,6 +7322,7 @@ class Fighter{
     if(!this.air&&threat&&(mvx===back||(i.down&&(i.left||i.right)&&(i.right?1:-1)===back))){this.blocking=true;mvx=0;}
     if(this.dizzy>0)mvx=0;   // aturdido: no se puede mover
     this.x+=mvx*this.c.speed*(this.guardWalk?.30:1);
+    this.walkDir=(mvx===0||this.air)?0:(mvx===this.facing?1:-1);
     if(mvx!==0&&!this.air)this.walkPh+=(this.guardWalk?.10:.22)*(mvx===this.facing?1:-.85);
     if(this.strafe)this.strafePh=(this.strafePh||0)+.08*this.strafe;   // ciclo de paso lateral
     if(i.up&&!i.alt&&!this.air){this.vy=this.c.jump;sfx.jump();if(mvx!==0)this.vx=mvx*3.6;}
@@ -7383,10 +7389,66 @@ class Fighter{
     if(this.stun>0)return POSE.hurt;
     if(this.mv)return track(this.mv.tr,this.mvT);
     if(this.state==='dash')return POSE.dash;
-    if(this.state==='block')return POSE.block;
-    if(this.state==='blockLow')return POSE.blockLow;
-    if(this.state==='crouch')return POSE.crouch;
-    if(this.air)return this.vy<0?POSE.jump:POSE.fall;
+    /* BLOQUEO: eran tres poses fijas, congeladas mientras se mantenia la
+       tecla. Ahora la guardia tiembla por la tension y se hunde un poco al
+       recibir (braceT), que es lo que hace que aguantar se vea como un
+       esfuerzo y no como una pausa del juego. */
+    if(this.state==='block'||this.state==='blockLow'){
+      const bajo=this.state==='blockLow';
+      const tb=Math.sin(this.t*.55)*.5+Math.sin(this.t*.31)*.5;   // temblor de esfuerzo
+      const br=Math.min(1,this.braceT/12);                        // encaje reciente (0..1)
+      const re=Math.sin(this.t*.05);
+      const base=bajo?POSE.blockLow:POSE.block;
+      return P({py:base.py,
+        torso:base.torso-br*7+re*1.2, head:base.head-br*4-Math.abs(tb)*1.5,
+        headY:tb*2, twist:-br*5, tside:tb*1.2,
+        abdo:(bajo?12:2)-br*3,
+        armUF:base.armUF+tb*2.5-br*6, armLF:base.armLF+tb*3.5-br*9,
+        armUB:base.armUB-tb*2+br*4,   armLB:base.armLB-tb*3+br*6,
+        armAF:-14+tb*2, armAB:14+tb*2,
+        wristF:tb*4, wristB:-tb*3,
+        /* Al encajar, las rodillas ceden y el cuerpo baja: el golpe se nota. */
+        legUF:base.legUF-br*7, legLF:base.legLF+br*9,
+        legUB:base.legUB-br*5, legLB:base.legLB+br*8,
+        legAF:2, legAB:2});
+    }
+    if(this.state==='crouch'){
+      // agachado: respira y se reajusta, no es una foto fija
+      const re=Math.sin(this.t*.055), gd=Math.sin(this.t*.09);
+      return P({py:POSE.crouch.py, torso:24+re*1.8, abdo:14+re*1.2, head:-10-re*1.2,
+        headY:gd*2.5, tside:gd*1.2, hip:gd*1.5,
+        armUF:125+gd*4, armLF:55+gd*6, armUB:215-gd*3, armLB:155-gd*5,
+        armAF:-20, armAB:20, wristF:gd*5, wristB:-gd*4,
+        /* Muy poco recorrido a proposito: con la rodilla tan cerrada, un grado
+           mueve el cuerpo mucho mas que de pie y "respirar" se convertia en
+           hacer sentadillas. */
+        legUF:128-re*.8, legLF:228+re*1, legUB:136-re*.6, legLB:222+re*.8});
+    }
+    /* EN EL AIRE: eran dos poses fijas y el cambio ocurria de golpe al cruzar
+       vy=0, o sea un salto visible justo en el punto mas alto, que es donde
+       mas se mira. Ahora se mezclan de forma continua segun la velocidad
+       vertical: al subir las rodillas se recogen y los brazos suben, en el
+       ápice el cuerpo se estira y al caer las piernas buscan el suelo.
+       'py' se deja como estaba: en el aire no hay plantado de pies y tocarlo
+       moveria el cuerpo respecto a la fisica. */
+    if(this.air){
+      const u=Math.max(-1,Math.min(1,this.vy/14));   // -1 sube · 0 apice · +1 cae
+      const sube=Math.max(0,-u), cae=Math.max(0,u);
+      const ap=1-Math.abs(u);                        // 1 justo en el apice
+      const fl=Math.sin(this.t*.2);                  // el cuerpo no va rigido
+      return P({py:-96,
+        torso:7-u*9+ap*3, head:1+u*5-ap*2, headY:fl*3, tside:fl*1.5, twist:-u*4,
+        /* Brazos: arriba al impulsarse, abiertos para equilibrar al caer. */
+        armUF:110-sube*14+cae*4+fl*3, armLF:30-sube*12+cae*10+fl*4,
+        armUB:220+sube*12-cae*6-fl*3, armLB:170+sube*16-cae*8-fl*4,
+        armAF:-18-cae*10, armAB:18+cae*10,
+        wristF:fl*6, wristB:-fl*5,
+        /* Piernas: recogidas al subir, estiradas buscando suelo al caer. */
+        legUF:148-sube*16+cae*10, legLF:192+sube*26-cae*14+fl*2,
+        legUB:197-sube*6+cae*4,   legLB:227+sube*14-cae*13-fl*2,
+        footAF:-sube*10+cae*6, footAB:-sube*8+cae*5,
+        toeF:cae*8, toeB:cae*6, legAF:2, legAB:2});
+    }
     if(this.dizzy>0){
       // tambaleo: cuerpo suelto, brazos colgando y cabeza girando
       const w=this.t*.09, w2=this.t*.055;
@@ -7420,15 +7482,30 @@ class Fighter{
       const sq=v=>v*v;
       const pushF=gw?sq(Math.max(0,s)):0,  pushB=gw?sq(Math.max(0,-s)):0;
       const heelF=gw?sq(Math.max(0,-s)):0, heelB=gw?sq(Math.max(0,s)):0;
+      /* GUARDIA PARADA (gstand): con s=c=0 todos los terminos del ciclo se
+         anulaban y quedaba una estatua perfecta, justo en el estado en el que
+         mas se mira al personaje (esperando el ataque). Estos tres ritmos
+         sueltos le dan vida sin moverlo del sitio. */
+      const rb=(1-Math.cos(this.t*.115))*.5;      // rebote sobre las piernas
+      const gd=Math.sin(this.t*.082);             // guardia flotante
+      const pe=Math.sin(this.t*.047);             // reparto de peso
+      const q=gw?.35:1;                           // andando, el rebote es del paso
+      const flex=rb*7*q;                          // baja el cuerpo de verdad
+      /* Tambien en guardia: yendo hacia atras el peso se echa atras y la
+         guardia se cierra un poco mas. */
+      const atras=(gw&&this.walkDir<0)?1:0;
       /* Mas agachado, torso inclinado hacia el rival y cabeza recta:
          'head' compensa la inclinacion del torso para que la mirada quede al frente. */
-      return P({py:-68+ab*2,torso:20,abdo:12+s*1.4,head:5,
-        hip:s*4,twist:-s*5,tside:s*1.4,
-        armUF:170-s*4,armLF:26-s*5,armUB:190+s*4,armLB:36+s*5,
-        wristF:-s*5,wristB:s*5,
-        legUF:146+s*12,legLF:200+s*12+swF*15,
+      return P({py:-68+ab*2,torso:20+pe*1.6*q-atras*11,abdo:12+s*1.4,head:5-rb*1.4*q+atras*7,
+        headY:pe*3*q,
+        hip:s*4+pe*2*q,twist:-s*5-pe*2.5*q,tside:s*1.4+pe*1.6*q,
+        armUF:170-s*4+gd*4*q-atras*5,armLF:26-s*5+gd*6*q-atras*12,
+        armUB:190+s*4-gd*3.5*q,armLB:36+s*5-gd*5*q-atras*8,
+        armAF:-30+pe*3*q,armAB:30+pe*3*q,
+        wristF:-s*5+gd*6*q,wristB:s*5-gd*5*q,
+        legUF:146+s*12-flex,legLF:200+s*12+swF*15+flex,
         footAF:-swF*9-heelF*7+pushF*10, toeF:pushF*14,
-        legUB:154-s*12,legLB:206-s*12+swB*15,
+        legUB:154-s*12-flex,legLB:206-s*12+swB*15+flex,
         footAB:-swB*9-heelB*7+pushB*10, toeB:pushB*14});
     }
     if(this.state==='walk'){
@@ -7445,26 +7522,71 @@ class Fighter{
       const sq=v=>v*v;
       const pushF=sq(Math.max(0,s)),  pushB=sq(Math.max(0,-s));   // despegue de punta
       const heelF=sq(Math.max(0,-s)), heelB=sq(Math.max(0,s));    // contacto de talon
-      return P({py:-92+ab*3,torso:8+s*1.2,abdo:6+s*2,head:2,headY:-s*3,
+      /* AVANZAR NO ES RETROCEDER AL REVES. Yendo hacia el rival el cuerpo se
+         echa encima y la zancada se abre; retrocediendo el peso se va atras,
+         la guardia sube a la cara y el paso se acorta y se arrastra. Antes las
+         dos direcciones compartian pose y solo cambiaba el signo de la fase,
+         que es justo lo que hace que el retroceso parezca un video invertido.
+         atras: 0 avanzando -> 1 retrocediendo. */
+      const atras=this.walkDir<0?1:0;
+      const zan=1-atras*.34;                    // zancada mas corta hacia atras
+      /* Rebote del paso. Iba en 'py', que con los pies plantados no mueve
+         nada: la subida y bajada del andar no se veia. Ahora sale de flexionar
+         las dos piernas a la vez, que si baja el cuerpo de verdad. */
+      const bote=(1-ab)*5;
+      return P({py:-92,
+        torso:8+s*1.2-atras*13, abdo:6+s*2-atras*3, head:2+atras*9, headY:-s*3*zan,
         /* La pelvis gira con la zancada y los hombros giran AL REVES. Esa
            contrarrotacion es la firma del andar humano; sin ella el tronco
            va de una pieza y el personaje parece un maniqui. */
-        hip:s*7,twist:-s*9,tside:s*2.2,
-        armUF:152-s*10,armLF:78-s*12,armUB:196+s*12,armLB:158+s*10,
-        armAF:5,armAB:5,wristF:-s*10,wristB:s*10,
-        legUF:180+s*22,legLF:180+s*22+8+swF*30,
-        footAF:-swF*10-heelF*12+pushF*16, toeF:pushF*24,
-        legUB:180-s*22,legLB:180-s*22+8+swB*30,
-        footAB:-swB*10-heelB*12+pushB*16, toeB:pushB*24,
+        hip:s*7*zan,twist:-s*9*zan,tside:s*2.2,
+        /* Retrocediendo los brazos dejan de balancearse y se cierran en
+           guardia: se anda hacia atras protegiendose, no paseando. */
+        armUF:152-s*10*zan-atras*8, armLF:78-s*12*zan-atras*34,
+        armUB:196+s*12*zan-atras*4, armLB:158+s*10*zan-atras*22,
+        armAF:5-atras*22, armAB:5+atras*22,
+        wristF:-s*10*zan, wristB:s*10*zan,
+        legUF:180+s*22*zan-bote, legLF:180+s*22*zan+8+swF*30*zan+bote,
+        footAF:-swF*10-heelF*12+pushF*16, toeF:pushF*24*zan,
+        legUB:180-s*22*zan-bote, legLB:180-s*22*zan+8+swB*30*zan+bote,
+        footAB:-swB*10-heelB*12+pushB*16, toeB:pushB*24*zan,
         legAF:2,legAB:2});
     }
-    const b=Math.sin(this.t*.06);
-    /* Reposo: respiracion repartida por varias articulaciones en vez de un
-       solo balanceo, para que no parezca una estatua con un muelle. */
-    const b2=Math.sin(this.t*.06-.7);
-    return P({py:-92+b*1.6,torso:6+b*1.2,abdo:6+b*.8,head:2-b,headY:b2*1.5,
-      armLF:78+b*4,armLB:158-b*3,armUF:152+b*2,armUB:196-b*1.5,
-      wristF:b2*4,wristB:-b2*3,tside:b2*.8});
+    /* ===== REPOSO DE COMBATE (esperando el ataque) =====
+       Es la pose que mas tiempo se ve, asi que aqui se nota cualquier rigidez.
+
+       OJO CON 'py': con los dos pies plantados NO HACE NADA. El rig recoloca
+       la raiz cada frame para que el pie mas bajo toque el suelo, asi que
+       subir o bajar la pelvis se cancela entero (medido: mover py +-12 deja
+       el pecho exactamente en la misma Y del mundo). El rebote de este reposo
+       iba en py, o sea que no se veia: el personaje solo movia un poco los
+       brazos. El bote de verdad sale de FLEXIONAR muslo y tibia en sentidos
+       opuestos, que baja la cadera dejando los pies clavados.
+
+       Tres ritmos primos entre si (bote, peso, respiracion) para que el bucle
+       no se lea como un ciclo corto repitiendose. */
+    const bo=(1-Math.cos(this.t*.105))*.5;   // 0..1 bote de boxeador
+    const pe=Math.sin(this.t*.041);          // el peso pasa de una pierna a otra
+    const re=Math.sin(this.t*.027);          // respiracion, la mas lenta
+    const gd=Math.sin(this.t*.073);          // los punos nunca quietos
+    const br=Math.min(1,this.braceT/12);     // tension despues de encajar (0..1)
+    const flex=5+bo*9+br*5;                  // flexion de rodilla -> altura real
+    return P({
+      py:-92,
+      torso:6+re*1.4-bo*1.6+br*4, abdo:5+re*1+bo*.8, head:2-re*.9-bo*1.2-br*3,
+      headY:pe*3.5, hip:pe*3.2, twist:-pe*4-br*3, tside:pe*2+re*.5,
+      /* Guardia viva: el brazo de delante hace circulos cortos y el de atras
+         acompana en contrafase; al botar, los dos punos suben un poco. */
+      armUF:152+gd*4.5-pe*2.5-br*10, armLF:78+gd*7-bo*5-br*16,
+      armUB:196-gd*3.5+pe*2.5-br*6,  armLB:158-gd*5.5+bo*4-br*10,
+      armAF:-35+pe*4, armAB:35+pe*4,
+      wristF:gd*7-bo*3, wristB:-gd*6+bo*2,
+      /* Las dos rodillas botan a la vez (si no, el pie de apoyo mas bajo manda
+         y el cuerpo no baja) y ademas cada una carga medio ciclo desfasada. */
+      legUF:176-flex-Math.max(0,pe)*3, legLF:176+flex+Math.max(0,pe)*4,
+      legUB:188-flex+Math.max(0,-pe)*2, legLB:204+flex+Math.max(0,-pe)*4,
+      footAF:-bo*3.5, footAB:-bo*3, legAF:2, legAB:2
+    });
   }
   plantMode(){
     if(this.state==='ko'||this.air)return 'none';
@@ -7562,6 +7684,7 @@ class Fighter{
       this.hp-=Math.max(1,Math.round(src.dmg*.12));
       this.vx=dir*src.push*.5/this.c.weight;this.stun=Math.max(this.stun,8);
       this.meter=Math.min(100,this.meter+4);sfx.block();
+      this.braceT=12;   // la guardia se hunde y se recompone (ver currentPose)
       burst(chest,6,0x8ef0ff,.06);
     }else{
       const sc=Math.max(.34,1-this.cmb*.13)*(this.guardWalk?.55:1);
@@ -7579,6 +7702,10 @@ class Fighter{
       if(src.knockdown||this.air)this.vy=-7.5;
       this.stun=Math.max(this.stun,src.hitstun||14);
       this.meter=Math.min(100,this.meter+6);
+      /* Dura mas que el aturdimiento a proposito: al recuperar el control el
+         luchador sigue recomponiendo la guardia unos frames en vez de volver
+         de golpe a la pose de reposo perfecta. */
+      this.braceT=26;
       game.shake=Math.min(.16,.05+src.dmg*.007);
       game.freeze=Math.min(14,3+Math.round(src.dmg*.5));this.flashT=4;
       burst(chest,src.dmg>=14?14:8,src.dmg>=14?0xffffff:0xffd75a,src.dmg>=14?.11:.08);

@@ -5229,16 +5229,25 @@ function roleOfBone(rawName){
 }
 
 /* Que hueso del rig de INFAME manda sobre que rol humanoide.
-   El rig del juego usa F/B (delantero/trasero respecto a la camara)
-   en vez de izquierda/derecha anatomica: se mapea F->izquierda y
-   B->derecha de forma fija. Como la malla sigue a su hueso, al
-   cambiar de lado el luchador la figura acompana sola. */
+   El rig del juego usa F/B (delantero/trasero respecto a la camara) en vez de
+   izquierda/derecha anatomica, asi que hay que traducir.
+
+   F = DERECHA del personaje, no izquierda. El rig mira al frente por +X y
+   tiene el arriba en +Y, luego su derecha cae en +Z (derecha = frente x
+   arriba), y +Z es justo donde se colocan los miembros delanteros
+   (holdAF.position.z = +zG con facing=1). Estaba al reves, y como la
+   orientacion automatica gira el modelo para que su izquierda coincida con
+   el lado que le digamos, el resultado era un modelo importado MIRANDO HACIA
+   ATRAS, con los muslos torcidos y un brazo cruzado hacia dentro.
+   (Ojo al comprobarlo: la cara del rig NO es el +X del hueso headJ. Las
+   facciones cuelgan de 'head', que va gitado 180 grados en Z sobre headJ, de
+   modo que la cara mira hacia el -X de headJ.) */
 const RIG_TO_ROLE = {
   pel:'hips', abdo:'spine', torso:'chest', neck:'neck', headJ:'head',
-  armUF:'leftUpperArm',  armLF:'leftLowerArm',  handF:'leftHand',
-  armUB:'rightUpperArm', armLB:'rightLowerArm', handB:'rightHand',
-  legUF:'leftUpperLeg',  legLF:'leftLowerLeg',  footF:'leftFoot',
-  legUB:'rightUpperLeg', legLB:'rightLowerLeg', footB:'rightFoot',
+  armUF:'rightUpperArm', armLF:'rightLowerArm', handF:'rightHand',
+  armUB:'leftUpperArm',  armLB:'leftLowerArm',  handB:'leftHand',
+  legUF:'rightUpperLeg', legLF:'rightLowerLeg', footF:'rightFoot',
+  legUB:'leftUpperLeg',  legLB:'leftLowerLeg',  footB:'leftFoot',
 };
 // inverso: rol humanoide -> nombre del hueso en el rig del juego
 const ROLE_TO_RIG = {};
@@ -5340,10 +5349,14 @@ function attachGLBFighter(rig, gltfScene, opts){
      hombro der en ambos esqueletos y se gira el conjunto en Y lo justo
      para que coincidan (tambien arregla el caso de 180 grados, porque el
      vector va dirigido de un lado concreto al otro). */
+  /* El hombro IZQUIERDO del modelo tiene que acabar sobre el hombro izquierdo
+     del rig, que es el TRASERO (armUB, en -Z), no el delantero: ver la nota
+     de RIG_TO_ROLE. Con el emparejamiento al reves el modelo entraba girado
+     180 grados, o sea de espaldas. */
   if(opts.autoYaw!==false && found.leftUpperArm && found.rightUpperArm && rig.armUF && rig.armUB){
     const gl=new THREE.Vector3(), gr=new THREE.Vector3(), rl=new THREE.Vector3(), rr=new THREE.Vector3();
     found.leftUpperArm.getWorldPosition(gl);  found.rightUpperArm.getWorldPosition(gr);
-    rig.armUF.getWorldPosition(rl);           rig.armUB.getWorldPosition(rr);
+    rig.armUB.getWorldPosition(rl);           rig.armUF.getWorldPosition(rr);
     rig.root.worldToLocal(gl); rig.root.worldToLocal(gr);
     rig.root.worldToLocal(rl); rig.root.worldToLocal(rr);
     const a=new THREE.Vector3(gr.x-gl.x,0,gr.z-gl.z);

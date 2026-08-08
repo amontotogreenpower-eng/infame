@@ -51,7 +51,9 @@ window.addEventListener('unhandledrejection',function(e){
   html,body{height:100%;background:#05040a;overflow:hidden;font-family:"Courier New",monospace;
     touch-action:none;overscroll-behavior:none}
   #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
-  #stage{position:relative;width:960px;height:540px;max-width:100vw;max-height:100vh}
+  /* dvh: en el movil la barra del navegador aparece y desaparece, y con vh
+     el escenario cambiaba de tamano al hacerlo. */
+  #stage{position:relative;width:960px;height:540px;max-width:100vw;max-height:100vh;max-height:100dvh}
   #gl,#hud{position:absolute;top:0;left:0;width:100%;height:100%;display:block}
   #gl{background:#000}
   #hud{pointer-events:none}
@@ -74,7 +76,7 @@ window.addEventListener('unhandledrejection',function(e){
     border-radius:10px;backdrop-filter:blur(2px);opacity:.9;transition:opacity .15s}
   #fs:hover{opacity:1}
   #fs:active{background:rgba(255,215,90,.35);color:#fff}
-  #creator{position:fixed;left:0;top:0;bottom:0;width:min(460px,52vw);z-index:30;display:none;
+  #creator{position:fixed;left:0;top:0;bottom:0;max-height:100dvh;width:min(460px,52vw);z-index:30;display:none;
     flex-direction:column;background:linear-gradient(180deg,rgba(8,6,18,.97),rgba(10,7,22,.93));
     color:#e8e2ff;font:12px "Courier New",monospace;padding:10px 14px;
     box-shadow:4px 0 22px rgba(0,0,0,.6);border-right:2px solid rgba(255,215,90,.4);
@@ -88,13 +90,34 @@ window.addEventListener('unhandledrejection',function(e){
   #creator.on{display:flex}
   .cr-head{display:flex;flex-wrap:wrap;align-items:center;gap:6px;
     border-bottom:2px solid rgba(255,215,90,.5);padding-bottom:6px;margin-bottom:6px}
-  .cr-head b{color:#ffd75a;font-size:15px;letter-spacing:2px;font-family:"Bungee","Courier New",monospace}
-  .cr-tabs{display:flex;gap:4px;flex:1;justify-content:center}
+  .cr-head b{color:#ffd75a;font-size:15px;letter-spacing:2px;font-family:"Bungee","Courier New",monospace;order:1}
+  #cr-build{order:2}
+  #cr-close{order:2}
+  /* Las pestanas y las filas de botones DESLIZAN en horizontal en vez de
+     apretujarse o partirse en varias lineas: en pantallas estrechas no
+     cabian y no habia forma de llegar a las ultimas. */
+  /* Fila propia y completa: compartiendo linea con el titulo y el boton de
+     cerrar, en el panel estrecho a las pestanas les quedaban 85 px de los 506
+     que ocupan, o sea que se veia una pestana y media. */
+  .cr-tabs{display:flex;gap:4px;flex:1 0 100%;order:3;min-width:0;justify-content:flex-start;
+    overflow-x:auto;overflow-y:hidden;flex-wrap:nowrap;
+    scrollbar-width:thin;-webkit-overflow-scrolling:touch;
+    scroll-snap-type:x proximity;padding-bottom:2px}
+  .cr-tabs::-webkit-scrollbar{height:5px}
+  .cr-tabs::-webkit-scrollbar-thumb{background:rgba(255,215,90,.45);border-radius:3px}
+  .cr-tab{flex:0 0 auto;white-space:nowrap;scroll-snap-align:start}
+  /* filas de botones dentro de los paneles: igual, se deslizan */
+  .cr-pane>div[style*="flex-wrap"]{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .tw-navart{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .tw-navart button{flex:0 0 auto;white-space:nowrap}
   .cr-tab{background:#1a1430;color:#9a8cc0;border:1px solid rgba(255,255,255,.15);
     border-radius:5px;padding:5px 8px;cursor:pointer;font:bold 10px "Courier New"}
   .cr-tab.on{background:#ffd75a;color:#1a1024;border-color:#ffd75a}
   #creator.taller-only .cr-tab[data-pane="id"],#creator.taller-only .cr-tab[data-pane="look"],#creator.taller-only .cr-tab[data-pane="phys"],#creator.taller-only .cr-tab[data-pane="mv"],#creator.taller-only .cr-tab[data-pane="glb"]{display:none}
   #creator.taller-only .cr-foot{display:none}
+  /* El taller de golpes tiene MENU PROPIO (TALLER > EDITOR DE GOLPES).
+     Dentro del creador de personajes su pestana solo estorbaba. */
+  #creator:not(.taller-only) .cr-tab[data-pane="taller"]{display:none}
   #introVid{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;background:#000;z-index:40;display:none}
   #introSkip{position:fixed;right:14px;bottom:12px;z-index:41;color:#fff;font:bold 12px system-ui,sans-serif;background:rgba(0,0,0,.45);padding:6px 10px;border-radius:8px;display:none;pointer-events:none}
   #browser{position:fixed;inset:0;z-index:33;background:rgba(6,5,14,.94);display:none;flex-direction:column;padding:10px 12px;box-sizing:border-box;font-family:system-ui,sans-serif;color:#e8e2ff}
@@ -124,7 +147,7 @@ window.addEventListener('unhandledrejection',function(e){
   .cr-swatches{display:grid;grid-template-columns:1fr 1fr;gap:4px 8px}
   .cr-swatches label{flex-direction:row;align-items:center;justify-content:space-between}
   #creator input[type=color]{width:40px;height:26px;border:none;background:none;cursor:pointer}
-  .tw-navart{display:flex;gap:6px;margin:4px 0}
+  .tw-navart{display:flex;gap:6px;margin:4px 0;flex-wrap:nowrap}
   #mocapBox{position:relative;display:none;margin:4px 0}
   #mocapBox.on{display:block}
   #mocapVid{width:100%;border-radius:8px;transform:scaleX(-1);background:#000}
@@ -205,13 +228,22 @@ window.addEventListener('unhandledrejection',function(e){
   .cr-tcell{width:100%;aspect-ratio:1;background:#20202a;cursor:pointer}
   .cr-tcell.front{box-shadow:inset 0 0 0 1px rgba(255,215,90,.6)}
   .cr-tcell:hover{outline:1px solid rgba(255,215,90,.5)}
-  #camBtn{position:fixed;top:10px;left:10px;z-index:25;display:none;width:46px;height:46px;
+  /* BOTONES DEL HUD. Antes cada uno llevaba su tamano y su hueco en pixeles
+     fijos (10, 64, 118, 172): en pantallas pequenas se comian el ancho y en
+     grandes se quedaban diminutos. Ahora el tamano manda y las posiciones se
+     calculan en cascada, asi que nunca se solapan. */
+  :root{--hb:clamp(38px,7.2vmin,50px); --hgap:8px}
+  #camBtn,#pauseBtn,#perfBtn,#statsBtn{
+    position:fixed;top:10px;z-index:25;display:none;
+    width:var(--hb);height:var(--hb);
     align-items:center;justify-content:center;background:rgba(10,8,20,.78);
-    border:2px solid rgba(255,215,90,.55);border-radius:10px;font-size:22px;cursor:pointer;user-select:none}
-  #camBtn:active{background:rgba(255,215,90,.3)}
-  #pauseBtn{position:fixed;top:10px;left:64px;z-index:25;display:none;width:46px;height:46px;
-    align-items:center;justify-content:center;background:rgba(10,8,20,.78);
-    border:2px solid rgba(255,215,90,.55);border-radius:10px;font-size:20px;cursor:pointer;user-select:none;color:#ffd75a}
+    border:2px solid rgba(255,215,90,.55);border-radius:10px;
+    font-size:calc(var(--hb)*.46);cursor:pointer;user-select:none;color:#ffd75a}
+  #camBtn  {left:10px}
+  #pauseBtn{left:calc(10px + 1*(var(--hb) + var(--hgap)))}
+  #perfBtn {left:calc(10px + 2*(var(--hb) + var(--hgap)))}
+  #statsBtn{left:calc(10px + 3*(var(--hb) + var(--hgap)))}
+  #camBtn:active,#pauseBtn:active,#perfBtn:active,#statsBtn:active{background:rgba(255,215,90,.3)}
   #pauseBtn:active{background:rgba(255,215,90,.3)}
   #extraUI{position:fixed;left:10px;bottom:12px;z-index:24;display:none;gap:8px}
   #extraUI.on{display:flex}
@@ -289,8 +321,8 @@ window.addEventListener('unhandledrejection',function(e){
 <div id="touchUI"></div>
 <div id="camBtn" title="Cambiar cámara (C)">🎥</div>
 <div id="pauseBtn" title="Pausa / abandonar (Esc)">⏸</div>
-<div id="perfBtn" title="Gráfica FPS (G)" style="position:fixed;top:10px;left:118px;z-index:25;display:none;width:46px;height:46px;align-items:center;justify-content:center;background:rgba(10,8,20,.78);border:2px solid rgba(255,215,90,.55);border-radius:10px;font-size:18px;cursor:pointer;user-select:none;color:#ffd75a;">📊</div>
-<div id="statsBtn" title="Estadísticas (S)" style="position:fixed;top:10px;left:172px;z-index:25;display:none;width:46px;height:46px;align-items:center;justify-content:center;background:rgba(10,8,20,.78);border:2px solid rgba(255,215,90,.55);border-radius:10px;font-size:18px;cursor:pointer;user-select:none;color:#ffd75a;">📈</div>
+<div id="perfBtn" title="Gráfica FPS (G)">📊</div>
+<div id="statsBtn" title="Estadísticas (S)">📈</div>
 <div id="crt" class="off"></div>
 <div id="extraUI"></div>
 <video id="introVid" playsinline preload="auto" src="src/Intro.mp4"></video>
@@ -309,7 +341,7 @@ window.addEventListener('unhandledrejection',function(e){
       <button class="cr-tab" data-pane="phys">3· FÍSICO</button>
       <button class="cr-tab" data-pane="mv">4· GOLPES</button>
       <button class="cr-tab" data-pane="taller">5· TALLER</button>
-      <button class="cr-tab" data-pane="glb">6· MODELO GLB</button>
+      <button class="cr-tab" data-pane="glb">5· MODELO GLB</button>
     </div>
     <span id="cr-build" style="margin-left:auto;color:#8ef0ff;font-size:10px"></span>
     <span id="cr-close">✕ VOLVER</span></div>
@@ -353,31 +385,7 @@ window.addEventListener('unhandledrejection',function(e){
           <option value="glb">Modelo GLB importado</option>
         </select></label>
       <div id="cr-glbhint" class="cr-note" style="display:none">Estilo GLB activo: el cuerpo se
-        sustituye por el modelo importado. Elige el archivo en la pestaña <b>6· MODELO GLB</b>.</div>
-      <label>Cabeza importada (solo estilo Realista)
-        <button id="cr-headglb" class="cr-b" type="button">🗿 IMPORTAR CABEZA (.glb)</button></label>
-      <label>Eje del modelo que debe mirar al frente
-        <select id="cr-headglb-axis">
-          <option value="x">X (sin rotar, la mayoria de exportaciones)</option>
-          <option value="y">Y</option>
-          <option value="z">Z</option>
-          <option value="-x">-X</option>
-          <option value="-y">-Y</option>
-          <option value="-z">-Z (frente habitual en Blender/glTF)</option>
-        </select></label>
-      <label>Escala de la cabeza importada
-        <input type="number" id="cr-headglb-scale" step="0.05" value="1"></label>
-      <label>Desplazamiento X (frente/atras)
-        <input type="number" id="cr-headglb-x" step="0.05" value="0"></label>
-      <label>Desplazamiento Y (arriba/abajo)
-        <input type="number" id="cr-headglb-y" step="0.05" value="0"></label>
-      <label>Desplazamiento Z (izquierda/derecha)
-        <input type="number" id="cr-headglb-z" step="0.05" value="0"></label>
-      <label class="cr-chk"><input type="checkbox" id="cr-headglb-hide"> Ocultar cabeza procedural
-        (util mientras ajustas la posicion, sin esperar a que cargue el .glb)</label>
-      <button id="cr-headglb-clear" class="cr-b" type="button">✕ QUITAR CABEZA IMPORTADA</button>
-      <span id="cr-headglb-info" class="cr-note"></span>
-      <input type="file" id="cr-headglb-file" accept=".glb,model/gltf-binary" style="display:none">
+        sustituye por el modelo importado. Elige el archivo en la pestaña <b>MODELO GLB</b>.</div>
       <label>Vestimenta (estilo realista)
         <select id="cr-outfit">
           <option value="camiseta">Camiseta</option>
@@ -561,15 +569,6 @@ window.addEventListener('unhandledrejection',function(e){
         <button id="tw-importbtn">IMPORTAR .json</button>
         <input type="file" id="tw-importfile" accept="application/json" style="display:none">
       </div>
-      <div class="cr-sec">CUERPO IMPORTADO POR PIEZAS (avanzado)</div>
-      <div class="cr-note">Alternativa antigua: trocea el GLB en piezas rígidas y las cuelga del
-        esqueleto. Requiere calibrar con calibrador_v3.html. Útil solo para armaduras rígidas.</div>
-      <div style="display:flex;gap:5px;flex-wrap:wrap">
-        <button id="tw-bodyimportbtn">IMPORTAR .json</button>
-        <input type="file" id="tw-bodyimportfile" accept="application/json" style="display:none">
-        <button id="tw-bodyremove">QUITAR cuerpo importado</button>
-      </div>
-      <div id="tw-bodyimport-status" class="cr-note"></div>
       <label>Nombre <input id="tw-name" maxlength="22"></label>
       <label>Tipo (color de medalla)
         <select id="tw-type">
@@ -649,7 +648,7 @@ window.addEventListener('unhandledrejection',function(e){
         personaje que estás creando pasa a usar ese cuerpo: se deforma de verdad siguiendo la
         animación del juego. Los huesos se emparejan solos por su nombre, no hay que calibrar nada.</div>
       <div id="cr-glb-off" class="cr-note" style="color:#ffcf7f">Para que se aplique, pon
-        <b>Estilo del personaje = Modelo GLB importado</b> en la pestaña 2· APARIENCIA.</div>
+        <b>Estilo del personaje = Modelo GLB importado</b> en la pestaña APARIENCIA.</div>
       <label>Archivo .glb (debe estar en la misma carpeta que este index.html)
         <input type="text" id="cr-glbfile" placeholder="mi_modelo.glb" style="width:100%"></label>
       <div class="cr-note">Al escribir aquí el nombre, el personaje se guarda con esa referencia y
@@ -690,6 +689,42 @@ window.addEventListener('unhandledrejection',function(e){
       </div>
       <button id="cr-glbreset" class="cr-b" type="button">RESTABLECER TODOS LOS AJUSTES</button>
       <div id="cr-glb-status" class="cr-note"></div>
+      <div class="cr-sec">CABEZA IMPORTADA (.glb)</div>
+      <div class="cr-note">Solo para el estilo <b>Realista</b>: sustituye la cabeza
+        procedural por un modelo. El cuerpo entero se cambia mas arriba.</div>
+      <label>Cabeza importada (solo estilo Realista)
+        <button id="cr-headglb" class="cr-b" type="button">🗿 IMPORTAR CABEZA (.glb)</button></label>
+      <label>Eje del modelo que debe mirar al frente
+        <select id="cr-headglb-axis">
+          <option value="x">X (sin rotar, la mayoria de exportaciones)</option>
+          <option value="y">Y</option>
+          <option value="z">Z</option>
+          <option value="-x">-X</option>
+          <option value="-y">-Y</option>
+          <option value="-z">-Z (frente habitual en Blender/glTF)</option>
+        </select></label>
+      <label>Escala de la cabeza importada
+        <input type="number" id="cr-headglb-scale" step="0.05" value="1"></label>
+      <label>Desplazamiento X (frente/atras)
+        <input type="number" id="cr-headglb-x" step="0.05" value="0"></label>
+      <label>Desplazamiento Y (arriba/abajo)
+        <input type="number" id="cr-headglb-y" step="0.05" value="0"></label>
+      <label>Desplazamiento Z (izquierda/derecha)
+        <input type="number" id="cr-headglb-z" step="0.05" value="0"></label>
+      <label class="cr-chk"><input type="checkbox" id="cr-headglb-hide"> Ocultar cabeza procedural
+        (util mientras ajustas la posicion, sin esperar a que cargue el .glb)</label>
+      <button id="cr-headglb-clear" class="cr-b" type="button">✕ QUITAR CABEZA IMPORTADA</button>
+      <span id="cr-headglb-info" class="cr-note"></span>
+      <input type="file" id="cr-headglb-file" accept=".glb,model/gltf-binary" style="display:none">
+      <div class="cr-sec">CUERPO IMPORTADO POR PIEZAS (avanzado)</div>
+      <div class="cr-note">Alternativa antigua: trocea el GLB en piezas rígidas y las cuelga del
+        esqueleto. Requiere calibrar con calibrador_v3.html. Útil solo para armaduras rígidas.</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <button id="tw-bodyimportbtn">IMPORTAR .json</button>
+        <input type="file" id="tw-bodyimportfile" accept="application/json" style="display:none">
+        <button id="tw-bodyremove">QUITAR cuerpo importado</button>
+      </div>
+      <div id="tw-bodyimport-status" class="cr-note"></div>
     </div>
   </div>
   <div class="cr-foot">
@@ -4325,7 +4360,7 @@ function drawConfigMenu(){
 }
 function drawWorkshopMenu(){
   hx.fillStyle='rgba(6,5,14,.55)';hx.fillRect(0,0,W,H);
-  txt('TALLER',W/2,116,36,'#ffd75a');
+  txtArcade('TALLER',W/2,120,42,'#ffd75a','#ff8c1a');
   txt('Crea luchadores y diseña sus golpes',W/2,146,13,'#c9bde8');
   const WM=['CREADOR DE PERSONAJES','EDITOR DE GOLPES','PERSONAJES DISPONIBLES','GOLPES DISPONIBLES','VOLVER'];
   WM.forEach((m,i)=>{const on=i===game.wsel;
@@ -4334,7 +4369,7 @@ function drawWorkshopMenu(){
 }
 function drawControls(){
   hx.fillStyle='rgba(6,5,14,.9)';hx.fillRect(0,0,W,H);
-  txt('CONTROLES',W/2,72,30,'#ffd75a');
+  txtArcade('CONTROLES',W/2,76,34,'#ffd75a','#ff8c1a');
   txt('J para reasignar · A/D cambiar de jugador · K volver',W/2,98,12,'#9a8cc0');
   [[CTRL1,'JUGADOR 1',W*.28,0],[CTRL2,'JUGADOR 2',W*.72,9]].forEach(([C,tit,cx,off])=>{
     txt(tit,cx,132,17,'#8ef0ff');
@@ -4353,7 +4388,7 @@ function drawControls(){
 }
 function drawChampMenu(){
   hx.fillStyle='rgba(6,5,14,.55)';hx.fillRect(0,0,W,H);
-  txt('CAMPEONATOS',W/2,120,36,'#ffd75a');
+  txtArcade('CAMPEONATOS',W/2,124,42,'#ffd75a','#ff8c1a');
   const CM=['TORNEO','ELIMINATORIA','CUSTOM','VOLVER'];
   CM.forEach((m,i)=>{const on=i===game.csel;
     txt((on?'▸ ':'')+m,W/2,200+i*34,on?24:19,on?'#ffd75a':'#c9bde8');});
@@ -4361,7 +4396,7 @@ function drawChampMenu(){
 }
 function drawCustomList(){
   hx.fillStyle='rgba(6,5,14,.9)';hx.fillRect(0,0,W,H);
-  txt('CAMPEONATOS · CUSTOM',W/2,100,30,'#ffd75a');
+  txtArcade('CAMPEONATOS · CUSTOM',W/2,104,32,'#ffd75a','#ff8c1a');
   txt('Carpeta web «custom/» (index.json) · o elige una carpeta local',W/2,132,13,'#9a8cc0');
   const rows=['ELEGIR CARPETA…'].concat(CUSTLIST.map(c=>c.label));
   const start=Math.max(0,Math.min(game.clsel-4,rows.length-9));
@@ -6316,10 +6351,18 @@ class Rig{
        NEUTROS: el hueso ya recibe su orientacion absoluta y, si ademas gira el
        padre, el miembro se desvia (por eso las manos no llegaban a juntarse). */
     const dz=!!p.d;
-    if(this.holdLF){this.holdLF.rotation.x=dz?0:-(p.legAF||0)*D;this.holdLF.rotation.y=dz?0:(p.legTF||0)*D;}
-    if(this.holdLB){this.holdLB.rotation.x=dz?0:(p.legAB||0)*D;this.holdLB.rotation.y=dz?0:(p.legTB||0)*D;}
-    if(this.holdAF){this.holdAF.rotation.x=dz?0:-(p.armAF||0)*D;this.holdAF.rotation.y=dz?0:(p.armTF||0)*D;}
-    if(this.holdAB){this.holdAB.rotation.x=dz?0:(p.armAB||0)*D;this.holdAB.rotation.y=dz?0:(p.armTB||0)*D;}
+    /* LA APERTURA TIENE QUE SEGUIR AL LADO. Los soportes delantero y trasero
+       cambian de sitio al girarse el luchador (position.z = zG*facing), pero
+       este giro de apertura no lo hacia: al mirar hacia el otro lado los
+       brazos y las piernas se abrian HACIA DENTRO. Medido con la misma pose:
+       la mano delantera caia en z +0.42 mirando a un lado y en z -0.33
+       mirando al otro, cuando en el espacio del luchador deberia ser la misma
+       posicion. Multiplicar por 'facing' invierte el giro junto con el sitio. */
+    const fx=facing;
+    if(this.holdLF){this.holdLF.rotation.x=dz?0:-(p.legAF||0)*D*fx;this.holdLF.rotation.y=dz?0:(p.legTF||0)*D;}
+    if(this.holdLB){this.holdLB.rotation.x=dz?0:(p.legAB||0)*D*fx;this.holdLB.rotation.y=dz?0:(p.legTB||0)*D;}
+    if(this.holdAF){this.holdAF.rotation.x=dz?0:-(p.armAF||0)*D*fx;this.holdAF.rotation.y=dz?0:(p.armTF||0)*D;}
+    if(this.holdAB){this.holdAB.rotation.x=dz?0:(p.armAB||0)*D*fx;this.holdAB.rotation.y=dz?0:(p.armTB||0)*D;}
     /* SUELO ESTABLE: con captura, en vez de dejar el cuerpo suelto (flotaba)
        se apoya el pie MAS BAJO, conservando la altura relativa que trae py.
        Asi el maniqui pisa el suelo como la referencia, pero los saltos siguen
@@ -6330,6 +6373,15 @@ class Rig{
     let dy=0;
     if(plant==='both')dy=-Math.min(this.lowY(this.footF,this.soleF),this.lowY(this.footB,this.soleB));
     else if(plant==='back')dy=-this.lowY(this.footB,this.soleB);
+    else if(plant==='suelo'){
+      /* cuerpo tendido: se apoya el punto mas bajo de todo el conjunto, con
+         el margen del grosor del miembro para que no se hunda en la lona */
+      let lo=Infinity;
+      for(const o of [this.footF,this.footB,this.pel,this.chest,this.headJ,this.handF,this.handB]){
+        if(!o)continue; const y=this.wy(o); if(y<lo)lo=y;
+      }
+      if(isFinite(lo)) dy=-lo+(this.d.limbW||3)*this.s;
+    }
     /* En captura, py trae la altura REAL de la cadera. Si el cuerpo esta por
        encima de su altura de reposo es un salto: entonces no se planta el pie
        (se dejaria el salto en nada) y se respeta la elevacion medida. */
@@ -7788,6 +7840,15 @@ class Fighter{
 
        Tres ritmos primos entre si (bote, peso, respiracion) para que el bucle
        no se lea como un ciclo corto repitiendose. */
+    /* Cerca del rival = en guardia; lejos = relajado.
+       LOS UMBRALES SALEN DE MEDIR, no de suponer: los luchadores arrancan el
+       asalto a 384 px y pelean sobre los 341. Con el corte anterior (relajado
+       a partir de 330) estaban relajados PRACTICAMENTE SIEMPRE, incluso al
+       empezar la pelea, con los brazos caidos y abiertos. Ahora la guardia es
+       lo normal en distancia de combate y solo se relaja cuando de verdad
+       estan separados. */
+    const dRival=this.opp?Math.abs(this.opp.x-this.x):999;
+    const g=Math.max(0,Math.min(1,(620-dRival)/240));
     const bo=(1-Math.cos(this.t*.105))*.5;   // 0..1 bote de boxeador
     const pe=Math.sin(this.t*.041);          // el peso pasa de una pierna a otra
     const re=Math.sin(this.t*.027);          // respiracion, la mas lenta
@@ -7822,9 +7883,13 @@ class Fighter{
          vertical (168) con el antebrazo mas levantado (34) y la separacion
          original de 35. Asi los dos punos quedan delante, separados del
          cuerpo, sin cruzarlo. */
-      armUF:168+gd*4.5-pe*2.5-br*10, armLF:34+gd*7-bo*5-br*12,
-      armUB:200-gd*3.5+pe*2.5-br*6,  armLB:120-gd*5.5+bo*4-br*8,
-      armAF:-35+pe*4, armAB:35+pe*4,
+      /* GUARDIA SEGUN LA DISTANCIA. Con el rival encima, los punos suben a
+         proteger la cara; con el rival lejos, los brazos bajan a una postura
+         de espera. Se interpola entre las dos, asi que la transicion se ve.
+         'g' va de 0 (lejos) a 1 (cerca). */
+      armUF:lerp(150,168,g)+gd*4.5-pe*2.5-br*10, armLF:lerp(92,34,g)+gd*7-bo*5-br*12,
+      armUB:lerp(194,200,g)-gd*3.5+pe*2.5-br*6,  armLB:lerp(148,120,g)-gd*5.5+bo*4-br*8,
+      armAF:lerp(-30,-35,g)+pe*4, armAB:lerp(30,35,g)+pe*4,
       wristF:gd*7-bo*3, wristB:-gd*6+bo*2,
       /* Las dos rodillas botan a la vez (si no, el pie de apoyo mas bajo manda
          y el cuerpo no baja) y ademas cada una carga medio ciclo desfasada. */
@@ -7834,7 +7899,13 @@ class Fighter{
     });
   }
   plantMode(){
-    if(this.state==='ko'||this.air)return 'none';
+    /* Derribado NO es lo mismo que en el aire. Con 'none' el cuerpo se queda
+       a la altura de la cadera de pie y, como la pose de K.O. lo tumba 82
+       grados sobre ella, el luchador quedaba inclinado FLOTANDO sobre la lona
+       en vez de caer. 'suelo' apoya la parte mas baja del cuerpo, sea la que
+       sea (hombro, cabeza, cadera...), que es lo que hace un cuerpo tendido. */
+    if(this.state==='ko')return 'suelo';
+    if(this.air)return 'none';
     if(this.mv)return this.mv.plant||'both';
     return 'both';
   }
@@ -8806,7 +8877,7 @@ function tickCam(t){
   if(game.mode==='pause')return;
   if(game.mode==='bracket'||game.mode==='organizer'||game.mode==='orgnews'||game.mode==='customlist'){cam.position.set(0,2.6,11.5);cam.lookAt(0,1.5,0);return;}
   if(game.mode==='fatality'&&game.fat){
-    const F=game.fat,wx=clamp((F.x-480)*K,-7,7),wy=1.1+Math.max(0,(GROUND-F.y))*K*.85;
+    const F=game.fat,wx=clamp((F.x-480)*K,-7,7),wy=1.1+Math.max(0,(GROUND-F.y))*K*.85+stageFloorY();
     const ang=F.t*.032;
     game.camX=lerp(game.camX,wx+Math.sin(ang)*5.2,.14);
     game.camZ=lerp(game.camZ,Math.cos(ang)*5.2,.14);
@@ -8824,10 +8895,10 @@ function tickCam(t){
     const Rr=lerp(10.5,4.6,e);
     game.camX=lerp(game.camX,wx+Math.sin(ang)*Rr,.08);
     game.camZ=lerp(game.camZ,Math.cos(ang)*Rr,.08);
-    game.camY=lerp(game.camY,lerp(2.15,2.55,e),.08);
+    game.camY=lerp(game.camY,lerp(2.15,2.55,e)+stageFloorY(),.08);
     cam.position.set(game.camX,game.camY,game.camZ);
-    cam.lookAt(wx,lerp(1.35,2.25,e),0);
-    sun.target.position.set(wx,1,0);
+    cam.lookAt(wx,lerp(1.35,2.25,e)+stageFloorY(),0);
+    sun.target.position.set(wx,1+stageFloorY(),0);
     return;
   }
   if(!p1||!p2)return;
@@ -8838,23 +8909,29 @@ function tickCam(t){
   {let d=AX.A-AX.camA;d=Math.atan2(Math.sin(d),Math.cos(d));AX.camA+=d*.07;}
   const pa=AX.camA+Math.PI/2, pcx=Math.cos(pa), pcz=Math.sin(pa);   // lado de la camara
   const MW=axW(mid);                                               // centro en el mundo
-  let tz=clamp(7.4+sep*.62,7.6,ARENA_R*1.15);if((p1.hp>0&&p1.hp<p1.c.hpMax*.22)||(p2.hp>0&&p2.hp<p2.c.hpMax*.22))tz*=.93;const ty=2.15+hi*.22;
+  let tz=clamp(7.4+sep*.62,7.6,ARENA_R*1.15);if((p1.hp>0&&p1.hp<p1.c.hpMax*.22)||(p2.hp>0&&p2.hp<p2.c.hpMax*.22))tz*=.93;
+  /* ALTURA DEL SUELO. En el ring la lona esta a RING_FLOOR_Y, o sea que los
+     luchadores pelean una unidad mas arriba. Todas las alturas de camara de
+     aqui abajo estaban medidas desde el suelo 0, asi que en el ring la camara
+     se quedaba baja y apuntaba a la altura de las rodillas. */
+  const suelo=stageFloorY();
+  const ty=2.15+hi*.22+suelo;
   if(game.mode==='intro'){
     const e=ease(Math.min(1,game.bt/100));
-    const yw=(1-e)*-1.05+Math.sin(t*.004)*.05, Rr=lerp(6.2,tz,e), yy=lerp(1.5,ty,e);
+    const yw=(1-e)*-1.05+Math.sin(t*.004)*.05, Rr=lerp(6.2,tz,e), yy=lerp(1.5+suelo,ty,e);
     game.camX=mid;game.camZ=tz;game.camY=ty;
     p1.rig.root.visible=true;
     const ia=pa+yw;
     cam.position.set(MW.x+Math.cos(ia)*Rr,yy,MW.z+Math.sin(ia)*Rr);
-    cam.lookAt(MW.x,1.5,MW.z);sun.target.position.set(MW.x,1,MW.z);return;
+    cam.lookAt(MW.x,1.5+suelo,MW.z);sun.target.position.set(MW.x,1+suelo,MW.z);return;
   }
   if(game.camMode==='cenital'){
     const hgt=clamp(8.5+sep*.55,9,15);
     const sh=game.shake;p1.rig.root.visible=true;
-    cam.position.set(MW.x+(Math.random()-.5)*sh*2,hgt,MW.z+2.4+(Math.random()-.5)*sh);
-    cam.lookAt(MW.x,0,MW.z);
+    cam.position.set(MW.x+(Math.random()-.5)*sh*2,hgt+suelo,MW.z+2.4+(Math.random()-.5)*sh);
+    cam.lookAt(MW.x,suelo,MW.z);
     game.tilt=(game.tilt||0)*.88;
-    sun.target.position.set(game.camX,1,0);return;
+    sun.target.position.set(game.camX,1+suelo,0);return;
   }
   if(game.camMode==='pov'){
     const e1=p1.rig.joint('chest'), e2=p2.rig.joint('chest');
@@ -8875,10 +8952,10 @@ function tickCam(t){
   const la=pa+yaw;
   const ox=MW.x+Math.cos(la)*game.camZ, oz=MW.z+Math.sin(la)*game.camZ;
   cam.position.set(ox+(Math.random()-.5)*sh*2,game.camY+(Math.random()-.5)*sh*2,oz);
-  cam.lookAt(MW.x,1.35+hi*.2,MW.z);
+  cam.lookAt(MW.x,1.35+hi*.2+suelo,MW.z);
   game.tilt=(game.tilt||0)*.88;if(Math.abs(game.tilt)>.002)cam.rotation.z+=game.tilt;
   cam.rotation.z+=(Math.random()-.5)*sh*.35;
-  sun.target.position.set(MW.x,1,MW.z);
+  sun.target.position.set(MW.x,1+suelo,MW.z);
 }
 
 /* ===========================================================
@@ -8895,6 +8972,36 @@ const STAGE_NAMES={neutro:'DOJO NEUTRO · Sala de entrenamiento',
   lab:'LABORATORIO DE MARTA · Ventilar antes de entrar'};
 const FONT_BIG='"Bungee","Russo One","Courier New",monospace';
 const FONT_UI='"Russo One","Bungee","Courier New",monospace';
+/* ROTULO ARCADE: relleno con degradado, contorno grueso, sombra proyectada y
+   un brillo que recorre las letras. Para los titulos de pantalla, que antes
+   eran texto plano de un solo color. */
+function txtArcade(s,x,y,size,c1,c2,align='center'){
+  hx.save();
+  hx.font=size+'px '+FONT_BIG;
+  hx.textAlign=align; hx.textBaseline='alphabetic';
+  const w=hx.measureText(s).width;
+  hx.lineJoin='round'; hx.miterLimit=2;
+  // sombra proyectada
+  hx.fillStyle='rgba(0,0,0,.5)';
+  hx.fillText(s,x+Math.max(2,size*.055),y+Math.max(2,size*.07));
+  // doble contorno: oscuro grueso + filo de color
+  hx.lineWidth=Math.max(4,size*.20); hx.strokeStyle='#150d20'; hx.strokeText(s,x,y);
+  hx.lineWidth=Math.max(1.5,size*.075); hx.strokeStyle=c2; hx.strokeText(s,x,y);
+  // relleno con degradado vertical (metal caliente)
+  const g=hx.createLinearGradient(0,y-size*.88,0,y+size*.18);
+  g.addColorStop(0,'#fffbe8'); g.addColorStop(.40,c1);
+  g.addColorStop(.58,c2);      g.addColorStop(1,'#6d3200');
+  hx.fillStyle=g; hx.fillText(s,x,y);
+  // brillo que recorre el rotulo
+  const tt=((performance.now()*.00035)%1.7)-.35;
+  const x0=(align==='center'?x-w/2:align==='right'?x-w:x);
+  const gs=hx.createLinearGradient(x0+w*(tt-.16),0,x0+w*(tt+.16),0);
+  gs.addColorStop(0,'rgba(255,255,255,0)');
+  gs.addColorStop(.5,'rgba(255,255,255,.5)');
+  gs.addColorStop(1,'rgba(255,255,255,0)');
+  hx.fillStyle=gs; hx.fillText(s,x,y);
+  hx.restore();
+}
 function txt(s,x,y,size,col,align='center',shadow=true){
   const big=size>=22;
   hx.font=(big?'':'bold ')+size+'px '+(big?FONT_BIG:FONT_UI);
@@ -8910,7 +9017,20 @@ function txt(s,x,y,size,col,align='center',shadow=true){
 function hexA(h,a){if(!h||h[0]!=='#')return h||'rgba(0,0,0,0)';const n=parseInt(h.slice(1),16);return 'rgba('+((n>>16)&255)+','+((n>>8)&255)+','+(n&255)+','+a+')';}
 function rr(x,y,w,h,r){r=Math.min(r,w/2,h/2);hx.beginPath();hx.moveTo(x+r,y);hx.arcTo(x+w,y,x+w,y+h,r);hx.arcTo(x+w,y+h,x,y+h,r);hx.arcTo(x,y+h,x,y,r);hx.arcTo(x,y,x+w,y,r);hx.closePath();}
 function panelFrame(x,y,w,h,col){
-  rr(x,y,w,h,10);hx.fillStyle='rgba(8,7,20,.86)';hx.fill();
+  /* Marco de panel: antes era un rectangulo relleno plano con borde de un
+     color. Ahora lleva halo exterior, fondo con degradado y un filo interior
+     claro que le da relieve, ademas de las esquinas de siempre. */
+  hx.save();
+  hx.shadowColor=hexA(col,.55);hx.shadowBlur=18;
+  rr(x,y,w,h,10);hx.fillStyle='rgba(8,7,20,.9)';hx.fill();
+  hx.shadowBlur=0;
+  const pg=hx.createLinearGradient(0,y,0,y+h);
+  pg.addColorStop(0,'rgba(255,255,255,.09)');pg.addColorStop(.45,'rgba(255,255,255,.02)');
+  pg.addColorStop(1,'rgba(0,0,0,.28)');
+  rr(x,y,w,h,10);hx.fillStyle=pg;hx.fill();
+  rr(x+2.5,y+2.5,w-5,h-5,8);hx.lineWidth=1;hx.strokeStyle='rgba(255,255,255,.16)';hx.stroke();
+  hx.restore();
+  rr(x,y,w,h,10);
   hx.lineWidth=2.5;hx.strokeStyle=col;hx.stroke();
   hx.strokeStyle=hexA(col,.95);hx.lineWidth=3;const c=15;
   hx.beginPath();hx.moveTo(x+7,y+7+c);hx.lineTo(x+7,y+7);hx.lineTo(x+7+c,y+7);hx.stroke();
@@ -8932,20 +9052,63 @@ function wrapText(text,x,y,maxw,size,col,lineH){
   if(line){txt(line,x,y,size,col,'left',false);y+=lineH;}
   return y;
 }
+/* BARRA DE VIDA. Era un rectangulo plano con un borde blanco. Ahora lleva:
+   marco biselado dorado, relleno con degradado, muescas cada 25%, brillo
+   superior, aviso palpitante por debajo del 25% y, sobre todo, BARRA
+   FANTASMA: el trozo que acabas de perder se queda un momento en rojo palido
+   y baja despues, que es como se lee de un vistazo lo que ha dolido el
+   ultimo golpe. */
 function hpBar(x,y,w,h,f,flip){
-  hx.fillStyle='#0a0a12';hx.fillRect(x-3,y-3,w+6,h+6);
-  hx.fillStyle='#4a0d16';hx.fillRect(x,y,w,h);
-  const r=Math.max(0,f.hp)/f.c.hpMax,fw=w*r;
-  hx.fillStyle=r>.5?'#ffd75a':r>.25?'#ff8c1a':'#ff4b3e';
-  hx.fillRect(flip?x+w-fw:x,y,fw,h);
-  hx.fillStyle='rgba(255,255,255,.25)';hx.fillRect(flip?x+w-fw:x,y,fw,h*.35);
-  hx.strokeStyle='#fff';hx.lineWidth=2;hx.strokeRect(x,y,w,h);
-  const my=y+h+8,mw=w*.72,mf=mw*f.meter/100;
-  hx.fillStyle='#0a0a12';hx.fillRect(flip?x+w-mw-2:x-2,my-2,mw+4,12);
-  hx.fillStyle='#1c2a4a';hx.fillRect(flip?x+w-mw:x,my,mw,8);
-  hx.fillStyle=f.meter>=100?(Math.floor(performance.now()/90)%2?'#fff':f.hud):f.hud;
-  hx.fillRect(flip?x+w-mf:x,my,mf,8);
-  txt('SUPER',flip?x+w-mw-8:x+mw+8,my+8,9,f.meter>=100?'#fff':'#6a7a9a',flip?'right':'left',false);
+  const r=Math.max(0,f.hp)/f.c.hpMax, fw=w*r;
+  // fantasma: cae despacio al perder vida, instantaneo al recuperarla
+  if(f._hpG==null)f._hpG=r;
+  f._hpG += (r-f._hpG)*(r<f._hpG?.05:.6);
+  const gw=w*Math.max(0,f._hpG);
+  const bajo=r<.25, pulso=bajo?(.5+.5*Math.sin(performance.now()*.012)):0;
+
+  hx.save();
+  // marco
+  hx.fillStyle='#07060e';hx.fillRect(x-4,y-4,w+8,h+8);
+  const mg=hx.createLinearGradient(0,y-4,0,y+h+4);
+  mg.addColorStop(0,'#ffe89a');mg.addColorStop(.5,'#c9962b');mg.addColorStop(1,'#7a5a12');
+  hx.strokeStyle=mg;hx.lineWidth=2;hx.strokeRect(x-3.5,y-3.5,w+7,h+7);
+  // canal interior
+  hx.fillStyle='#2a0a12';hx.fillRect(x,y,w,h);
+  // fantasma del ultimo mordisco
+  if(gw>fw+.5){hx.fillStyle='rgba(255,90,70,.55)';
+    hx.fillRect(flip?x+w-gw:x+fw,y,gw-fw,h);}
+  // relleno con degradado segun la vida que queda
+  const c1=r>.5?'#ffe98a':r>.25?'#ffb04a':'#ff6a5a';
+  const c2=r>.5?'#ff9c1a':r>.25?'#ff6a1a':'#c41a12';
+  const fg=hx.createLinearGradient(0,y,0,y+h);
+  fg.addColorStop(0,'#fffbe0');fg.addColorStop(.28,c1);
+  fg.addColorStop(.62,c2);fg.addColorStop(1,'#6d1a06');
+  hx.fillStyle=fg;hx.fillRect(flip?x+w-fw:x,y,fw,h);
+  // brillo superior
+  hx.fillStyle='rgba(255,255,255,.28)';hx.fillRect(flip?x+w-fw:x,y,fw,h*.32);
+  // muescas cada cuarto
+  hx.strokeStyle='rgba(0,0,0,.45)';hx.lineWidth=1;
+  for(let i=1;i<4;i++){const mx=Math.round(x+w*i/4)+.5;
+    hx.beginPath();hx.moveTo(mx,y+1);hx.lineTo(mx,y+h-1);hx.stroke();}
+  // aviso de vida baja
+  if(bajo){hx.strokeStyle='rgba(255,60,45,'+(.35+.5*pulso)+')';hx.lineWidth=3;
+    hx.strokeRect(x-2,y-2,w+4,h+4);}
+  hx.strokeStyle='rgba(255,255,255,.85)';hx.lineWidth=1.5;hx.strokeRect(x,y,w,h);
+
+  // ---- barra de super ----
+  const my=y+h+9,mw=w*.72,mf=mw*Math.min(100,f.meter)/100,lleno=f.meter>=100;
+  hx.fillStyle='#07060e';hx.fillRect(flip?x+w-mw-3:x-3,my-3,mw+6,14);
+  hx.fillStyle='#101c33';hx.fillRect(flip?x+w-mw:x,my,mw,8);
+  const sg=hx.createLinearGradient(0,my,0,my+8);
+  if(lleno){const p2=Math.floor(performance.now()/90)%2;
+    sg.addColorStop(0,p2?'#ffffff':'#dff6ff');sg.addColorStop(1,p2?f.hud:'#7fd8ff');}
+  else{sg.addColorStop(0,'#dff6ff');sg.addColorStop(.5,f.hud);sg.addColorStop(1,'#12304f');}
+  hx.fillStyle=sg;hx.fillRect(flip?x+w-mf:x,my,mf,8);
+  hx.strokeStyle=lleno?'#fff':'rgba(255,255,255,.35)';hx.lineWidth=1;
+  hx.strokeRect(flip?x+w-mw:x,my,mw,8);
+  hx.restore();
+  txt(lleno?'¡SUPER!':'SUPER',flip?x+w-mw-9:x+mw+9,my+8,lleno?10:9,
+      lleno?'#fff':'#6a7a9a',flip?'right':'left',false);
 }
 let VIGN=null;
 function hudButtons(){
@@ -9204,7 +9367,7 @@ function drawTitle(){
   /* Un solo subtitulo: "ARCADE EDITION" ya sale en el splash, y aqui se
      dibujaba encima de "TORNEO MUNDIAL" (y 146 contra y 142), asi que los
      dos textos quedaban ilegibles superpuestos. */
-  txt('T O R N E O   M U N D I A L',W/2,146,17,'#ff8c1a');
+  txtArcade('T O R N E O   M U N D I A L',W/2,148,20,'#ffd75a','#ff8c1a');
   for(let i=0;i<game.menu.length;i++){
     const s=game.sel===i;
     txt((s?'▶ ':'')+game.menu[i]+(s?' ◀':''),W/2,188+i*27,s?23:19,s?'#fff':'#9a8cc0');
@@ -9257,10 +9420,19 @@ function drawSelect(){
   hx.fillStyle=rg;hx.fillRect(0,0,W,H);
 
   // cabecera + puntos del roster
-  txt(p2turn?'JUGADOR 2 · ELIGE':'ELIGE TU LUCHADOR',W/2,44,26,acc);
+  txtArcade(p2turn?'JUGADOR 2 · ELIGE':'ELIGE TU LUCHADOR',W/2,46,28,'#fff0b0',acc);
+  /* Puntos del roster: el elegido late y lleva halo, para que se vea de un
+     vistazo por donde vas sin tener que contar. */
   const N=ROSTER.length, gapd=Math.min(20,560/Math.max(1,N)), x0=W/2-(N-1)*gapd/2;
-  for(let i=0;i<N;i++){const on=i===idx;hx.beginPath();hx.arc(x0+i*gapd,64,on?5:3,0,7);
-    hx.fillStyle=on?acc:'rgba(255,255,255,.25)';hx.fill();}
+  for(let i=0;i<N;i++){
+    const on=i===idx, px=x0+i*gapd;
+    if(on){hx.save();hx.shadowColor=acc;hx.shadowBlur=12;
+      hx.beginPath();hx.arc(px,64,6+Math.sin(t*.008)*.9,0,7);hx.fillStyle=acc;hx.fill();
+      hx.restore();
+      hx.beginPath();hx.arc(px,64,2.2,0,7);hx.fillStyle='#fff';hx.fill();
+    }else{
+      hx.beginPath();hx.arc(px,64,3,0,7);hx.fillStyle='rgba(255,255,255,.28)';hx.fill();
+    }}
 
   // PANEL IZQUIERDO · retrato grande (entra desde la izquierda)
   if(C){
@@ -9270,7 +9442,7 @@ function drawSelect(){
     drawPortrait(C,'general',34,py+6,pw-12,ph-12,acc,null);
     const npy=py+ph-42;
     hx.fillStyle='rgba(5,4,12,.74)';hx.fillRect(34,npy,pw-12,36);
-    txt(C.name,28+pw/2,npy+18,20,acc);
+    txtArcade(C.name,28+pw/2,npy+20,20,'#fff6d0',acc);
     txt(C.tag||'',28+pw/2,npy+32,10,'#d8cff0');
     hx.restore();
   }

@@ -5131,14 +5131,19 @@ function attachImportedBody(rig, C){
 
 /* --- 1. Reconocer huesos humanoides por nombre ---------------- */
 
-// normaliza un nombre de hueso para compararlo: quita el sufijo
-// numerico que anaden algunos exportadores (_09, _057), el prefijo
-// del rig (mixamorig, armature, bip01) y cualquier separador.
-// OJO: el sufijo _NN se quita ANTES de nada; no se pueden quitar
-// digitos finales en general porque Spine/Spine1/Spine2 son huesos
-// distintos y se confundirian entre si.
-function normBoneName(raw){
-  let s = String(raw||'').replace(/_\d+$/,'');
+// normaliza un nombre de hueso para compararlo: quita el prefijo del rig
+// (mixamorig, armature, bip01), normaliza el lado (que puede venir delante
+// o detras) y elimina los separadores.
+// OJO: no se pueden quitar digitos finales a lo bruto, porque
+// Spine/Spine1/Spine2 son huesos distintos y se confundirian entre si.
+/* keepNum: conserva el numero final del nombre. Hace falta para distinguir
+   "spine_01" de "spine_03" (columna baja / pecho en rigs tipo Unreal), pero
+   NO puede ser lo unico que se pruebe, porque GLTFLoader anade "_1", "_2"...
+   a los nombres repetidos y ahi el numero hay que tirarlo. roleOfBone prueba
+   las dos formas. */
+function normBoneName(raw, keepNum){
+  let s = String(raw||'');
+  if(!keepNum) s = s.replace(/_\d+$/,'');
   s = s.toLowerCase();
   // "mixamorig" va pegado al nombre (GLTFLoader elimina los ':'), asi que
   // se quita sin exigir separador
@@ -5146,37 +5151,73 @@ function normBoneName(raw){
   /* Los demas prefijos SI exigen separador: sin el, "rig" se comeria el
      principio de "rightArm" -> "htarm" y no se reconoceria ningun hueso
      del lado derecho (pasaba con los nombres estilo VRM). */
-  s = s.replace(/^(armature|bip01|bip|rig|def)[:_\-\s|]+/,'');
+  s = s.replace(/^(armature|bip01|bip|rig|def|root)[:_\-\s|]+/,'');
+  /* EL LADO PUEDE IR AL FINAL. "upper_arm.L", "hand_R", "thigh_l"... es como
+     exporta Blender por defecto y como nombran Unreal y media galeria de
+     modelos. Antes solo se entendia el lado como PREFIJO, asi que en esos
+     rigs no se reconocia ni un solo hueso de brazo o pierna: se quedaban
+     clavados en pose de bind (brazos en cruz, piernas rectas) mientras el
+     resto del cuerpo se movia. Aqui el sufijo se pasa al principio para que
+     todo el resto del codigo siga viendo "left..." / "right...". */
+  let side = '';
+  let m = s.match(/[._\-\s|]+(left|right|lft|rgt|l|r)$/);
+  if(m){ side = (m[1][0]==='l') ? 'left' : 'right'; s = s.slice(0, m.index); }
+  else {
+    // ...o al principio como palabra suelta: "Bip01 L Thigh" -> "left thigh"
+    m = s.match(/^(left|right|lft|rgt|l|r)[._\-\s|]+/);
+    if(m){ side = (m[1][0]==='l') ? 'left' : 'right'; s = s.slice(m[0].length); }
+  }
   s = s.replace(/[^a-z0-9]/g,'');
-  return s;
+  return side + s;
 }
 
-// patrones por rol humanoide. El orden importa poco porque los
-// patrones estan anclados (^...$) para no solaparse: p.ej.
-// "leftarm" (brazo) no colisiona con "leftforearm" (antebrazo).
+/* Patrones por rol humanoide. Van anclados (^...$) para no solaparse: p.ej.
+   "leftarm" (brazo) no colisiona con "leftforearm" (antebrazo).
+   El lado admite la forma larga y la corta: normBoneName ya ha dejado
+   "left"/"right" delante cuando venia como sufijo o como palabra suelta,
+   pero hay rigs (Daz: lShldr, lThigh) que lo pegan sin separador.
+   El ORDEN SI IMPORTA entre "upper" y "lower": leftUpperLeg se prueba antes
+   que leftLowerLeg, cuyo "(low|lower)?" es opcional y se comeria "leftleg". */
+const _L='(?:left|l)', _R='(?:right|r)';
+const _re=(s)=>new RegExp('^'+s+'$');
 const HUMANOID_PATTERNS = {
+  /* Sin /^bip01$/: en 3ds Max ese es el hueso RAIZ y "Bip01 Pelvis" es la
+     cadera de verdad. Como se recorre de arriba abajo, la raiz llegaria
+     antes y se quedaria el rol, dejando fuera a la pelvis. */
   hips:          [/^hips?$/, /^pelvis$/, /^cadera$/],
-  spine:         [/^spine$/, /^spine1$/, /^abdomen$/],
-  chest:         [/^spine2$/, /^chest$/, /^upperchest$/, /^torso$/],
-  neck:          [/^neck$/, /^cuello$/],
+  spine:         [/^spine$/, /^spine0?1$/, /^abdomen$/, /^waist$/],
+  chest:         [/^spine0?[23]$/, /^chest$/, /^upperchest$/, /^torso$/, /^ribcage$/],
+  neck:          [/^neck0?1?$/, /^cuello$/],
   head:          [/^head$/, /^cabeza$/],
-  leftUpperArm:  [/^left(upper)?arm$/, /^l(upper)?arm$/, /^brazoizq$/],
-  leftLowerArm:  [/^left(fore|lower)arm$/, /^l(fore|lower)arm$/],
-  leftHand:      [/^lefthand$/, /^lhand$/, /^manoizq$/],
-  rightUpperArm: [/^right(upper)?arm$/, /^r(upper)?arm$/, /^brazoder$/],
-  rightLowerArm: [/^right(fore|lower)arm$/, /^r(fore|lower)arm$/],
-  rightHand:     [/^righthand$/, /^rhand$/, /^manoder$/],
-  leftUpperLeg:  [/^left(up|upper)leg$/, /^l(up|upper)leg$/, /^leftthigh$/],
-  leftLowerLeg:  [/^left(low|lower)?leg$/, /^l(low|lower)?leg$/, /^leftshin$/],
-  leftFoot:      [/^leftfoot$/, /^lfoot$/, /^pieizq$/],
-  rightUpperLeg: [/^right(up|upper)leg$/, /^r(up|upper)leg$/, /^rightthigh$/],
-  rightLowerLeg: [/^right(low|lower)?leg$/, /^r(low|lower)?leg$/, /^rightshin$/],
-  rightFoot:     [/^rightfoot$/, /^rfoot$/, /^pieder$/],
+  /* 'shldr' abreviado SI (es el brazo en Daz), 'shoulder' entero NO: ahi es
+     la clavicula (Mixamo, Rigify, Unreal) y, al ir antes que el brazo en la
+     jerarquia, se quedaba el rol y el brazo de verdad no se movia. */
+  leftUpperArm:  [_re(_L+'(?:upper)?arm'), _re(_L+'shldr'), /^brazoizq$/],
+  leftLowerArm:  [_re(_L+'(?:fore|lower)arm'), _re(_L+'elbow')],
+  leftHand:      [_re(_L+'hand'), /^manoizq$/, _re(_L+'wrist')],
+  rightUpperArm: [_re(_R+'(?:upper)?arm'), _re(_R+'shldr'), /^brazoder$/],
+  rightLowerArm: [_re(_R+'(?:fore|lower)arm'), _re(_R+'elbow')],
+  rightHand:     [_re(_R+'hand'), /^manoder$/, _re(_R+'wrist')],
+  leftUpperLeg:  [_re(_L+'(?:up|upper)leg'), _re(_L+'(?:thigh|hip|upperleg)')],
+  leftLowerLeg:  [_re(_L+'(?:low|lower)?leg'), _re(_L+'(?:shin|calf|knee)')],
+  leftFoot:      [_re(_L+'foot'), /^pieizq$/, _re(_L+'ankle')],
+  rightUpperLeg: [_re(_R+'(?:up|upper)leg'), _re(_R+'(?:thigh|hip|upperleg)')],
+  rightLowerLeg: [_re(_R+'(?:low|lower)?leg'), _re(_R+'(?:shin|calf|knee)')],
+  rightFoot:     [_re(_R+'foot'), /^pieder$/, _re(_R+'ankle')],
 };
 
 function roleOfBone(rawName){
+  /* Se prueba primero conservando el numero final ("spine01" -> pecho) y
+     luego sin el, que es la forma que salva los nombres deduplicados por
+     GLTFLoader ("Hips_1" -> "hips"). */
+  const conNum = normBoneName(rawName, true);
+  if(conNum){
+    for(const role in HUMANOID_PATTERNS)
+      for(const re of HUMANOID_PATTERNS[role])
+        if(re.test(conNum)) return role;
+  }
   const n = normBoneName(rawName);
-  if(!n) return null;
+  if(!n || n===conNum) return null;
   for(const role in HUMANOID_PATTERNS){
     for(const re of HUMANOID_PATTERNS[role]){
       if(re.test(n)) return role;
@@ -5230,12 +5271,19 @@ function attachGLBFighter(rig, gltfScene, opts){
 
   // localizar huesos humanoides por nombre
   const found = {};
+  /* Se guardan tambien los nombres SIN reconocer. Cuando un modelo no encaja,
+     saber que roles faltan no basta para arreglarlo: hay que ver como se
+     llaman de verdad los huesos del archivo. */
+  const sinRol = [];
   skinRoot.traverse(o=>{
     if(!o.isBone) return;
     const role = roleOfBone(o.name);
     if(role && !found[role]) found[role] = o;
+    else if(!role && sinRol.length<40) sinRol.push(o.name);
   });
-  if(!found.hips) throw new Error('no se reconocio un esqueleto humanoide en el GLB (no se encontro el hueso de cadera/hips)');
+  if(!found.hips) throw new Error('no se reconocio un esqueleto humanoide en el GLB '+
+    '(falta el hueso de cadera/hips). Huesos del modelo: '+
+    (sinRol.slice(0,12).join(', ')||'ninguno')+(sinRol.length>12?'…':''));
 
   // los SkinnedMesh desaparecen a veces al salir de camara porque su
   // caja se calcula en pose de bind, no deformada
@@ -5423,7 +5471,7 @@ function attachGLBFighter(rig, gltfScene, opts){
   rig._glbRoot = wrapper;
   rig._retarget();
 
-  return {bones:found, pairs:segs.length, missing, fit};
+  return {bones:found, pairs:segs.length, missing, fit, sinRol};
 }
 
 /* Los loaders de GLB no se cargan al arrancar (bloqueaban el inicio del
@@ -5495,10 +5543,18 @@ function setupGLBBody(rig, C){
     let info;
     try{ info = attachGLBFighter(rig, scene, Object.assign({scale:C.glbScale||1}, C.glbAdjust||{})); }
     catch(err){ aviso(err.message); return; }
-    if(info.missing.length) console.warn('luchador GLB', C.id, '- huesos no encontrados:', info.missing.join(', '));
+    if(info.missing.length) console.warn('luchador GLB', C.id, '- roles sin hueso:', info.missing.join(', '),
+      '| nombres no reconocidos del modelo:', (info.sinRol||[]).join(', '));
     if(typeof crGLBStatus==='function')try{
+      /* Si faltan roles se listan TAMBIEN los nombres reales que trae el
+         modelo: es lo unico que permite ver por que no encajo (p.ej. que el
+         lado va en sufijo, o que son huesos de control). */
       crGLBStatus('Modelo aplicado ('+info.pairs+' segmentos, escala '+info.fit.toFixed(2)+')'+
-        (info.missing.length?'. Huesos no reconocidos: '+info.missing.join(', '):'.'));
+        (info.missing.length
+          ? '. Sin emparejar: '+info.missing.join(', ')+
+            ((info.sinRol&&info.sinRol.length)?' · huesos del modelo: '+info.sinRol.slice(0,10).join(', ')+
+              (info.sinRol.length>10?'…':''):'')
+          : '.'));
     }catch(e){}
   }).catch(err=>aviso(err&&err.message?err.message:String(err)));
 }

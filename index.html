@@ -6316,10 +6316,18 @@ class Rig{
        NEUTROS: el hueso ya recibe su orientacion absoluta y, si ademas gira el
        padre, el miembro se desvia (por eso las manos no llegaban a juntarse). */
     const dz=!!p.d;
-    if(this.holdLF){this.holdLF.rotation.x=dz?0:-(p.legAF||0)*D;this.holdLF.rotation.y=dz?0:(p.legTF||0)*D;}
-    if(this.holdLB){this.holdLB.rotation.x=dz?0:(p.legAB||0)*D;this.holdLB.rotation.y=dz?0:(p.legTB||0)*D;}
-    if(this.holdAF){this.holdAF.rotation.x=dz?0:-(p.armAF||0)*D;this.holdAF.rotation.y=dz?0:(p.armTF||0)*D;}
-    if(this.holdAB){this.holdAB.rotation.x=dz?0:(p.armAB||0)*D;this.holdAB.rotation.y=dz?0:(p.armTB||0)*D;}
+    /* LA APERTURA TIENE QUE SEGUIR AL LADO. Los soportes delantero y trasero
+       cambian de sitio al girarse el luchador (position.z = zG*facing), pero
+       este giro de apertura no lo hacia: al mirar hacia el otro lado los
+       brazos y las piernas se abrian HACIA DENTRO. Medido con la misma pose:
+       la mano delantera caia en z +0.42 mirando a un lado y en z -0.33
+       mirando al otro, cuando en el espacio del luchador deberia ser la misma
+       posicion. Multiplicar por 'facing' invierte el giro junto con el sitio. */
+    const fx=facing;
+    if(this.holdLF){this.holdLF.rotation.x=dz?0:-(p.legAF||0)*D*fx;this.holdLF.rotation.y=dz?0:(p.legTF||0)*D;}
+    if(this.holdLB){this.holdLB.rotation.x=dz?0:(p.legAB||0)*D*fx;this.holdLB.rotation.y=dz?0:(p.legTB||0)*D;}
+    if(this.holdAF){this.holdAF.rotation.x=dz?0:-(p.armAF||0)*D*fx;this.holdAF.rotation.y=dz?0:(p.armTF||0)*D;}
+    if(this.holdAB){this.holdAB.rotation.x=dz?0:(p.armAB||0)*D*fx;this.holdAB.rotation.y=dz?0:(p.armTB||0)*D;}
     /* SUELO ESTABLE: con captura, en vez de dejar el cuerpo suelto (flotaba)
        se apoya el pie MAS BAJO, conservando la altura relativa que trae py.
        Asi el maniqui pisa el suelo como la referencia, pero los saltos siguen
@@ -8806,7 +8814,7 @@ function tickCam(t){
   if(game.mode==='pause')return;
   if(game.mode==='bracket'||game.mode==='organizer'||game.mode==='orgnews'||game.mode==='customlist'){cam.position.set(0,2.6,11.5);cam.lookAt(0,1.5,0);return;}
   if(game.mode==='fatality'&&game.fat){
-    const F=game.fat,wx=clamp((F.x-480)*K,-7,7),wy=1.1+Math.max(0,(GROUND-F.y))*K*.85;
+    const F=game.fat,wx=clamp((F.x-480)*K,-7,7),wy=1.1+Math.max(0,(GROUND-F.y))*K*.85+stageFloorY();
     const ang=F.t*.032;
     game.camX=lerp(game.camX,wx+Math.sin(ang)*5.2,.14);
     game.camZ=lerp(game.camZ,Math.cos(ang)*5.2,.14);
@@ -8824,10 +8832,10 @@ function tickCam(t){
     const Rr=lerp(10.5,4.6,e);
     game.camX=lerp(game.camX,wx+Math.sin(ang)*Rr,.08);
     game.camZ=lerp(game.camZ,Math.cos(ang)*Rr,.08);
-    game.camY=lerp(game.camY,lerp(2.15,2.55,e),.08);
+    game.camY=lerp(game.camY,lerp(2.15,2.55,e)+stageFloorY(),.08);
     cam.position.set(game.camX,game.camY,game.camZ);
-    cam.lookAt(wx,lerp(1.35,2.25,e),0);
-    sun.target.position.set(wx,1,0);
+    cam.lookAt(wx,lerp(1.35,2.25,e)+stageFloorY(),0);
+    sun.target.position.set(wx,1+stageFloorY(),0);
     return;
   }
   if(!p1||!p2)return;
@@ -8838,23 +8846,29 @@ function tickCam(t){
   {let d=AX.A-AX.camA;d=Math.atan2(Math.sin(d),Math.cos(d));AX.camA+=d*.07;}
   const pa=AX.camA+Math.PI/2, pcx=Math.cos(pa), pcz=Math.sin(pa);   // lado de la camara
   const MW=axW(mid);                                               // centro en el mundo
-  let tz=clamp(7.4+sep*.62,7.6,ARENA_R*1.15);if((p1.hp>0&&p1.hp<p1.c.hpMax*.22)||(p2.hp>0&&p2.hp<p2.c.hpMax*.22))tz*=.93;const ty=2.15+hi*.22;
+  let tz=clamp(7.4+sep*.62,7.6,ARENA_R*1.15);if((p1.hp>0&&p1.hp<p1.c.hpMax*.22)||(p2.hp>0&&p2.hp<p2.c.hpMax*.22))tz*=.93;
+  /* ALTURA DEL SUELO. En el ring la lona esta a RING_FLOOR_Y, o sea que los
+     luchadores pelean una unidad mas arriba. Todas las alturas de camara de
+     aqui abajo estaban medidas desde el suelo 0, asi que en el ring la camara
+     se quedaba baja y apuntaba a la altura de las rodillas. */
+  const suelo=stageFloorY();
+  const ty=2.15+hi*.22+suelo;
   if(game.mode==='intro'){
     const e=ease(Math.min(1,game.bt/100));
-    const yw=(1-e)*-1.05+Math.sin(t*.004)*.05, Rr=lerp(6.2,tz,e), yy=lerp(1.5,ty,e);
+    const yw=(1-e)*-1.05+Math.sin(t*.004)*.05, Rr=lerp(6.2,tz,e), yy=lerp(1.5+suelo,ty,e);
     game.camX=mid;game.camZ=tz;game.camY=ty;
     p1.rig.root.visible=true;
     const ia=pa+yw;
     cam.position.set(MW.x+Math.cos(ia)*Rr,yy,MW.z+Math.sin(ia)*Rr);
-    cam.lookAt(MW.x,1.5,MW.z);sun.target.position.set(MW.x,1,MW.z);return;
+    cam.lookAt(MW.x,1.5+suelo,MW.z);sun.target.position.set(MW.x,1+suelo,MW.z);return;
   }
   if(game.camMode==='cenital'){
     const hgt=clamp(8.5+sep*.55,9,15);
     const sh=game.shake;p1.rig.root.visible=true;
-    cam.position.set(MW.x+(Math.random()-.5)*sh*2,hgt,MW.z+2.4+(Math.random()-.5)*sh);
-    cam.lookAt(MW.x,0,MW.z);
+    cam.position.set(MW.x+(Math.random()-.5)*sh*2,hgt+suelo,MW.z+2.4+(Math.random()-.5)*sh);
+    cam.lookAt(MW.x,suelo,MW.z);
     game.tilt=(game.tilt||0)*.88;
-    sun.target.position.set(game.camX,1,0);return;
+    sun.target.position.set(game.camX,1+suelo,0);return;
   }
   if(game.camMode==='pov'){
     const e1=p1.rig.joint('chest'), e2=p2.rig.joint('chest');
@@ -8875,10 +8889,10 @@ function tickCam(t){
   const la=pa+yaw;
   const ox=MW.x+Math.cos(la)*game.camZ, oz=MW.z+Math.sin(la)*game.camZ;
   cam.position.set(ox+(Math.random()-.5)*sh*2,game.camY+(Math.random()-.5)*sh*2,oz);
-  cam.lookAt(MW.x,1.35+hi*.2,MW.z);
+  cam.lookAt(MW.x,1.35+hi*.2+suelo,MW.z);
   game.tilt=(game.tilt||0)*.88;if(Math.abs(game.tilt)>.002)cam.rotation.z+=game.tilt;
   cam.rotation.z+=(Math.random()-.5)*sh*.35;
-  sun.target.position.set(MW.x,1,MW.z);
+  sun.target.position.set(MW.x,1+suelo,MW.z);
 }
 
 /* ===========================================================

@@ -931,7 +931,15 @@ addEventListener('pointerdown',()=>{try{if(game.mode==='splash'){audio();uiKey('
    =========================================================== */
 // Pose IDLE agresiva: guardia alta, brazos MUY ABIERTOS y separados, cuerpo inclinado, postura dinamica
 const IDLE={py:-92,px:0,torso:8,head:4,headY:0,rot:0,hip:0,twist:0,abdo:null,abdoT:null,toeF:0,toeB:0,footRF:0,footRB:0,armTF:0,armTB:0,tside:0,aside:null,wristF:0,wristB:0,wristRF:0,wristRB:0,fingF:null,fingB:null,thumbF:null,thumbB:null,footAF:0,footAB:0,legAF:0,legAB:0,legTF:0,legTB:0,armAF:-35,armAB:35,
-  armUB:215,armLB:165,armUF:115,armLF:65,
+  /* REPOSO DE VERDAD. Estos angulos (0=arriba, 90=adelante, 180=abajo) son el
+     valor por defecto de cualquier pose que no toque los brazos, y sobre todo
+     los que luce la VITRINA de seleccion. Estaban en 115/65 delante y 215/165
+     detras: medido en el marco del luchador, el brazo delantero salia
+     DISPARADO al frente (hombro x 0.10 -> codo 0.57 -> mano 1.03, o sea
+     horizontal) y el codo trasero se iba por detras de la espalda (x -0.18).
+     Ahora son los mismos valores del reposo relajado de combate: brazos
+     colgando con el codo suelto por delante. */
+  armUB:194,armLB:148,armUF:150,armLF:92,
   legUB:188,legLB:204,legUF:176,legLF:176};
 const PK=Object.keys(IDLE);
 // P() completa con la pose de reposo; 'd' (direcciones de captura) se conserva
@@ -3254,12 +3262,13 @@ function mpConv(lm,X){
     if(lat){
       // 'hacia fuera' positivo en los dos lados: el lado izquierdo abre hacia
       // -right, asi que se invierte para que una postura en "V" salga simetrica
-      /* Los dos lados aplican el eje lateral con signo opuesto en el rig
-         (holdAF usa -armAF y holdAB usa +armAB), asi que aqui hay que invertir
-         SOLO el delantero para que 'hacia dentro' sea hacia dentro en ambos.
-         Sin esto un brazo cruza el pecho y el otro se abre: por eso no se
-         podian juntar las manos. */
-      const sgn=(k==='armUF'||k==='legUF')?1:-1;
+      /* PIERNAS y BRAZOS no comparten convencion. En las piernas "abierto"
+         son las DOS positivas (legAF:20/legAB:20 -> pies en z +-0.736); en los
+         brazos el par es OPUESTO (armAF:-35/armAB:35 -> manos en z +-0.942),
+         porque el rig niega los dos soportes de hombro. Antes esta captura
+         emitia el par de piernas tambien para los brazos, con lo que los dos
+         brazos se cruzaban hacia dentro. */
+      const sgn=(k==='legUF'||k==='armUB')?1:-1;
       const la=sgn*Math.asin(Math.max(-1,Math.min(1,late)))*180/Math.PI;
       const l2=MP_LIM[lat];o[lat]=Math.max(l2[0],Math.min(l2[1],
         P?P[lat]+(la-P[lat])*.75:la));}
@@ -6357,8 +6366,20 @@ class Rig{
     const fx=facing;
     if(this.holdLF){this.holdLF.rotation.x=dz?0:-(p.legAF||0)*D*fx;this.holdLF.rotation.y=dz?0:(p.legTF||0)*D;}
     if(this.holdLB){this.holdLB.rotation.x=dz?0:(p.legAB||0)*D*fx;this.holdLB.rotation.y=dz?0:(p.legTB||0)*D;}
+    /* EL BRAZO DE ATRAS CRUZABA EL CUERPO. Las poses escriben la apertura de
+       brazos como par opuesto (armAF:-35 / armAB:35, o sea "abiertos 35"),
+       pero el rig aplicaba -armAF al soporte delantero y +armAB al trasero:
+       los dos signos se anulaban y los DOS soportes giraban lo mismo. Medido
+       con los brazos colgando rectos y solo la apertura variando (z en el
+       marco del luchador, hombros en +-0.376):
+           armAF -35 / armAB  35  ->  mano F +0.942   mano B +0.189  <- cruza
+           armAF -35 / armAB -35  ->  mano F +0.942   mano B -0.942
+       Con el signo anterior la mano trasera pasaba de z -0.376 (su hombro) a
+       z +0.189, es decir atravesaba la linea media del cuerpo y salia por el
+       otro costado: el brazo "detras de la espalda" que se veia en la
+       vitrina y en combate. Negando armAB los dos brazos abren en espejo. */
     if(this.holdAF){this.holdAF.rotation.x=dz?0:-(p.armAF||0)*D*fx;this.holdAF.rotation.y=dz?0:(p.armTF||0)*D;}
-    if(this.holdAB){this.holdAB.rotation.x=dz?0:(p.armAB||0)*D*fx;this.holdAB.rotation.y=dz?0:(p.armTB||0)*D;}
+    if(this.holdAB){this.holdAB.rotation.x=dz?0:-(p.armAB||0)*D*fx;this.holdAB.rotation.y=dz?0:(p.armTB||0)*D;}
     /* SUELO ESTABLE: con captura, en vez de dejar el cuerpo suelto (flotaba)
        se apoya el pie MAS BAJO, conservando la altura relativa que trae py.
        Asi el maniqui pisa el suelo como la referencia, pero los saltos siguen
@@ -7815,7 +7836,11 @@ class Fighter{
            guardia: se anda hacia atras protegiendose, no paseando. */
         armUF:152-s*10*zan-atras*8, armLF:78-s*12*zan-atras*34,
         armUB:196+s*12*zan-atras*4, armLB:158+s*10*zan-atras*22,
-        armAF:5-atras*22, armAB:5+atras*22,
+        /* Par OPUESTO, como el resto de poses: la apertura de brazos se
+           escribe -X delante / +X detras. Aqui estaba +5 en los dos, con lo
+           que al avanzar el brazo delantero se metia hacia el cuerpo mientras
+           el trasero se abria. */
+        armAF:-(5+atras*12), armAB:5+atras*12,
         wristF:-s*10*zan, wristB:s*10*zan,
         legUF:180+s*22*zan-bote, legLF:180+s*22*zan+8+swF*30*zan+bote,
         footAF:-swF*10-heelF*12+pushF*16, toeF:pushF*24*zan,
@@ -8255,7 +8280,13 @@ function tickShowcase(t){
     const a=r.baseA+showcase.spin;
     const sel=(game.mode==='select'&&selIndex()===i);
     const b=Math.sin(t*.06+i)*1.6;
-    r.apply(P({py:-92+b,torso:6,armLF:78+b*2}),1,0,'both');
+    /* La vitrina respira y balancea el codo, pero parte del reposo relajado
+       en vez de dejar los brazos en el valor crudo del pose base: con 'armLF'
+       suelto a 78 el antebrazo delantero quedaba casi horizontal y el
+       personaje aparecia senalando al frente en la pantalla de seleccion. */
+    r.apply(P({py:-92+b,torso:6,
+      armUF:150+b*.8,armLF:92+b*2,armUB:194-b*.8,armLB:148-b*2,
+      legAF:2,legAB:2}),1,0,'both');
     r.root.position.set(R*Math.sin(a),0,R*Math.cos(a));
     r.root.rotation.y=a+(sel?Math.sin(t*.02)*.18:0);
     r.tick(t+i*30);
@@ -9083,13 +9114,21 @@ function nameBanner(name,cx,y,col){
   hx.lineWidth=2.5;hx.strokeStyle=col;hx.stroke();
   txt(name,cx,y+24,20,col);
 }
-function wrapText(text,x,y,maxw,size,col,lineH){
+/* 'tope' opcional: altura maxima. Sin el, una biografia larga se salia del
+   panel y se escribia encima del rotulo ATRIBUTOS. Al alcanzarlo se corta y
+   se marca con puntos suspensivos; devuelve la y final (negativa en el flag
+   'cortado' via propiedad, para que quien llama sepa que sobro texto). */
+function wrapText(text,x,y,maxw,size,col,lineH,tope){
   hx.font='bold '+size+'px '+FONT_UI;
   const words=String(text).split(' ');let line='';
+  wrapText.cortado=false;
+  const pinta=s=>{
+    if(tope!=null&&y+lineH>tope){wrapText.cortado=true;return false;}
+    txt(s,x,y,size,col,'left',false);y+=lineH;return true;};
   for(const wd of words){const test=line?line+' '+wd:wd;
-    if(hx.measureText(test).width>maxw&&line){txt(line,x,y,size,col,'left',false);y+=lineH;line=wd;}
+    if(hx.measureText(test).width>maxw&&line){if(!pinta(line))return y;line=wd;}
     else line=test;}
-  if(line){txt(line,x,y,size,col,'left',false);y+=lineH;}
+  if(line)pinta(line);
   return y;
 }
 /* BARRA DE VIDA. Era un rectangulo plano con un borde blanco. Ahora lleva:
@@ -9496,8 +9535,18 @@ function drawSelect(){
     txt('EXPEDIENTE',sx+sw/2,sy+26,15,acc);
     hx.strokeStyle=hexA(acc,.5);hx.lineWidth=1;
     hx.beginPath();hx.moveTo(sx+22,sy+36);hx.lineTo(sx+sw-22,sy+36);hx.stroke();
-    let ly=sy+58;(C.story||[]).forEach(line=>{ly=wrapText(line,sx+22,ly,sw-44,13,'#e8e2ff',15)+3;});
     const sty=sy+sh-92;
+    /* El expediente se corta antes de llegar a ATRIBUTOS: las biografias
+       largas desbordaban el panel y se pintaban sobre el rotulo y sobre las
+       barras de atributos. */
+    const tope=sty-22;
+    let ly=sy+58, sobra=false;
+    for(const line of (C.story||[])){
+      if(ly+15>tope){sobra=true;break;}
+      ly=wrapText(line,sx+22,ly,sw-44,13,'#e8e2ff',15,tope)+3;
+      if(wrapText.cortado){sobra=true;break;}
+    }
+    if(sobra)txt('···',sx+sw/2,Math.min(ly+4,tope+10),13,hexA(acc,.7));
     txt('ATRIBUTOS',sx+sw/2,sty,12,acc);
     const sts=[['FUERZA',C.dmgMul/1.25],['VELOCIDAD',C.speed/5],['AGUANTE',C.hpMax/125]];
     sts.forEach((v,k)=>{const yy=sty+20+k*20;
@@ -9507,10 +9556,13 @@ function drawSelect(){
     hx.restore();
   }
 
-  // flechas de giro (el luchador queda en el centro, entre paneles)
+  /* Flechas de giro, en el HUECO entre los dos paneles. Estaban fijas en 300
+     y 660, pero los paneles no son simetricos (el retrato ocupa 28..278 y el
+     expediente 632..932): la flecha derecha caia DENTRO del expediente y se
+     comia una letra de cada renglon. Ahora salen de los bordes reales. */
   const pulse=.5+.5*Math.sin(t*.006);
-  txt('‹',300,H/2+6,42,hexA(acc,.3+pulse*.5));
-  txt('›',660,H/2+6,42,hexA(acc,.3+pulse*.5));
+  txt('‹',28+250+22,H/2+6,42,hexA(acc,.3+pulse*.5));
+  txt('›',W-28-300-22,H/2+6,42,hexA(acc,.3+pulse*.5));
 
   // destello al cambiar
   if(anim>0){hx.fillStyle=hexA(acc,anim*.22);hx.fillRect(292,84,376,H-150);}

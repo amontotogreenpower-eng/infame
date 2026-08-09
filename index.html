@@ -24,7 +24,7 @@ window.__fatal=function(m){try{
 /* utils/ (SkeletonUtils) va en la lista: el codigo ya lo trata como opcional
    con su propio catch, pero al no estar aqui su fallo saltaba igualmente como
    aviso rojo bloqueante encima del juego. */
-window.__optRes=/(?:src\/Intro\.mp4|src\/luchador\d+[^\/]*\.png|src\/start\.mp3|src\/round\d\.mp3|src\/head-[\w-]+\.glb|src\/ring-[\w-]+\.(?:glb|mp4|jpg)|examples\/js\/loaders\/GLTFLoader\.js|examples\/js\/(?:shaders|postprocessing|utils)\/[\w]+\.js)$/i;
+window.__optRes=/(?:src\/Intro\.mp4|src\/luchador\d+[^\/]*\.png|src\/start\.mp3|src\/round\d\.mp3|src\/head-[\w-]+\.glb|src\/glb\/[^?#]*|src\/ring-[\w-]+\.(?:glb|mp4|jpg)|examples\/js\/loaders\/GLTFLoader\.js|examples\/js\/(?:shaders|postprocessing|utils)\/[\w]+\.js)$/i;
 window.addEventListener('error',function(e){
   if(e&&e.target&&e.target!==window&&e.target.tagName){
     var u=e.target.src||e.target.href||'';
@@ -649,21 +649,32 @@ window.addEventListener('unhandledrejection',function(e){
         animación del juego. Los huesos se emparejan solos por su nombre, no hay que calibrar nada.</div>
       <div id="cr-glb-off" class="cr-note" style="color:#ffcf7f">Para que se aplique, pon
         <b>Estilo del personaje = Modelo GLB importado</b> en la pestaña APARIENCIA.</div>
-      <label>Archivo .glb (debe estar en la misma carpeta que este index.html)
+      <div class="cr-sec">LIBRERÍA <span style="opacity:.6;font-weight:400">src/glb/</span></div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:flex-end">
+        <label style="flex:1 1 190px;margin:0">Modelos disponibles
+          <select id="cr-glblib" style="width:100%"><option value="">— cargando… —</option></select></label>
+        <button id="cr-glblib-refresh" type="button" title="Volver a leer src/glb/index.json">↻</button>
+      </div>
+      <div id="cr-glblib-note" class="cr-note">Deja tus .glb en <b>src/glb/</b> y actualiza el índice
+        con <b>node tools/glb-index.mjs</b> (o edita <b>src/glb/index.json</b> a mano).</div>
+      <label>Archivo .glb (dentro de src/glb/)
         <input type="text" id="cr-glbfile" placeholder="mi_modelo.glb" style="width:100%"></label>
-      <div class="cr-note">Al escribir aquí el nombre, el personaje se guarda con esa referencia y
-        el modelo se recarga solo cada vez que juegues, sin volver a subirlo.</div>
+      <div class="cr-note">El personaje se guarda con este nombre, no con una ruta: el modelo se
+        recarga solo cada vez que juegues, y el personaje exportado sigue encontrándolo en otra
+        máquina mientras el archivo esté en su librería.</div>
       <div id="cr-glb-fileproto" class="cr-note" style="display:none;color:#ffcf7f">Has abierto el
-        juego con doble clic (file://). Así el navegador no deja leer archivos de la carpeta: usa
-        "PROBAR un .glb…" para verlo ahora, y para que funcione la ruta permanente sirve la carpeta
-        por http (en esa carpeta: <b>python3 -m http.server</b> y abre localhost:8000).</div>
+        juego con doble clic (file://). Así el navegador no deja leer ni la librería ni los .glb de
+        la carpeta: usa "PROBAR un .glb…" para verlo ahora, y para que funcione la referencia
+        permanente sirve el proyecto por http (<b>python3 -m http.server</b> y abre
+        localhost:8000).</div>
       <div style="display:flex;gap:5px;flex-wrap:wrap">
         <button id="cr-glbpick">PROBAR un .glb…</button>
         <input type="file" id="cr-glbpickfile" accept=".glb,.gltf" style="display:none">
         <button id="cr-glbclear">QUITAR</button>
       </div>
       <div class="cr-note">"PROBAR" lo carga al momento para ver cómo queda, pero solo durante
-        esta sesión. Para que sea permanente escribe el nombre del archivo arriba.</div>
+        esta sesión. Para que sea permanente, copia el archivo a <b>src/glb/</b> y elígelo en la
+        librería.</div>
       <label>Escala del modelo <input type="range" id="cr-glbscale" min="0.4" max="2.5" step="0.01" value="1"></label>
       <div class="cr-note">El tamaño se ajusta solo a la estatura del personaje; usa esto solo para
         retocar si queda algo grande o pequeño.</div>
@@ -2869,18 +2880,42 @@ CE('cr-glbpickfile').onchange=e=>{
   if(_crGLBTest)URL.revokeObjectURL(_crGLBTest.url);
   _crGLBTest={url:URL.createObjectURL(f),name:f.name};
   if(CE('cr-glbfile')&&!CE('cr-glbfile').value.trim())CE('cr-glbfile').value=f.name;
+  if(typeof crGLBLibSync==='function')crGLBLibSync();
   if(CE('cr-style').value!=='glb'){CE('cr-style').value='glb';crGLBSync();}
   crPrevKey='';crUpdatePreview();
-  crGLBStatus('Probando "'+f.name+'". Para que sea permanente, deja el archivo junto a index.html '+
+  crGLBStatus('Probando "'+f.name+'". Para que sea permanente, copia el archivo a src/glb/ '+
     'y asegúrate de que el nombre de arriba coincide.');
 };
 CE('cr-glbclear').onclick=()=>{
   if(_crGLBTest){URL.revokeObjectURL(_crGLBTest.url);_crGLBTest=null;}
   if(CE('cr-glbfile'))CE('cr-glbfile').value='';
+  if(typeof crGLBLibSync==='function')crGLBLibSync();
   crPrevKey='';crUpdatePreview();
   crGLBStatus('Modelo quitado.');
 };
-CE('cr-glbfile').addEventListener('input',()=>{crPrevKey='';crUpdatePreview();});
+CE('cr-glbfile').addEventListener('input',()=>{crGLBLibSync();crPrevKey='';crUpdatePreview();});
+/* ---- LIBRERIA src/glb: crGLBLibPinta/crGLBLibSync viven al lado de
+   glbLibCargar, en ambito global. Aqui quedaban dentro de un bloque y
+   crLoadInto (que sincroniza el desplegable al cargar un personaje) no las
+   veia. */
+CE('cr-glblib').onchange=()=>{
+  const f=CE('cr-glblib').value;
+  if(!f)return;
+  /* Elegir de la libreria MANDA sobre el .glb de prueba: si no, seguia
+     viendose el que se habia probado a mano y parecia que no hacia nada. */
+  if(_crGLBTest){URL.revokeObjectURL(_crGLBTest.url);_crGLBTest=null;}
+  CE('cr-glbfile').value=f;
+  const m=(GLBLIB||[]).find(x=>x.file===f);
+  if(m&&m.escala&&CE('cr-glbscale'))CE('cr-glbscale').value=m.escala;
+  if(CE('cr-style').value!=='glb'){CE('cr-style').value='glb';crGLBSync();}
+  crGLBLibPinta(false);crPrevKey='';crUpdatePreview();
+  crGLBStatus('Cargando "'+(m?m.name:f)+'" de la librería…');
+};
+CE('cr-glblib-refresh').onclick=()=>{
+  const nota=CE('cr-glblib-note');if(nota)nota.textContent='Leyendo src/glb/index.json…';
+  glbLibCargar(true).then(()=>crGLBLibPinta(false)).catch(()=>crGLBLibPinta(true));
+};
+glbLibCargar().then(()=>crGLBLibPinta(false)).catch(()=>crGLBLibPinta(true));
 CE('cr-glbscale').addEventListener('input',()=>{crPrevKey='';crUpdatePreview();});
 /* los ajustes globales sí reconstruyen la vista previa al cambiar */
 ['cr-glbauto','cr-glbyaw','cr-glbpitch','cr-glbroll','cr-glbswap'].forEach(id=>{
@@ -4058,6 +4093,7 @@ function crLoadInto(cfg,idx){
   CE('cr-story').value=(cfg.story||[]).join('\n');CE('cr-ending').value=(cfg.ending||[]).join('\n');
   set('cr-quote',cfg.quote);set('cr-taunt',cfg.taunt);set('cr-face',cfg.face||'normal');set('cr-style',cfg.style||'lego');set('cr-outfit',cfg.outfit||'camiseta');
   set('cr-glbfile',cfg.glbFile||'');set('cr-glbscale',cfg.glbScale||1);
+  if(typeof crGLBLibSync==='function')crGLBLibSync();
   {const a=cfg.glbAdjust||{}, ck=(id,v)=>{const e=CE(id);if(e)e.checked=!!v;};
    set('cr-glbyaw',a.yaw||0);set('cr-glbpitch',a.pitch||0);set('cr-glbroll',a.roll||0);
    ck('cr-glbauto',a.autoYaw!==false);ck('cr-glbswap',a.swap);
@@ -4889,6 +4925,72 @@ function skinTexture(){
    =========================================================== */
 const HEAD_GLB={bruiser:'src/head-bruiser.glb',zoner:'src/head-zoner.glb',
   rusher:'src/head-rusher.glb',grappler:'src/head-grappler.glb'};
+
+/* ===========================================================
+   LIBRERIA DE MODELOS GLB (src/glb/)
+   El personaje guarda solo el NOMBRE del archivo; la carpeta la pone el
+   juego. Asi un personaje exportado a custom/char/ se lleva a otra maquina
+   y sigue encontrando su modelo, sin rutas absolutas dentro del .json.
+   =========================================================== */
+const GLB_LIB_DIR='src/glb/';
+/* Rutas a probar, en orden, para una referencia guardada. Un blob:, un data:
+   o algo que ya trae carpeta se usan tal cual. Un nombre suelto se busca
+   primero en la libreria y despues en la raiz, que es donde vivian los
+   modelos antes de que la libreria existiera. */
+function glbRutas(ref){
+  const s=String(ref||'');
+  if(!s)return [];
+  if(/^(blob:|data:|https?:)/i.test(s)||s.indexOf('/')>=0)return [s];
+  return [GLB_LIB_DIR+s, s];
+}
+let GLBLIB=null;          // null = sin cargar aun · [] = cargado y vacio
+let _glbLibP=null;
+function glbLibCargar(recargar){
+  if(recargar){GLBLIB=null;_glbLibP=null;}
+  if(_glbLibP)return _glbLibP;
+  _glbLibP=fetch(GLB_LIB_DIR+'index.json',{cache:'no-cache'})
+    .then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
+    .then(j=>{
+      // se admite {items:[...]}, una lista de objetos, o una lista de nombres
+      const bruto=(j&&j.items)||(Array.isArray(j)?j:[]);
+      GLBLIB=bruto.map(it=>typeof it==='string'?{file:it}:it)
+        .filter(it=>it&&it.file)
+        .map(it=>({file:it.file,name:it.name||it.file,escala:+it.escala||0,nota:it.nota||'',kb:it.kb||0}));
+      return GLBLIB;
+    })
+    .catch(e=>{GLBLIB=[];throw e;});
+  return _glbLibP;
+}
+/* Pinta el desplegable de la libreria y su nota de estado. */
+function crGLBLibPinta(err){
+  const sel=CE('cr-glblib'), nota=CE('cr-glblib-note');
+  if(!sel)return;
+  const actual=(CE('cr-glbfile')&&CE('cr-glbfile').value.trim())||'';
+  sel.innerHTML='';
+  const op0=document.createElement('option');op0.value='';
+  op0.textContent=(GLBLIB&&GLBLIB.length)?'— elegir de la librería —':'— librería vacía —';
+  sel.appendChild(op0);
+  (GLBLIB||[]).forEach(m=>{
+    const o=document.createElement('option');o.value=m.file;
+    o.textContent=m.name+(m.kb?' · '+m.kb+' KB':'');
+    sel.appendChild(o);
+  });
+  sel.value=(GLBLIB||[]).some(m=>m.file===actual)?actual:'';
+  if(!nota)return;
+  if(err){
+    nota.innerHTML=location.protocol==='file:'
+      ? 'Has abierto el juego con doble clic (file://): el navegador no deja leer la librería. '+
+        'Sirve la carpeta por http (<b>python3 -m http.server</b>) o usa "PROBAR un .glb…".'
+      : 'No se pudo leer <b>src/glb/index.json</b>. Créalo con <b>node tools/glb-index.mjs</b>.';
+  }else if(!GLBLIB||!GLBLIB.length){
+    nota.innerHTML='La librería está vacía. Deja tus .glb en <b>src/glb/</b> y ejecuta '+
+      '<b>node tools/glb-index.mjs</b> (o edita <b>src/glb/index.json</b> a mano).';
+  }else{
+    const m=(GLBLIB||[]).find(x=>x.file===actual);
+    nota.textContent=GLBLIB.length+' modelo(s) en src/glb/'+(m&&m.nota?' · '+m.nota:'');
+  }
+}
+function crGLBLibSync(){ if(CE('cr-glblib'))crGLBLibPinta(false); }
 const HEADGLB_CACHE={};      // arch -> 'loading' | THREE.Group | null(fallo/ausente)
 const HEADGLB_WAIT={};       // arch -> lista de callbacks pendientes
 let GLTFLoaderPromise=null;
@@ -5753,25 +5855,33 @@ function ensureGLBLibs(){
 
 /* cache de GLBs por url (varios luchadores comparten la descarga) */
 const _glbFighterCache = {};
-function loadGLBFighterCached(url){
-  if(!_glbFighterCache[url]){
-    _glbFighterCache[url] = ensureGLBLibs().then(()=>new Promise((res,rej)=>{
-      new THREE.GLTFLoader().load(url,
-        g=>res(g.scene),
-        undefined,
-        e=>{
+function _glbCarga(url){
+  return new Promise((res,rej)=>{
+    new THREE.GLTFLoader().load(url,g=>res(g.scene),undefined,()=>rej(url));
+  });
+}
+function loadGLBFighterCached(ref){
+  if(!_glbFighterCache[ref]){
+    /* El personaje guarda un NOMBRE de archivo, no una ruta. Se resuelve
+       contra la libreria (src/glb/), y si alli no esta se prueba la ubicacion
+       antigua —la raiz del proyecto— para que los personajes guardados antes
+       de que existiera la libreria sigan funcionando. Un blob:, un data: o
+       una ruta con carpeta se usan tal cual y no se buscan dos veces. */
+    const dirs=glbRutas(ref);
+    _glbFighterCache[ref] = ensureGLBLibs().then(()=>
+      dirs.reduce((p,u)=>p.catch(()=>_glbCarga(u)),Promise.reject())
+        .catch(()=>{
           /* Abriendo el juego con doble clic (file://) el navegador prohibe
              leer archivos de la carpeta por XHR: solo funcionan los .glb
              elegidos a mano (blob:). Para usar rutas relativas hace falta
              servir la carpeta por http (p.ej. `python3 -m http.server`). */
-          if(location.protocol==='file:' && url.indexOf('blob:')!==0)
-            rej(new Error('con el juego abierto como archivo local (file://) no se pueden leer .glb '+
-              'de la carpeta. Usa el botón "PROBAR un .glb…", o sirve la carpeta por http.'));
-          else rej(new Error('no se pudo leer el modelo: '+url));
-        });
-    }));
+          if(location.protocol==='file:' && String(ref).indexOf('blob:')!==0)
+            throw new Error('con el juego abierto como archivo local (file://) no se pueden leer .glb '+
+              'de la carpeta. Usa el botón "PROBAR un .glb…", o sirve la carpeta por http.');
+          throw new Error('no se pudo leer el modelo: '+dirs.join(' ni '));
+        }));
   }
-  return _glbFighterCache[url];
+  return _glbFighterCache[ref];
 }
 
 /* punto de entrada desde el constructor de Rig */

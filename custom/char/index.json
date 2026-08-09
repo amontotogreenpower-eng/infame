@@ -3,43 +3,37 @@
  "nota": "Pon \"precarga\": true en un personaje para que entre solo en el roster al arrancar el juego. Ver LEEME.txt.",
  "items": [
   {
-   "file": "cometa.json",
-   "name": "COMETA",
-   "tag": "El Chico del Gi Naranja",
-   "arch": "rusher",
-   "wig": "stormspike"
-  },
-  {
-   "file": "kane.json",
-   "name": "KANE",
-   "tag": "El Príncipe Sin Trono",
-   "arch": "bruiser",
-   "wig": "stormspike"
-  },
-  {
-   "file": "vastago.json",
-   "name": "VÁSTAGO",
-   "tag": "El Centinela Verde",
-   "arch": "zoner",
-   "wig": "topbun"
-  },
-  {
-   "file": "gelido.json",
-   "name": "GÉLIDO",
-   "tag": "Emperador de la Escarcha",
-   "arch": "grappler",
-   "wig": "spikehalo"
-  },
-  {
-   "file": "glb-de-carpeta.json",
-   "name": "GLB DE CARPETA",
-   "tag": "Precargado",
-   "arch": "bruiser"
-  },
-  {
    "file":     "songoku.json",       
    "name":     "Goku",         
    "tag":      "Siempre busco al rival más fuerte",
+   "arch":     "bruiser",
+   "precarga": true               
+  },
+    {
+   "file":     "sonmira.json",       
+   "name":     "Mira",         
+   "tag":      "Siempre busco al rival más fuerte",
+   "arch":     "bruiser",
+   "precarga": true               
+    },  
+   {
+   "file":     "sonrumi.json",       
+   "name":     "Rumi",         
+   "tag":      "Siempre busco al rival más fuerte",
+   "arch":     "bruiser",
+   "precarga": true               
+  },
+   {
+   "file":     "sonzoey.json",       
+   "name":     "Zoey",         
+   "tag":      "Siempre busco al rival más fuerte",
+   "arch":     "bruiser",
+   "precarga": true               
+   },
+   {
+   "file":     "sonjinu.json",       
+   "name":     "Jinu",         
+   "tag":      "Tengo un humor de mil demonios",
    "arch":     "bruiser",
    "precarga": true               
   }

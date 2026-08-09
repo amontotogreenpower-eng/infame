@@ -1,5 +1,5 @@
 /* INFAME FIGHTING — service worker (PWA offline) */
-const CACHE = 'infame-v59';
+const CACHE = 'infame-v60';
 
 /* Assets a precachear. Se usa allSettled: si alguno falta (p.ej. Intro.mp4
    todavia no subido) la instalacion NO falla. */
@@ -46,6 +46,19 @@ self.addEventListener('activate', e => {
      el juego se quedaba congelado en una version antigua.
    - El RESTO (imagenes, audio, video, three.js): cache primero, que no cambian
      y conviene que carguen al instante y funcionen offline. */
+
+/* NUNCA SE GUARDA UNA RESPUESTA QUE NO SEA 200. Guardar un 404 en una
+   estrategia "cache primero" es veneno: los recursos OPCIONALES del juego
+   (src/ring-video.mp4, src/ring-mat.jpg, src/ring-model.glb, las cabezas
+   .glb, la Intro...) faltan a proposito hasta que uno los sube, y el 404 de
+   la primera visita se quedaba grabado. A partir de ahi el archivo YA NO SE
+   PEDIA NUNCA MAS: podias subirlo al servidor y el juego seguia sin verlo.
+   Medido: sin archivo -> 404 guardado en cache con status 404; se sube el
+   archivo, el servidor responde 200 con cache-buster... y el juego seguia
+   recibiendo 404 tras recargar. */
+function guardable(res){
+  return !!res && res.ok && res.status === 200;
+}
 function esJuego(req){
   return req.mode === 'navigate' || /\.html($|\?)/i.test(req.url);
 }
@@ -56,19 +69,29 @@ self.addEventListener('fetch', e => {
   if (esJuego(req)) {
     e.respondWith(
       fetch(req).then(res => {
-        const copy = res.clone();
-        caches.open(CACHE).then(c => c.put(req, copy)).catch(() => {});
+        if (guardable(res)) {
+          const copy = res.clone();
+          caches.open(CACHE).then(c => c.put(req, copy)).catch(() => {});
+        }
         return res;
       }).catch(() => caches.match(req).then(h => h || caches.match('./index.html')))
     );
     return;
   }
 
+  /* Un acierto de cache solo vale si es una respuesta BUENA. Asi, ademas, las
+     caches ya envenenadas por la version anterior se curan solas: el 404
+     guardado se ignora y se vuelve a preguntar a la red. */
   e.respondWith(
-    caches.match(req).then(hit => hit || fetch(req).then(res => {
-      const copy = res.clone();
-      caches.open(CACHE).then(c => c.put(req, copy)).catch(() => {});
-      return res;
-    }).catch(() => undefined))
+    caches.match(req).then(hit => {
+      if (hit && hit.ok) return hit;
+      return fetch(req).then(res => {
+        if (guardable(res)) {
+          const copy = res.clone();
+          caches.open(CACHE).then(c => c.put(req, copy)).catch(() => {});
+        }
+        return res;
+      }).catch(() => hit);      // sin red: mejor lo que hubiera que nada
+    })
   );
 });

@@ -2280,6 +2280,65 @@ function loadCustoms(arr){
   ROSTER.length=0;for(const id of BASE_ROSTER)ROSTER.push(id);
   CUSTOMS=(arr||[]).map(cfgSanea);
   CUSTOMS.forEach((cfg,i)=>{cfg.id='custom'+i;registerCustom(buildCustom(cfg));});
+  /* Los precargados de la carpeta van DESPUES de los tuyos: si borras uno del
+     navegador, el de la carpeta sigue ahi; y si creas uno con el mismo nombre,
+     el tuyo es el que se ve (la precarga descarta los repetidos). */
+  WEBCHARS.forEach((cfg,i)=>{cfg.id='web'+i;registerCustom(buildCustom(cfg));});
+}
+/* ===========================================================
+   PRECARGA DESDE LA CARPETA custom/char/
+   El index.json de personajes puede marcar cuales entran SOLOS en el roster
+   al arrancar, sin tener que importarlos a mano desde la galeria.
+
+     {"kind":"characters","items":[
+       {"file":"kane.json","name":"KANE","precarga":true}
+     ]}
+
+   'precarga' tambien vale a nivel raiz como valor por defecto para todos.
+   Es OPT-IN a proposito: dejar un .json en la carpeta no deberia cambiarte
+   el roster sin avisar, y ademas cada personaje con modelo GLB se descarga
+   su .glb en cuanto entra (la vitrina construye un Rig por personaje), asi
+   que precargar diez modelos pesados se nota al arrancar.
+
+   Estos personajes NO se guardan en el navegador: vienen de la carpeta, asi
+   que actualizar el archivo actualiza el roster. Los tuyos MANDAN: si ya
+   tienes uno guardado con el mismo nombre, el de la carpeta se descarta. */
+let WEBCHARS=[];
+function precargaMarcada(it,porDefecto){
+  const v=(it.precarga!==undefined)?it.precarga
+         :(it.preload!==undefined?it.preload:porDefecto);
+  return v===true||v===1||v==='1'||v==='si'||v==='sí'||v==='true';
+}
+function cargarPersonajesWeb(){
+  return fetch('custom/char/index.json',{cache:'no-cache'})
+    .then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
+    .then(j=>{
+      const porDefecto=!!(j&&(j.precarga===true||j.preload===true));
+      const items=((j&&j.items)||(Array.isArray(j)?j:[]))
+        .map(it=>typeof it==='string'?{file:it}:it)
+        .filter(it=>it&&it.file&&precargaMarcada(it,porDefecto));
+      if(!items.length){WEBCHARS=[];return 0;}
+      return Promise.all(items.map(it=>
+        fetch('custom/char/'+it.file,{cache:'no-cache'})
+          .then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
+          .then(d=>Array.isArray(d)?d:[d])
+          .catch(e=>{console.warn('precarga: custom/char/'+it.file+' —',e.message);return [];})
+      )).then(listas=>{
+        const nuevos=[];
+        const nom=c=>String((c&&c.name)||'').trim().toUpperCase();
+        const repetido=n=>!!n&&(CUSTOMS.some(c=>nom(c)===n)||nuevos.some(c=>nom(c)===n));
+        listas.forEach(l=>l.forEach(c=>{
+          if(!c||typeof c!=='object'||Array.isArray(c))return;
+          if(repetido(nom(c)))return;
+          nuevos.push(cfgPersistible(c));
+        }));
+        WEBCHARS=nuevos;
+        loadCustoms(CUSTOMS);              // reconstruye el roster con los dos grupos
+        if(showcase)rebuildShowcase();
+        return nuevos.length;
+      });
+    })
+    .catch(e=>{WEBCHARS=[];console.warn('precarga de personajes:',e.message);return 0;});
 }
 function saveCustom(cfg){
   cfg=cfgPersistible(cfg);
@@ -4700,6 +4759,8 @@ CE('cr-file').onchange=e=>{if(e.target.files[0]){importCustoms(e.target.files[0]
 
 // cargar personajes guardados al arrancar
 loadCustoms(lsGet()||[]);
+/* No bloquea el arranque: cuando lleguen, se rehace el roster y la vitrina. */
+cargarPersonajesWeb().then(n=>{if(n)console.log('precargados '+n+' personaje(s) de custom/char/');});
 
 addEventListener('resize',fit);
 addEventListener('orientationchange',()=>setTimeout(fit,120));
@@ -8926,8 +8987,9 @@ function brRender(kind,dir,items){
     const nm=document.createElement('div');nm.className='bi-name';
     nm.textContent=(kind==='char'?'':(it.badge?'['+it.badge+'] ':''))+(it.name||it.file);
     const sub=document.createElement('div');sub.className='bi-sub';
-    sub.textContent=kind==='char'?[it.tag,it.arch,it.wig].filter(Boolean).join(' · ')
-      :[it.type,it.slotKind,(it.dmg?('dmg '+it.dmg):'')].filter(Boolean).join(' · ');
+    sub.textContent=kind==='char'
+      ? [it.tag,it.arch,it.wig,(precargaMarcada(it,false)?'⭑ precarga':'')].filter(Boolean).join(' · ')
+      : [it.type,it.slotKind,(it.dmg?('dmg '+it.dmg):'')].filter(Boolean).join(' · ');
     info.appendChild(nm);info.appendChild(sub);
     const bPre=document.createElement('button');bPre.textContent=kind==='char'?'Previsualizar':'Cámara lenta';
     const bImp=document.createElement('button');bImp.className='bi-imp';bImp.textContent='Importar';
@@ -9937,7 +9999,12 @@ function drawTitle(){
   const ST=game.stats;
   if(ST.wins||ST.best||ST.fat)menuHint('SESIÓN · VICTORIAS '+ST.wins+' · MEJOR RACHA '+ST.best+' · FATALITIES '+ST.fat,
     W/2,yFin+40,11,'#c0b2e2');
-  if(CUSTOMS.length)menuHint(CUSTOMS.length+' personaje(s) creados en el roster',W/2,yFin+62,11,'#8aff9a');
+  if(CUSTOMS.length||WEBCHARS.length){
+    const partes=[];
+    if(CUSTOMS.length)partes.push(CUSTOMS.length+' creado(s)');
+    if(WEBCHARS.length)partes.push(WEBCHARS.length+' precargado(s) de la carpeta');
+    menuHint(partes.join(' · ')+' en el roster',W/2,yFin+62,11,'#8aff9a');
+  }
   drawSelloCodigo();
 }
 function drawSplash(){

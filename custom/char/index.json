@@ -1,4 +1,4 @@
-{
+i{
  "kind": "characters",
  "nota": "Pon \"precarga\": true en un personaje para que entre solo en el roster al arrancar el juego. Ver LEEME.txt.",
  "items": [
@@ -35,6 +35,14 @@
    "name": "GLB DE CARPETA",
    "tag": "Precargado",
    "arch": "bruiser"
+  },
+  {
+   "file":     "goku (1).json",       <- obligatorio
+   "name":     "Goku",            <- lo que se lee en la galeria
+   "tag":      "Siempre busco al rival más fuerte",  <- opcional
+   "arch":     "bruiser",         <- opcional
+   "wig":      "stormspike",      <- opcional
+   "precarga": true               <- entra solo en el roster al arrancar
   }
  ]
 }

@@ -823,6 +823,30 @@ function noise(d,vol,fc){if(!AC)return;
   const g=AC.createGain();g.gain.value=vol;g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+d);
   src.connect(f);f.connect(g);g.connect(AC.destination);src.start();src.stop(AC.currentTime+d);
 }
+/* ===== VIBRACION DEL MOVIL =====
+   navigator.vibrate solo existe (y solo hace algo) en moviles, y ademas los
+   navegadores lo ignoran hasta que ha habido un gesto del usuario: aqui
+   siempre lo ha habido, porque para llegar a un combate hay que pulsar.
+   El limitador de 45 ms es imprescindible: una llamada a vibrate() CANCELA la
+   anterior, asi que sin el, una serie de golpes rapidos se comia sus propias
+   vibraciones y no se notaba ninguna. */
+const VIB_KEY='infame_vib';
+let vibrarOn=true;
+try{const _v=localStorage.getItem(VIB_KEY);if(_v!==null)vibrarOn=(_v==='1');}catch(e){}
+function vibSave(){try{localStorage.setItem(VIB_KEY,vibrarOn?'1':'0');}catch(e){}}
+const vibSoportada=()=>typeof navigator!=='undefined'&&typeof navigator.vibrate==='function';
+let _vibT=0;
+function vibrar(p,forzar){
+  if(!vibrarOn||!vibSoportada())return;
+  const t=performance.now();
+  /* 'forzar' para lo que no se puede perder (el K.O.): si no, el golpe que
+     baja la vida a cero vibra primero y el limitador se come el patron largo
+     del K.O., que llega 0 ms despues. Medido: sin esto el K.O. emitia 48 y no
+     [70,50,70,50,160]. */
+  if(!forzar&&t-_vibT<45)return;
+  _vibT=t;
+  try{navigator.vibrate(p);}catch(e){}
+}
 const sfx={hit:()=>{tone(170,.11,'square',.08,-70);noise(.06,.13,1500);},
   heavy:()=>{tone(95,.18,'square',.1,-40);tone(58,.16,'sine',.1);noise(.11,.2,550);},
   block:()=>tone(560,.06,'triangle',.05),jump:()=>tone(300,.09,'triangle',.04,140),
@@ -4368,9 +4392,12 @@ function orgChampion(ch){
    para que nunca puedan desincronizarse (el indice game.gsel debe apuntar
    siempre a la misma entrada en los dos sitios). */
 function cfgMenuItems(){
-  return['ORGANIZADOR DE TORNEOS',
-    'ESCENARIO: '+(combatArena==='ring'?'RING OCTOGONAL':'COLISEO'),
-    'CONTROLES','VOLVER'];
+  const M=['ORGANIZADOR DE TORNEOS',
+    'ESCENARIO: '+(combatArena==='ring'?'RING OCTOGONAL':'COLISEO')];
+  // la entrada solo aparece donde sirve de algo: en un portatil no hay motor
+  if(vibSoportada())M.push('VIBRACIÓN: '+(vibrarOn?'SÍ':'NO'));
+  M.push('CONTROLES','VOLVER');
+  return M;
 }
 function drawConfigMenu(){
   hx.fillStyle='rgba(6,5,14,.55)';hx.fillRect(0,0,W,H);
@@ -7860,7 +7887,8 @@ class Fighter{
     this.vy+=GRAV;this.y+=this.vy;
     if(this.y>GROUND){if(this.vy>7){const dp=this.rig.joint('chest');burst({x:dp.x,y:.14,z:dp.z},6,0x9a948a,.05,false);noise(.05,.035,320);
         /* la lona acusa el aterrizaje: cuanto mas fuerte se cae, mas tiembla */
-        ringGolpe(Math.min(1,(this.vy-7)/9+.25));}
+        ringGolpe(Math.min(1,(this.vy-7)/9+.25));
+        if(this.ctrl)vibrar(14);}
       this.y=GROUND;this.vy=0;this.vx=0;this.fkUsed=false;}
     if(this.air)this.state='airborne';
     else if(this.blocking)this.state=this.crouch?'blockLow':'block';
@@ -8262,6 +8290,7 @@ class Fighter{
       this.hp-=Math.max(1,Math.round(src.dmg*.12));
       this.vx=dir*src.push*.5/this.c.weight;this.stun=Math.max(this.stun,8);
       this.meter=Math.min(100,this.meter+4);sfx.block();
+      if(this.ctrl)vibrar(12);   // solo vibra lo que le pasa a TU luchador
       this.braceT=12;   // la guardia se hunde y se recompone (ver currentPose)
       burst(chest,6,0x8ef0ff,.06);
     }else{
@@ -8288,11 +8317,13 @@ class Fighter{
       game.freeze=Math.min(14,3+Math.round(src.dmg*.5));this.flashT=4;
       burst(chest,src.dmg>=14?14:8,src.dmg>=14?0xffffff:0xffd75a,src.dmg>=14?.11:.08);
       (src.dmg>=12?sfx.heavy:sfx.hit)();
+      if(this.ctrl)vibrar(Math.round(clamp(9+src.dmg*2.2,10,48)));
       game.comboN=(game.comboT>0)?game.comboN+1:1;game.comboT=55;game.comboSrc=src.owner||src;
       if(game.comboN>=2)tone(240+Math.min(game.comboN,9)*70,.1,'square',.045);
     }
     if(this.hp<=0){this.hp=0;this.state='ko';this.mv=null;this.vx=dir*4.5;this.vy=-9;
-      sfx.ko();game.shake=.28;ringGolpe(1);}
+      sfx.ko();game.shake=.28;ringGolpe(1);
+      if(this.ctrl)vibrar([70,50,70,50,160],true);}
   }
   kill(){scene.remove(this.rig.root);this.rig.dispose();if(this.blob){scene.remove(this.blob);this.blob.material.dispose();}}
 }
@@ -8865,6 +8896,10 @@ function uiKey(k){
         combatArena=(combatArena==='ring')?'coliseo':'ring';
         if(arenaOn)tatamiOn(true);   // si hay un combate en curso, refleja el cambio ya
       }
+      else if(C.indexOf('VIBRACIÓN')===0){
+        vibrarOn=!vibrarOn;vibSave();
+        if(vibrarOn)vibrar(30);      // muestra de lo que se acaba de activar
+      }
       else {game.mode='controls';game.cfsel=0;game.cfcap=false;}}
   }else if(game.mode==='controls'){
     if(game.cfcap){
@@ -9177,13 +9212,52 @@ function tickCam(t){
   {let d=AX.A-AX.camA;d=Math.atan2(Math.sin(d),Math.cos(d));AX.camA+=d*.07;}
   const pa=AX.camA+Math.PI/2, pcx=Math.cos(pa), pcz=Math.sin(pa);   // lado de la camara
   const MW=axW(mid);                                               // centro en el mundo
-  let tz=clamp(7.4+sep*.62,7.6,ARENA_R*1.15);if((p1.hp>0&&p1.hp<p1.c.hpMax*.22)||(p2.hp>0&&p2.hp<p2.c.hpMax*.22))tz*=.93;
+  /* ENCUADRE POR CAMPO DE VISION, no por una constante a ojo.
+     La distancia sale de la caja que hay que meter en pantalla y del fov real
+     de la camara, asi que el plano es el mas cerrado que cabe en cada momento
+     y, si alguien salta, la camara se abre justo lo necesario.
+
+     Medido antes de este cambio (margen = fraccion de media pantalla que
+     sobra; negativo = se sale):
+       sep 120 de pie ... margenX 0.72  arriba 0.47
+       sep 600 de pie ... margenX 0.45  arriba 0.69
+       sep 280 + salto 200 ... arriba -0.28   <- la cabeza se salia
+     O sea: sobraba muchisimo plano estando de pie y AUN ASI se perdia al que
+     saltaba, porque la compensacion de altura era un mero hi*.22. */
+  /* 3.5, no 3.08. Medidas las juntas de un luchador de pie (mundo): pie 1.16,
+     cabeza 4.24, o sea 3.08 de junta a junta. Pero la junta del pie es el
+     TOBILLO y la de la cabeza el arranque del cuello: la silueta real sobresale
+     por los dos extremos, y encuadrando con 3.08 la coronilla asomaba por
+     arriba en los saltos aunque la junta estuviera dentro. */
+  const altoCuerpo=3.5;
+  const anchoNec=sep+2.8;                     // los dos cuerpos + holgura lateral
+  /* El +2.0 no es holgura de adorno: la camara va 0.62 POR ENCIMA del punto
+     al que mira (la picada de siempre), y eso baja todo el encuadre, asi que
+     por arriba hace falta el doble de ese desnivel. Con solo +0.8 medido:
+     salto de 120 dejaba la cabeza en -0.096 y de 200 en -0.075, o sea fuera. */
+  const altoNec=altoCuerpo+hi+1.4;
+  const tanV=Math.tan(cam.fov*Math.PI/360), tanH=tanV*cam.aspect;
+  /* LA BANDA DEL HUD NO ES PANTALLA UTIL. Las barras de vida y el reloj tapan
+     el 15% de arriba, asi que encuadrar contra el borde del fotograma no basta:
+     al saltar, la cabeza entraba "dentro de pantalla" pero DEBAJO de las barras
+     y no se veia (medido: la junta de la cabeza caia a 37 px del borde con el
+     HUD ocupando 75). Se descuenta esa franja de la altura util y se baja el
+     encuadre justo lo que ocupa. */
+  const HUD_ALTO=.15;
+  let tz=Math.max((anchoNec*.5)/tanH,(altoNec*.5)/(tanV*(1-HUD_ALTO)));
+  tz=clamp(tz,5.2,ARENA_R*1.15);
+  if((p1.hp>0&&p1.hp<p1.c.hpMax*.22)||(p2.hp>0&&p2.hp<p2.c.hpMax*.22))tz*=.93;
   /* ALTURA DEL SUELO. En el ring la lona esta a RING_FLOOR_Y, o sea que los
      luchadores pelean una unidad mas arriba. Todas las alturas de camara de
      aqui abajo estaban medidas desde el suelo 0, asi que en el ring la camara
      se quedaba baja y apuntaba a la altura de las rodillas. */
   const suelo=stageFloorY();
-  const ty=2.15+hi*.22+suelo;
+  /* La mirada apunta al CENTRO de la caja encuadrada, no a una altura fija:
+     asi, cuando alguien salta, el encuadre sube con el en vez de dejarlo
+     asomando por el borde. La camara va un poco por encima de ese centro
+     para conservar la ligera picada de siempre. */
+  const mirY=suelo+(altoCuerpo+hi)*.5+tz*tanV*HUD_ALTO;
+  const ty=mirY+.62;
   if(game.mode==='intro'){
     const e=ease(Math.min(1,game.bt/100));
     const yw=(1-e)*-1.05+Math.sin(t*.004)*.05, Rr=lerp(6.2,tz,e), yy=lerp(1.5+suelo,ty,e);
@@ -9205,22 +9279,35 @@ function tickCam(t){
     const e1=p1.rig.joint('chest'), e2=p2.rig.joint('chest');
     p1.rig.root.visible=false;
     const sh=game.shake;
-    cam.position.set(e1.x+(Math.random()-.5)*sh,e1.y+.5,e1.z+(Math.random()-.5)*sh);
-    cam.lookAt(e2.x,e2.y+.15,e2.z);
+    /* ALTURA DE LOS OJOS. Estaba en chest+0.5 MIRANDO a chest+0.15 del rival:
+       o sea, por encima del otro y picando hacia abajo, que es lo que hacia
+       que pareciera que flotabas sobre su cabeza. Medidas las juntas de un
+       luchador de pie (mundo): pie 1.16 · pelvis 2.66 · chest 3.64 ·
+       cabeza 4.24. 'chest' es en realidad la linea de los hombros, al 80% de
+       la estatura, asi que sumarle medio metro se iba por encima de todo.
+       Ahora la camara baja a la altura de la barbilla y la mirada SUBE a la
+       cara del rival: la vista queda a nivel, no en picado. */
+    cam.position.set(e1.x+(Math.random()-.5)*sh,e1.y+.12,e1.z+(Math.random()-.5)*sh);
+    cam.lookAt(e2.x,e2.y+.42,e2.z);
     game.tilt=(game.tilt||0)*.88;
     sun.target.position.set(e2.x,1,e2.z);return;
   }
   p1.rig.root.visible=true;
   if(!camDrag)game.camYaw*=.965;
   const yaw=(game.camYaw||0)+Math.sin(t*.004)*.09;
-  game.camZ=lerp(game.camZ,tz,.06);
-  game.camY=lerp(game.camY,ty,.07);
+  /* ABRIR DEPRISA, CERRAR DESPACIO. Con un solo factor (.06) el plano tardaba
+     casi un segundo en reaccionar, que es justo lo que hacia falta para
+     perder de vista al que salta. Abrir tiene que ir con el salto; volver a
+     cerrar puede tomarse su tiempo, y ademas asi no da tirones cuando alguien
+     hace saltitos seguidos. */
+  game.camZ=lerp(game.camZ,tz,tz>game.camZ?.20:.055);
+  game.camY=lerp(game.camY,ty,ty>game.camY?.20:.06);
   const sh=game.shake;
   /* orbita alrededor del centro del combate, sobre el eje suavizado */
   const la=pa+yaw;
   const ox=MW.x+Math.cos(la)*game.camZ, oz=MW.z+Math.sin(la)*game.camZ;
   cam.position.set(ox+(Math.random()-.5)*sh*2,game.camY+(Math.random()-.5)*sh*2,oz);
-  cam.lookAt(MW.x,1.35+hi*.2+suelo,MW.z);
+  cam.lookAt(MW.x,mirY,MW.z);
   game.tilt=(game.tilt||0)*.88;if(Math.abs(game.tilt)>.002)cam.rotation.z+=game.tilt;
   cam.rotation.z+=(Math.random()-.5)*sh*.35;
   sun.target.position.set(MW.x,1+suelo,MW.z);

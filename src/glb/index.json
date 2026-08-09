@@ -1,5 +1,5 @@
 {
  "kind": "glb-models",
  "nota": "Indice de la libreria de modelos GLB. Regeneralo con: node tools/glb-index.mjs",
- "items": ["gnarly_rumi.glb", "rumi_zoey_animation.glb","mira_gold.glb","demonjinu01.glb"]
+ "items": ["gnarly_rumi.glb", "rumi_zoey_animation.glb","mira_gold.glb","demonjinu01.glb","goku.glb"]
 }

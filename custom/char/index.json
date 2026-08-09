@@ -37,12 +37,12 @@ i{
    "arch": "bruiser"
   },
   {
-   "file":     "goku (1).json",       <- obligatorio
-   "name":     "Goku",            <- lo que se lee en la galeria
-   "tag":      "Siempre busco al rival más fuerte",  <- opcional
-   "arch":     "bruiser",         <- opcional
-   "wig":      "stormspike",      <- opcional
-   "precarga": true               <- entra solo en el roster al arrancar
+   "file":     "goku (1).json",       
+   "name":     "Goku",         
+   "tag":      "Siempre busco al rival más fuerte",
+   "arch":     "bruiser",
+   "wig":      "stormspike",
+   "precarga": true               
   }
  ]
 }

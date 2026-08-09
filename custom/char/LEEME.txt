@@ -1,0 +1,74 @@
+PERSONAJES DE CARPETA
+=====================
+
+Aqui van los .json que salen de CREADOR > EXPORTAR ESTE. Se ven en
+TALLER > PERSONAJES DISPONIBLES, y los que marques se cargan SOLOS al
+arrancar el juego.
+
+El navegador no puede listar una carpeta, asi que hay que nombrarlos en
+index.json:
+
+{
+ "kind": "characters",
+ "items": [
+  {
+   "file":     "kane.json",       <- obligatorio
+   "name":     "KANE",            <- lo que se lee en la galeria
+   "tag":      "El Principe...",  <- opcional
+   "arch":     "bruiser",         <- opcional
+   "wig":      "stormspike",      <- opcional
+   "precarga": true               <- entra solo en el roster al arrancar
+  }
+ ]
+}
+
+"precarga" tambien vale en la raiz del index como valor por defecto para
+todos:  {"kind":"characters","precarga":true,"items":[...]}
+Se acepta "preload" como sinonimo.
+
+
+POR QUE ES OPT-IN
+-----------------
+
+Dejar un .json en la carpeta NO deberia cambiarte el roster sin avisar. Y hay
+un motivo de peso ademas: la vitrina de seleccion construye un luchador por
+cada personaje del roster, asi que un personaje con modelo GLB SE DESCARGA SU
+.glb nada mas entrar. Precargar diez modelos pesados se nota al arrancar.
+Marca solo los que quieras tener siempre a mano.
+
+
+LOS TUYOS MANDAN
+----------------
+
+Los precargados NO se guardan en el navegador: vienen de la carpeta, asi que
+actualizar el archivo actualiza el roster. Si ya tienes guardado un personaje
+con el MISMO NOMBRE, el de la carpeta se descarta y se queda el tuyo.
+
+
+PERSONAJES CON MODELO GLB
+-------------------------
+
+Funcionan igual que los demas, sin nada especial. El .json guarda el NOMBRE
+del modelo (no una ruta), y el juego lo busca en src/glb/:
+
+  "style": "glb",
+  "glbFile": "guerrero-mixamo.glb",
+  "glbScale": 1.1,
+  "glbAdjust": { "yaw":0, "pitch":0, "roll":0, "swap":false,
+                 "pose": { "chest":[12,0,0] } }
+
+Comprobado: un personaje asi puesto en esta carpeta y marcado con
+"precarga": true entra en el roster al arrancar, conserva su escala y sus
+ajustes de hueso, y el navegador pide de verdad src/glb/<modelo>.glb.
+
+Si el .glb no esta en src/glb/ el personaje entra igual, pero con el cuerpo
+procedural: no se rompe nada.
+
+
+SI ALGO NO CARGA
+----------------
+
+- Sirve el proyecto por http. Con doble clic (file://) el navegador no deja
+  leer ni index.json ni los .json.
+- Mira la consola: cada archivo que falle sale como
+  "precarga: custom/char/<archivo> — <motivo>".

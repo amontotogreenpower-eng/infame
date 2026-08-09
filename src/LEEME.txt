@@ -1,0 +1,75 @@
+RECURSOS OPCIONALES DE src/
+===========================
+
+Todo lo de aqui es OPCIONAL: si falta un archivo el juego funciona igual, con
+su version por defecto o procedural. Nunca hace falta subirlos todos.
+
+
+FONDO DEL RING  (el muro que rodea el octogono)
+-----------------------------------------------
+
+Se elige AL AZAR en cada arranque, en cuatro escalones y por este orden:
+
+  1. un video al azar entre  ring-01.mp4 ... ring-20.mp4
+  2. si no hay ninguno ....  ring-video.mp4
+  3. una imagen al azar entre ring-01.jpg ... ring-20.jpg
+  4. si no hay ninguna ....  ring-image.jpg
+  5. si tampoco, queda el panel oscuro liso
+
+El video MANDA sobre la imagen: si tienes las dos cosas solo veras el video.
+
+No hace falta numerar seguido: puedes tener solo ring-03, ring-07 y ring-19 y
+saldra uno de esos tres. Los huecos no molestan.
+
+PROPORCION: la textura se ajusta a la circunferencia real del muro, o sea una
+tira de 15:1 (452 de perimetro por 30 de alto). Cualquier proporcion vale
+—se recorta lo que sobra, no se estira— pero una imagen cuadrada perdera casi
+todo el alto. Para aprovecharla, algo panoramico tipo 4000x270.
+
+OJO: si un ring-NN.mp4 existe pero el navegador no puede decodificarlo, no se
+prueba otro video: se cae directamente a las imagenes. Es a proposito, para no
+encadenar veinte descargas fallidas.
+
+
+MUSICA DE COMBATE
+-----------------
+
+  1. una pista al azar entre  combate01.mp3 ... combate20.mp3
+  2. si no hay ninguna .....  round1.mp3 / round2.mp3 / round3.mp3 (segun ronda)
+  3. si tampoco, el sintetizador interno
+
+Se vuelve a sortear EN CADA RONDA, asi que con varias pistas no suena siempre
+la misma. Si no hay ninguna combateNN, el juego lo comprueba UNA vez por carga
+y ya no lo vuelve a intentar.
+
+
+OTROS
+-----
+
+  ring-mat.jpg .... imagen central de la lona. Si esta, SUSTITUYE la textura
+                    procedural entera (tela, circulo, octogono y logo).
+  ring-model.glb .. ring completo modelado. Si esta, OCULTA todo el ring
+                    procedural: lona, alambrada, focos y muro. Es decir, con
+                    este archivo los fondos de arriba dejan de verse.
+  head-*.glb ...... cabezas por arquetipo (bruiser, zoner, rusher, grappler).
+  glb/ ............ libreria de modelos de luchador (ver src/glb/LEEME.txt).
+  Intro.mp4 ....... video de entrada.
+  luchador1..8.png  retratos del plantel base.
+
+
+COMO SE AVERIGUA QUE ARCHIVOS HAY
+---------------------------------
+
+El navegador no puede listar una carpeta, asi que el juego PREGUNTA por cada
+nombre (peticiones HEAD, que no descargan el archivo). Baraja el orden y
+pregunta por tandas de 4 y luego 16, parando en el primer acierto: si tienes
+archivos casi siempre basta la primera tanda, y si no tienes ninguno son dos
+idas y vueltas por familia.
+
+Consecuencia practica: con la carpeta vacia de numerados, cada carga hace unas
+40 preguntas HEAD (video + imagen). Son diminutas, pero si te sobra la
+aleatoriedad y prefieres cero preguntas, usa solo ring-video.mp4 /
+ring-image.jpg y no crees ningun ring-NN.
+
+Sirve el proyecto por http. Con doble clic (file://) no se puede preguntar por
+los archivos y se usan directamente los de por defecto.

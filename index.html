@@ -24,7 +24,7 @@ window.__fatal=function(m){try{
 /* utils/ (SkeletonUtils) va en la lista: el codigo ya lo trata como opcional
    con su propio catch, pero al no estar aqui su fallo saltaba igualmente como
    aviso rojo bloqueante encima del juego. */
-window.__optRes=/(?:src\/Intro\.mp4|src\/luchador\d+[^\/]*\.png|src\/start\.mp3|src\/round\d\.mp3|src\/head-[\w-]+\.glb|src\/glb\/[^?#]*|src\/ring-[\w-]+\.(?:glb|mp4|jpg)|examples\/js\/loaders\/GLTFLoader\.js|examples\/js\/(?:shaders|postprocessing|utils)\/[\w]+\.js)$/i;
+window.__optRes=/(?:src\/Intro\.mp4|src\/luchador\d+[^\/]*\.png|src\/start\.mp3|src\/round\d\.mp3|src\/combate\d+\.mp3|src\/head-[\w-]+\.glb|src\/glb\/[^?#]*|src\/ring-[\w-]+\.(?:glb|mp4|jpg)|examples\/js\/loaders\/GLTFLoader\.js|examples\/js\/(?:shaders|postprocessing|utils)\/[\w]+\.js)$/i;
 window.addEventListener('error',function(e){
   if(e&&e.target&&e.target!==window&&e.target.tagName){
     var u=e.target.src||e.target.href||'';
@@ -867,6 +867,49 @@ const sfx={hit:()=>{tone(170,.11,'square',.08,-70);noise(.06,.13,1500);},
   dash:()=>tone(240,.07,'triangle',.04,180),
   super:()=>{tone(200,.5,'sawtooth',.07,600);tone(400,.5,'square',.04,900);}};
 
+/* ===========================================================
+   FAMILIAS DE ARCHIVOS NUMERADOS  (src/ring-01.jpg, src/combate07.mp3...)
+
+   El navegador NO puede listar una carpeta, asi que la unica forma de saber
+   que tienes es preguntar por cada nombre. Se baraja el orden y se pregunta
+   POR TANDAS, parando en el primer acierto.
+
+   Las tandas son 4 y luego 16, no cuatro de cinco: con cinco tandas de cinco
+   el peor caso (no tienes ninguno) eran 8 idas y vueltas entre video e
+   imagen, casi un segundo con el muro oscuro. Asi son 2 por familia como
+   mucho, y si tienes archivos casi siempre basta la primera tanda de 4.
+
+   Y coger el primer acierto de un orden BARAJADO es exactamente lo mismo que
+   elegir al azar entre los que existen, sin tener que descubrirlos todos: la
+   tanda respeta el orden barajado, y las tandas van en ese mismo orden.
+   =========================================================== */
+const SRC_MAX=20, SRC_TANDAS=[4,16];
+const dosDig=i=>(i<10?'0':'')+i;
+function _barajar(a){
+  for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));const t=a[i];a[i]=a[j];a[j]=t;}
+  return a;
+}
+/* HEAD en vez de GET: solo interesa si esta, no su contenido (un mp4 de fondo
+   puede pesar decenas de MB). Un error de red cuenta como "no esta", que es
+   lo correcto tambien en file://, donde fetch no funciona y se cae a los
+   archivos por defecto de siempre. */
+function _existe(u){
+  return fetch(u,{method:'HEAD',cache:'no-cache'}).then(r=>r.ok).catch(()=>false);
+}
+function archivoAlAzar(nombra){
+  const orden=_barajar(Array.from({length:SRC_MAX},(_,i)=>i+1));
+  const tanda=(k,t)=>{
+    if(k>=orden.length)return Promise.resolve(null);
+    const trozo=orden.slice(k,k+(SRC_TANDAS[t]||orden.length));
+    return Promise.all(trozo.map(i=>_existe(nombra(i))))
+      .then(hay=>{
+        const j=hay.indexOf(true);       // el primero EN EL ORDEN BARAJADO
+        return j>=0?nombra(trozo[j]):tanda(k+trozo.length,t+1);
+      });
+  };
+  return tanda(0,0);
+}
+
 /* ---------- música ---------- */
 const music={int:null,cur:null};
 const MUSIC={
@@ -913,10 +956,33 @@ function playTrack(url,fallback){
 }
 function stopFile(){try{bgm.pause();}catch(e){}bgmUrl='';}
 function playMenuMusic(){playTrack('src/start.mp3',null);}
+/* MUSICA DE COMBATE AL AZAR entre src/combate01.mp3 y src/combate20.mp3.
+   Si no hay ninguna se usan las de siempre (src/round1..3.mp3), y si esas
+   tampoco estan queda el sintetizador interno: tres escalones, ninguno
+   rompe nada.
+   '_sinCombate' evita repetir el barrido de veinte peticiones en cada ronda
+   cuando ya se ha visto que no hay ninguna. Si las hay, se vuelve a sortear
+   en cada ronda —cuesta una o dos peticiones— para que no suene siempre la
+   misma. */
+let _sinCombate=false;
+function musicaCombateAlAzar(){
+  if(_sinCombate)return Promise.resolve(null);
+  return archivoAlAzar(i=>'src/combate'+dosDig(i)+'.mp3')
+    .then(u=>{if(!u)_sinCombate=true;return u;})
+    .catch(()=>{_sinCombate=true;return null;});
+}
 function playRoundMusic(){
   const n=Math.min(3,Math.max(1,game.round||1));
-  playTrack('src/round'+n+'.mp3',()=>playMusic(game.stage));
+  const marca=++_musicaSorteo;
+  const porDefecto=()=>playTrack('src/round'+n+'.mp3',()=>playMusic(game.stage));
+  musicaCombateAlAzar().then(u=>{
+    // el sondeo tarda: si mientras tanto ha cambiado la ronda o se ha salido
+    // del combate, esta eleccion ya no vale y manda la ultima
+    if(marca!==_musicaSorteo)return;
+    if(u)playTrack(u,porDefecto); else porDefecto();
+  });
 }
+let _musicaSorteo=0;
 
 /* ---------- entrada ---------- */
 const keys={},just={};
@@ -7529,25 +7595,50 @@ function texCover(tex,srcAspect,surfAspect){
    surfAspect se calcula con la circunferencia real del muro, asi que
    cualquier imagen o video (sea cual sea su proporcion) rellena la
    superficie entera sin estirarse: se recorta lo que sobre. */
-function ringLoadWallMedia(wallMesh,surfAspect){
-  const vid=document.createElement('video');
-  vid.src='src/ring-video.mp4';vid.loop=true;vid.muted=true;vid.playsInline=true;
-  vid.oncanplay=()=>{
-    const tex=new THREE.VideoTexture(vid);tex.colorSpace=THREE.SRGBColorSpace||undefined;
-    texCover(tex,(vid.videoWidth||surfAspect)/(vid.videoHeight||1),surfAspect);
-    wallMesh.material=new THREE.MeshBasicMaterial({map:tex,side:THREE.BackSide});
-    vid.play().catch(()=>{});
-  };
-  vid.onerror=()=>{
+function _muroVideo(url,wallMesh,surfAspect){
+  return new Promise((res,rej)=>{
+    const vid=document.createElement('video');
+    vid.src=url;vid.loop=true;vid.muted=true;vid.playsInline=true;
+    vid.oncanplay=()=>{
+      const tex=new THREE.VideoTexture(vid);tex.colorSpace=THREE.SRGBColorSpace||undefined;
+      texCover(tex,(vid.videoWidth||surfAspect)/(vid.videoHeight||1),surfAspect);
+      wallMesh.material=new THREE.MeshBasicMaterial({map:tex,side:THREE.BackSide});
+      vid.play().catch(()=>{});
+      wallMesh.userData.fondo=url;res(url);
+    };
+    vid.onerror=()=>rej(url);
+  });
+}
+function _muroImagen(url,wallMesh,surfAspect){
+  return new Promise((res,rej)=>{
     const img=new Image();
     img.onload=()=>{
       const tex=new THREE.Texture(img);tex.needsUpdate=true;
       texCover(tex,(img.naturalWidth||surfAspect)/(img.naturalHeight||1),surfAspect);
       wallMesh.material=new THREE.MeshBasicMaterial({map:tex,side:THREE.BackSide});
+      wallMesh.userData.fondo=url;res(url);
     };
-    img.onerror=()=>{};              // sin video ni imagen: se queda el panel oscuro
-    img.src='src/ring-image.jpg';
-  };
+    img.onerror=()=>rej(url);
+    img.src=url;
+  });
+}
+/* FONDO DEL MURO, en cuatro escalones y por este orden:
+     1. un video al azar de src/ring-01.mp4 .. src/ring-20.mp4
+     2. si no hay ninguno, src/ring-video.mp4
+     3. una imagen al azar de src/ring-01.jpg .. src/ring-20.jpg
+     4. si no hay ninguna, src/ring-image.jpg
+   y si tampoco, el panel oscuro liso de siempre. El video manda sobre la
+   imagen igual que antes. */
+function ringLoadWallMedia(wallMesh,surfAspect){
+  const V=u=>_muroVideo(u,wallMesh,surfAspect);
+  const I=u=>_muroImagen(u,wallMesh,surfAspect);
+  archivoAlAzar(i=>'src/ring-'+dosDig(i)+'.mp4')
+    .then(u=>u?V(u):Promise.reject())
+    .catch(()=>V('src/ring-video.mp4'))
+    .catch(()=>archivoAlAzar(i=>'src/ring-'+dosDig(i)+'.jpg').then(u=>u?I(u):Promise.reject()))
+    .catch(()=>I('src/ring-image.jpg'))
+    .then(u=>{if(u)console.log('fondo del ring:',u);})
+    .catch(()=>{});   // ni numerados ni por defecto: se queda el panel oscuro
 }
 /* TEXTURA DE LA LONA. Antes era un azul liso: a la altura de camara del
    combate se veia como un plastico plano y delataba que el suelo era un

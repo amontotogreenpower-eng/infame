@@ -37,11 +37,10 @@
    "arch": "bruiser"
   },
   {
-   "file":     "goku (1).json",       
+   "file":     "goku.json",       
    "name":     "Goku",         
    "tag":      "Siempre busco al rival más fuerte",
    "arch":     "bruiser",
-   "wig":      "stormspike",
    "precarga": true               
   }
  ]

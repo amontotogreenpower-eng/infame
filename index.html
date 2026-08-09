@@ -687,9 +687,10 @@ window.addEventListener('unhandledrejection',function(e){
       <label>Girar en Z (de lado) <input type="range" id="cr-glbroll" min="-180" max="180" step="5" value="0"></label>
       <label><input type="checkbox" id="cr-glbswap"> Intercambiar lados izquierda / derecha</label>
       <div class="cr-sec">AJUSTE HUESO A HUESO</div>
-      <div class="cr-note">Elige un hueso, gíralo hasta que encaje con el esqueleto y pulsa
-        <b>FIJAR COMO REPOSO</b>. Ese desfase queda guardado y se aplicará siempre a ese hueso,
-        encima de la animación. Es también la forma de corregir el giro de muñecas, pies y cabeza.</div>
+      <div class="cr-note">Elige un hueso y gíralo hasta que encaje con el esqueleto: al soltar
+        el deslizador el desfase <b>queda guardado</b> y se aplicará siempre a ese hueso, encima de
+        la animación. Es también la forma de corregir el giro de muñecas, pies y cabeza.
+        (El botón <b>FIJAR COMO REPOSO</b> hace lo mismo; ya no hace falta pulsarlo.)</div>
       <label>Hueso <select id="cr-glbbone"></select></label>
       <label>Girar X <input type="range" id="cr-glbbx" min="-180" max="180" step="5" value="0"></label>
       <label>Girar Y <input type="range" id="cr-glbby" min="-180" max="180" step="5" value="0"></label>
@@ -2253,14 +2254,35 @@ const LS_KEY='puno_creator_v1';
 let CUSTOMS=[];
 function lsGet(){try{const r=localStorage.getItem(LS_KEY);return r?JSON.parse(r):null;}catch(e){return null;}}
 function lsSet(){try{localStorage.setItem(LS_KEY,JSON.stringify(CUSTOMS));return true;}catch(e){return false;}}
+/* EL .glb PROBADO A MANO NO SE PUEDE GUARDAR. '_glbTest' es un blob: de ESTA
+   sesion del navegador: sirve para la vista previa y muere al recargar.
+   crGather lo incluye a proposito (entra en la clave de la vista previa), asi
+   que hay que quitarlo justo al guardar o exportar. No hacerlo era el fallo:
+   quedaba escrito dentro del personaje y, como en buildCustom GANA a glbFile,
+   al recargar o reimportar se intentaba abrir un blob muerto y el modelo no
+   cargaba nunca... aunque el archivo estuviera en src/glb. De paso parecia que
+   tampoco se guardaban los ajustes de esqueleto: si el modelo no carga, no hay
+   donde aplicarlos. */
+function cfgPersistible(cfg){
+  const c=JSON.parse(JSON.stringify(cfg));
+  delete c._glbTest;
+  return c;
+}
+/* Los personajes guardados ANTES de este arreglo llevan el blob muerto dentro.
+   Se les quita al cargarlos para que vuelvan a encontrar su glbFile. */
+function cfgSanea(cfg){
+  if(cfg&&typeof cfg._glbTest==='string'&&cfg._glbTest.indexOf('blob:')===0)delete cfg._glbTest;
+  return cfg;
+}
 function loadCustoms(arr){
   // limpia previos del roster
   for(const id of ROSTER.slice())if(CHARS[id]&&CHARS[id].custom){delete CHARS[id];}
   ROSTER.length=0;for(const id of BASE_ROSTER)ROSTER.push(id);
-  CUSTOMS=arr||[];
+  CUSTOMS=(arr||[]).map(cfgSanea);
   CUSTOMS.forEach((cfg,i)=>{cfg.id='custom'+i;registerCustom(buildCustom(cfg));});
 }
 function saveCustom(cfg){
+  cfg=cfgPersistible(cfg);
   if(cfg._idx!=null&&cfg._idx<CUSTOMS.length)CUSTOMS[cfg._idx]=cfg; else CUSTOMS.push(cfg);
   const ok=lsSet();loadCustoms(CUSTOMS);
   if(showcase)rebuildShowcase();
@@ -2273,7 +2295,7 @@ function exportCustoms(cur){
   let arr=CUSTOMS;
   if(cur){
     arr=CUSTOMS.slice();
-    const c=JSON.parse(JSON.stringify(cur));
+    const c=cfgPersistible(cur);
     if(c._idx!=null&&c._idx<arr.length)arr[c._idx]=c; else arr.push(c);
   }
   const blob=new Blob([JSON.stringify(arr,null,1)],{type:'application/json'});
@@ -2282,7 +2304,7 @@ function exportCustoms(cur){
   return arr.length;
 }
 function exportOne(cfg){
-  const c=JSON.parse(JSON.stringify(cfg));delete c._idx;
+  const c=cfgPersistible(cfg);delete c._idx;
   const nm=(c.name||'personaje').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'personaje';
   const blob=new Blob([JSON.stringify(c,null,1)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
@@ -2292,13 +2314,22 @@ function exportOne(cfg){
 let crMergeMode=false;
 function importCustoms(file){
   const rd=new FileReader();
-  rd.onload=()=>{try{const arr=JSON.parse(rd.result);if(Array.isArray(arr)){
-    if(crMergeMode){arr.forEach(c=>{const k=JSON.parse(JSON.stringify(c));delete k._idx;CUSTOMS.push(k);});}
-    else CUSTOMS=arr;
+  rd.onload=()=>{try{
+    const dato=JSON.parse(rd.result);
+    /* "EXPORTAR" produce una LISTA y "EXPORTAR ESTE" un OBJETO suelto. Antes
+       solo se aceptaba la lista: importar el archivo de un personaje no hacia
+       absolutamente nada, y encima sin decirlo. Un objeto suelto se AÑADE al
+       roster (que es lo que uno espera al importar un personaje); una lista
+       sigue sustituyendolo, que es el sentido de una copia de seguridad. */
+    const suelto=!Array.isArray(dato);
+    const arr=(suelto?[dato]:dato).filter(c=>c&&typeof c==='object'&&!Array.isArray(c));
+    if(!arr.length){game.creatorMsg='El archivo no trae ningún personaje';return;}
+    if(crMergeMode||suelto){arr.forEach(c=>{const k=cfgPersistible(c);delete k._idx;CUSTOMS.push(k);});}
+    else CUSTOMS=arr.map(cfgPersistible);
     lsSet();loadCustoms(CUSTOMS);
     if(showcase)rebuildShowcase();
-    game.creatorMsg=(crMergeMode?'Fusionados ':'Importados ')+arr.length+' personaje(s)';
-  }}catch(e){game.creatorMsg='Archivo no válido';}};
+    game.creatorMsg=((crMergeMode||suelto)?'Añadidos ':'Importados ')+arr.length+' personaje(s)';
+  }catch(e){game.creatorMsg='Archivo no válido';}};
   rd.readAsText(file);
 }
 
@@ -2469,6 +2500,14 @@ function crGLBBoneUI(){
   const r=crGLBBoneSel(), a=crGLBPose[r]||[0,0,0];
   const set=(id,v)=>{const e=CE(id);if(e)e.value=v;};
   set('cr-glbbx',a[0]);set('cr-glbby',a[1]);set('cr-glbbz',a[2]);
+}
+/* Guarda en crGLBPose lo que marcan los tres deslizadores del hueso elegido.
+   Todo a cero = el hueso vuelve a su reposo original y sale del ajuste. */
+function crGLBFijaHueso(){
+  const r=crGLBBoneSel(); if(!r)return;
+  const v=[+CE('cr-glbbx').value,+CE('cr-glbby').value,+CE('cr-glbbz').value];
+  if(v[0]||v[1]||v[2])crGLBPose[r]=v; else delete crGLBPose[r];
+  crGLBFillBones();
 }
 /* aplica en vivo sin reconstruir el luchador (reclonar la malla en cada
    movimiento del deslizador daria tirones) */
@@ -2924,14 +2963,18 @@ CE('cr-glbscale').addEventListener('input',()=>{crPrevKey='';crUpdatePreview();}
 });
 /* --- ajuste hueso a hueso: definiciones movidas a ambito global --- */
 ['cr-glbbx','cr-glbby','cr-glbbz'].forEach(id=>{
-  const e=CE(id); if(e)e.addEventListener('input',crGLBLive);
+  const e=CE(id); if(!e)return;
+  e.addEventListener('input',crGLBLive);      // mientras arrastras: solo vista previa
+  /* AL SOLTAR, EL AJUSTE QUEDA. Antes el hueso solo se guardaba pulsando
+     "FIJAR COMO REPOSO": movias los tres deslizadores, veias el hueso
+     colocarse en la vista previa, guardabas el personaje... y el ajuste no
+     estaba en ninguna parte. El deslizador ya dice lo que quieres. */
+  e.addEventListener('change',crGLBFijaHueso);
 });
 CE('cr-glbbone').addEventListener('change',crGLBBoneUI);
 CE('cr-glbfix').onclick=()=>{
   const r=crGLBBoneSel(); if(!r){crGLBStatus('No hay ningún hueso seleccionado.');return;}
-  const v=[+CE('cr-glbbx').value,+CE('cr-glbby').value,+CE('cr-glbbz').value];
-  if(v[0]||v[1]||v[2])crGLBPose[r]=v; else delete crGLBPose[r];
-  crGLBFillBones();
+  crGLBFijaHueso();
   crGLBStatus('Reposo fijado para '+(GLB_BONE_ES[r]||r)+'. Se guarda con el personaje.');
 };
 CE('cr-glbbonereset').onclick=()=>{
@@ -8910,7 +8953,7 @@ function brPreviewChar(cfg){
 }
 function brImportChar(cfg){
   const one=Array.isArray(cfg)?cfg:[cfg];
-  one.forEach(c=>{const k=JSON.parse(JSON.stringify(c));delete k._idx;CUSTOMS.push(k);});
+  one.forEach(c=>{const k=cfgPersistible(c);delete k._idx;CUSTOMS.push(k);});
   lsSet();loadCustoms(CUSTOMS);if(showcase)rebuildShowcase();
   brEl('br-msg').textContent='Importado(s) al roster: '+one.map(c=>c.name||'?').join(', ');
 }

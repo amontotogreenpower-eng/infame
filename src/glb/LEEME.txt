@@ -1,0 +1,60 @@
+LIBRERIA DE MODELOS GLB
+=======================
+
+Deja aqui los .glb humanoides con esqueleto (Mixamo, VRM, ReadyPlayerMe,
+Sketchfab...). El juego los ofrece en:
+
+    TALLER > CREADOR DE PERSONAJES > pestaña "MODELO GLB" > LIBRERIA
+
+y el personaje que guardes queda apuntando a esta carpeta.
+
+
+COMO SE ACTUALIZA EL INDICE
+---------------------------
+
+El navegador no puede listar el contenido de una carpeta, asi que hace falta
+un indice. Tienes dos formas:
+
+1) Automatica (recomendada). Desde la raiz del proyecto:
+
+       node tools/glb-index.mjs
+
+   Recorre esta carpeta, escribe index.json y CONSERVA el nombre, la escala y
+   las notas que ya hubieras puesto a mano en los modelos que siguen estando.
+
+2) A mano. Edita index.json. Tambien vale una lista simple de nombres:
+
+       ["ybot.glb", "guerrera.glb"]
+
+
+FORMATO DE index.json
+---------------------
+
+{
+ "kind": "glb-models",
+ "items": [
+  {
+   "file":   "ybot.glb",          <- obligatorio, nombre del archivo
+   "name":   "Y-Bot",             <- opcional, lo que se lee en el desplegable
+   "escala": 1,                   <- opcional, retoque de tamaño (0.4 a 2.5)
+   "nota":   "Mixamo, sin cara"   <- opcional, texto de ayuda
+  }
+ ]
+}
+
+
+DETALLES QUE AHORRAN DISGUSTOS
+------------------------------
+
+- Sirve la carpeta por http. Abriendo el juego con doble clic (file://) el
+  navegador prohibe leer archivos de la carpeta, y ni el indice ni los .glb
+  cargaran. En la raiz del proyecto:  python3 -m http.server
+
+- Los nombres con acentos o espacios funcionan, pero es mas comodo evitarlos.
+
+- Si un modelo falta, el juego NO se rompe: el luchador se queda con el
+  cuerpo procedural y el aviso sale en la pestaña MODELO GLB.
+
+- Los personajes guardados antes de que existiera esta carpeta apuntaban a la
+  raiz del proyecto. Siguen funcionando: el juego busca primero en src/glb/ y,
+  si no esta, prueba la ubicacion antigua.

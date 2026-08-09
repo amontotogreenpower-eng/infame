@@ -1,0 +1,5 @@
+{
+ "kind": "glb-models",
+ "nota": "Indice de la libreria de modelos GLB. Regeneralo con: node tools/glb-index.mjs",
+ "items": []
+}

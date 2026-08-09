@@ -1,5 +1,5 @@
 /* INFAME FIGHTING — service worker (PWA offline) */
-const CACHE = 'infame-v58';
+const CACHE = 'infame-v59';
 
 /* Assets a precachear. Se usa allSettled: si alguno falta (p.ej. Intro.mp4
    todavia no subido) la instalacion NO falla. */
@@ -18,6 +18,9 @@ const CORE = [
   './src/luchador5.png','./src/luchador6.png','./src/luchador7.png','./src/luchador8.png',
   './src/head-bruiser.glb','./src/head-zoner.glb','./src/head-rusher.glb','./src/head-grappler.glb',
   './src/ring-model.glb','./src/ring-video.mp4','./src/ring-image.jpg','./src/ring-mat.jpg',
+  /* Indice de la libreria de modelos. Los .glb en si NO se precachean: pesan
+     mucho y no se sabe cuales hay; el fetch normal ya los guarda al usarlos. */
+  './src/glb/index.json',
   'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'
 ];
 

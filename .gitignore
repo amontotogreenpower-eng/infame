@@ -69,3 +69,5 @@ htmlcov/
 *.tar.xz
 *.tar.zst
 ```
+# Empaquetado: contenido recogido para go:embed y binarios resultantes
+tools/empaquetar/juego/

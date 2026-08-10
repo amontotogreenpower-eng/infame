@@ -1,0 +1,82 @@
+INFAME FIGHTING EN UN SOLO EJECUTABLE
+=====================================
+
+Genera un unico archivo por sistema operativo que lleva el juego entero
+dentro. Se abre con doble clic, arranca un servidor en 127.0.0.1 y abre el
+navegador. No instala nada ni deja rastro fuera de su carpeta.
+
+
+COMO SE CONSTRUYE
+-----------------
+
+  bash tools/empaquetar/construir.sh          <- solo para esta maquina
+  bash tools/empaquetar/construir.sh todos    <- linux, windows y las dos macOS
+
+Los binarios salen en dist/. Hace falta Go instalado (nada mas: sin CGO, sin
+dependencias externas, sin node_modules).
+
+El script copia el juego a tools/empaquetar/juego/ porque go:embed no sabe
+salir de su propia carpeta. Esa copia y dist/ estan en .gitignore.
+
+
+POR QUE UN SERVIDOR Y NO ABRIR EL index.html DIRECTAMENTE
+---------------------------------------------------------
+
+Porque con file:// el navegador PROHIBE fetch(), y el juego lo usa para:
+
+  - leer la libreria de modelos src/glb/index.json y los propios .glb
+  - la precarga de personajes de custom/char/
+  - descubrir que ring-NN.jpg / combateNN.mp3 existen (peticiones HEAD)
+  - los torneos de custom/
+
+Sirviendolo por http no hay que tocar NI UNA LINEA del juego y todo se
+comporta igual que en la web. Comprobado contra el ejecutable ya construido:
+three.js r128 cargado, roster de 8, 40 peticiones HEAD de descubrimiento, el
+fondo del ring elegido de verdad (con un ring-07.jpg dentro salio
+"src/ring-07.jpg"; sin numerados, "src/ring-image.jpg"), un modelo de la
+libreria cargado desde src/glb/, y 0 errores de pagina.
+
+El servidor tambien responde a HEAD y a peticiones por rangos, que es lo que
+necesitan el descubrimiento de archivos y el audio/video para empezar a sonar
+sin descargarse enteros. Y registra los tipos MIME que Go no trae de serie
+(.glb como model/gltf-binary, .webmanifest como application/manifest+json).
+
+
+OPCIONES
+--------
+
+  infame-fighting --puerto 8080    puerto fijo (por defecto, el primero libre)
+  infame-fighting --no-abrir       no abrir el navegador solo
+
+Para cerrar, Ctrl+C en la ventana de consola.
+
+
+TAMANO
+------
+
+El binario de linux/amd64 sale en 32 MB: 27 MB son los assets de src/ y unos
+5 MB el runtime de Go. La mayor parte del peso son los cuatro mp3 (14,4 MB) y
+los ocho retratos PNG (6,8 MB). Reencodeando el audio a 96-128 kbps y los
+retratos a JPEG o WebP, el ejecutable se queda en torno a los 12 MB.
+
+
+LO QUE CONVIENE SABER ANTES DE REPARTIRLO
+-----------------------------------------
+
+- El binario NO va firmado. Windows SmartScreen dira "editor desconocido" y
+  macOS Gatekeeper lo bloqueara la primera vez (boton derecho > Abrir, o
+  xattr -d com.apple.quarantine). Firmarlo es un tramite aparte, con
+  certificado de pago en los dos sistemas.
+
+- Cada sistema operativo necesita su binario. Go compila para todos desde
+  cualquiera de ellos (eso hace "construir.sh todos"), asi que no hacen falta
+  varias maquinas.
+
+- El juego sigue cargando three.js desde CDN, o sea que la PRIMERA vez pide
+  internet. A partir de ahi el service worker lo guarda y funciona sin red.
+  Si quieres que no dependa de la red ni la primera vez, hay que incrustar
+  three.js y sus complementos (unos 968 KB en total) dentro de index.html.
+
+- Los personajes que crees se guardan en el navegador (localStorage) por
+  direccion. Si un dia arranca en otro puerto, no los vera. Por eso conviene
+  --puerto fijo si vas a crear personajes: infame-fighting --puerto 8080
